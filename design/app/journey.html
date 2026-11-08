@@ -20,7 +20,7 @@
   /* роли (как токены mera: цвет — только состояние) */
   --bg: #F6F1EA;          /* групповой фон экрана (бежевый picPac вместо системного серого) */
   --card: #FFFFFF; --card-2: #F1ECE5; --line: rgba(35,43,42,.08); --hair: rgba(35,43,42,.06);
-  --fg: #1D2120; --mut: #6B7270; --mut-2: #A3A8A6;
+  --fg: #1D2120; --mut: #5F6664; --mut-2: #A3A8A6;
   --up: #1B7A34; --warn: #A84F00; --warn-tint: #FFF3E3;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
 }
@@ -34,7 +34,7 @@ svg { display: block; }
 .page-head h1 { font-size: clamp(34px, 4.6vw, 56px); line-height: 1.05; letter-spacing: -0.03em; font-weight: 700; max-width: 900px; }
 .page-head h1 span { color: var(--mut-2); }
 .page-head p { font-size: 19px; color: var(--mut); max-width: 720px; line-height: 1.45; }
-.strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 24px 20px 80px; max-width: 1640px; margin: 0 auto; }
+.strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 24px 20px 80px; max-width: 1240px; margin: 0 auto; }
 .shot { width: 372px; border-radius: 32px; padding: 34px 26px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; overflow: hidden; text-align: center; }
 .shot .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--coral-link); }
 .shot h2 { font-size: 27px; line-height: 1.12; letter-spacing: -0.025em; font-weight: 700; min-height: 61px; display: flex; align-items: center; justify-content: center; }
@@ -127,7 +127,7 @@ svg { display: block; }
 .grid { display: flex; flex-wrap: wrap; gap: 3px; }
 .grid i { width: calc((100% - 9px) / 4); aspect-ratio: 1; border-radius: 4px; position: relative; }
 .grid i.off { opacity: .35; }
-.grid i.sel::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 18px; height: 18px; border-radius: 50%; background: var(--coral-act); border: 2px solid #fff; }
+.grid i.sel::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; background: var(--coral-act) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 12px no-repeat; }
 .progress { height: 8px; border-radius: 4px; background: var(--card-2); overflow: hidden; }
 .progress i { display: block; height: 100%; background: var(--coral-act); border-radius: 4px; }
 .num { font-variant-numeric: tabular-nums; }
@@ -149,7 +149,7 @@ svg { display: block; }
 .stats { display: flex; gap: 8px; }
 .stat { flex: 1; background: var(--card); border-radius: 18px; padding: 12px 10px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
 .stat b { font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.stat span { font-size: 12px; color: var(--mut); line-height: 1.25; }
+.stat span { font-size: 13px; color: var(--mut); line-height: 1.25; }
 
 /* ---------- из Яндекс Go: сцена + шторка, тарифы, чип оплаты ---------- */
 .stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; padding: 0 20px; }
@@ -163,7 +163,7 @@ svg { display: block; }
 .tariff .bk i { display: block; width: 34px; height: 34px; border-radius: 2px 6px 6px 2px; box-shadow: 4px 6px 10px rgba(35,43,42,.18), inset 3px 0 0 rgba(0,0,0,.1); }
 .tariff b { font-size: 15px; font-weight: 700; }
 .tariff .pr { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tariff small { font-size: 11.5px; color: var(--mut); }
+.tariff small { font-size: 13px; color: var(--mut); }
 .paybar { display: flex; gap: 10px; align-items: center; padding: 0 18px; }
 .paychip { height: 54px; border-radius: 16px; background: var(--bg); display: flex; align-items: center; gap: 8px; padding: 0 12px; flex-shrink: 0; font-size: 14px; font-weight: 600; }
 .paychip i { width: 30px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #3B4B4A, #1D2120); }
@@ -175,7 +175,7 @@ svg { display: block; }
 .segbar i.done { background: var(--teal-ink); }
 .segbar i.now { background: var(--card-2); }
 .segbar i.now::after { content: ""; position: absolute; inset: 0; width: 55%; background: var(--coral-act); border-radius: 4px; }
-.stages { display: flex; justify-content: space-between; font-size: 11px; color: var(--mut); margin-top: 6px; }
+.stages { display: flex; justify-content: space-between; font-size: 13px; color: var(--mut); margin-top: 6px; }
 .stages span.on { color: var(--coral-link); font-weight: 600; }
 .live { display: flex; gap: 12px; align-items: center; background: var(--bg); border-radius: 16px; padding: 12px; }
 .live .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--coral-act); box-shadow: 0 0 0 5px rgba(184,79,75,.18); flex-shrink: 0; }
@@ -209,12 +209,12 @@ svg { display: block; }
 .plain .row + .row::before { left: 48px; background: rgba(35,43,42,.10); }
 /* главная в духе Яндекс Go: поле, недавнее, сервисы */
 .search { height: 58px; border-radius: 18px; background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; box-shadow: 0 1px 2px rgba(35,43,42,.04), 0 10px 26px rgba(35,43,42,.07); }
-.search .ph-text { flex: 1; font-size: 18px; font-weight: 600; color: var(--mut-2); letter-spacing: -0.01em; }
+.search .ph-text { flex: 1; font-size: 18px; font-weight: 600; color: var(--mut); letter-spacing: -0.01em; }
 .mic-btn { width: 42px; height: 42px; border-radius: 13px; background: var(--coral-tint); color: var(--coral-act); display: flex; align-items: center; justify-content: center; }
 .ico { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .recent { margin-top: -6px; }
 .recent .row + .row::before { left: 52px; }
-.new-dot { font-size: 11px; font-weight: 700; letter-spacing: .03em; color: var(--coral-act); background: var(--coral-tint); padding: 3px 8px; border-radius: 999px; margin-right: 4px; }
+.new-dot { font-size: 12px; font-weight: 700; letter-spacing: .03em; color: var(--coral-link); background: var(--coral-tint); padding: 3px 8px; border-radius: 999px; margin-right: 4px; }
 .svcs { display: flex; gap: 8px; }
 .svc { flex: 1; background: var(--card); border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 14px; min-height: 118px; justify-content: space-between; }
 .svc b { display: block; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
@@ -230,9 +230,9 @@ svg { display: block; }
 .sug-cover .ph { border-radius: 0; }
 .sug-col { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .sug-col .ph { flex: 1; }
-.sug-tag { position: absolute; left: 8px; bottom: 8px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.9); color: var(--coral-act); }
+.sug-tag { position: absolute; left: 8px; bottom: 8px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.92); color: var(--coral-link); }
 .sug b { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-.sug > span { font-size: 12.5px; color: var(--mut); }
+.sug > span { font-size: 13px; color: var(--mut); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; position: relative; }
 .topbar .brand { position: absolute; left: 50%; transform: translateX(-50%); font-family: 'Pacifico', cursive; color: var(--coral); font-size: 27px; line-height: 1; padding-bottom: 6px; }
 /* пики: число слева, маленькая 3D-монетка справа, тонкая обводка — как баллы в Яндекс Go */
@@ -242,6 +242,25 @@ svg { display: block; }
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.28), inset 0 -1.5px 0 rgba(0,0,0,.12);
   display: flex; align-items: center; justify-content: center; }
 .pik b { font-family: 'Pacifico', cursive; font-weight: 400; color: #fff; font-size: 12px; line-height: 1; padding: 0 1px 3px 0; text-shadow: 0 1px 0 rgba(90,25,22,.45); }
+.chips.scroll { flex-wrap: nowrap; overflow: hidden; margin: 0 -18px; padding: 0 18px; justify-content: flex-start !important; }
+.chips.scroll .chip { flex-shrink: 0; }
+.mini-svcs { display: flex; gap: 8px; }
+.mini-svcs span { flex: 1; height: 48px; border-radius: 16px; background: var(--card); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 600; }
+.tip { position: absolute; right: 0; top: 40px; z-index: 5; width: 210px; background: var(--fg); color: #fff; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.35; box-shadow: 0 10px 24px rgba(35,43,42,.25); }
+.tip::before { content: ""; position: absolute; top: -6px; right: 26px; width: 12px; height: 12px; background: var(--fg); transform: rotate(45deg); border-radius: 2px; }
+.tip b { color: #FFD9CF; }
+.route { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.7); color: var(--coral-link); }
+.think { display: flex; flex-direction: column; gap: 14px; }
+.think-row { display: flex; align-items: center; gap: 12px; font-size: 16px; }
+.think-row i { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.think-row.done i { background: var(--teal-ink); color: #fff; }
+.think-row.now i { border: 3px solid var(--coral-tint); border-top-color: var(--coral-act); }
+.think-row.wait { color: var(--mut-2); }
+.think-row.wait i { border: 2px solid var(--card-2); }
+.think-row span { flex: 1; }
+.think-row small { font-size: 13px; color: var(--mut); }
+.sum { display: flex; justify-content: space-between; font-size: 15px; padding: 2px 0; }
+.sum span:first-child { color: var(--mut); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
 </style>
@@ -250,8 +269,9 @@ svg { display: block; }
 
 <header class="page-head">
   <span class="logo">PicPac</span>
-  <h1>От фото в телефоне до книги в руках. <span>Восемь экранов.</span></h1>
+  <h1>От фото в телефоне до книги в руках. <span>Девять экранов, два входа.</span></h1>
   <p>Путь клиента в новом приложении picPac: голос вместо форм, автосборка, проверка качества до печати, книги как тарифы, оплата в одно касание, отслеживание как у такси. Стиль — mera, приёмы — Qalta и Яндекс Go, цвета — picPac.</p>
+  <p><b style="color:var(--fg)">Путь А — готовый черновик:</b> главная → книга и цена → оформление. <b style="color:var(--fg)">Путь Б — по описанию:</b> главная → опишите книгу → собираем → отбор фото → книга и цена.</p>
 </header>
 
 <div class="strip">
@@ -260,7 +280,7 @@ svg { display: block; }
 <section class="shot bg-1">
   <span class="step">1 · Главная</span>
   <h2>Книга начинается с одного поля</h2>
-  <p class="sub">Текущий заказ сверху, недавние проекты под полем, а готовые черновики из галереи — в одно касание</p>
+  <p class="sub">Путь А — нажать готовый черновик «Карелия». Путь Б — сказать или написать в поле</p>
   <div class="device"><div class="screen">
     <div class="island"></div>
     <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
@@ -269,13 +289,13 @@ svg { display: block; }
       <div class="topbar">
         <span class="avatar">И</span>
         <span class="brand">PicPac</span>
-        <span class="points" aria-label="350 пиков">350<i class="pik"><b>P</b></i></span>
+        <span style="position:relative"><span class="points" aria-label="350 пиков">350<i class="pik"><b>P</b></i></span></span>
       </div>
       <!-- активный заказ сверху, как текущая поездка в Яндекс Go -->
       <div class="order-strip">
         <span class="ico" style="background:var(--coral-tint);color:var(--coral-act);width:36px;height:36px"><svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M232,48H168a32,32,0,0,0-32,32v87.73a8.17,8.17,0,0,1-7.47,8.25,8,8,0,0,1-8.53-8V80A32,32,0,0,0,88,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,23.94,7.9,7.9,0,0,0,5.12,7.55A8,8,0,0,0,136,232a24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM208,168H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,168Zm0-32H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,136Zm0-32H168.27A8.17,8.17,0,0,1,160,96.53,8,8,0,0,1,168,88h39.73A8.17,8.17,0,0,1,216,95.47,8,8,0,0,1,208,104Z"/></svg></span>
-        <div class="t"><b>Печатаем «Юбилей мамы»</b><div class="segbar" style="margin-top:6px"><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div></div>
-        <span class="when">чт, 14 ноя</span>
+        <div class="t"><b>Везём «Юбилей мамы»</b><div class="segbar" style="margin-top:6px"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i></div></div>
+        <span class="when">завтра</span>
       </div>
       <div class="search">
         <span style="color:var(--coral-act);display:flex"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M232,48H168a32,32,0,0,0-32,32v87.73a8.17,8.17,0,0,1-7.47,8.25,8,8,0,0,1-8.53-8V80A32,32,0,0,0,88,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,23.94,7.9,7.9,0,0,0,5.12,7.55A8,8,0,0,0,136,232a24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM208,168H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,168Zm0-32H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,136Zm0-32H168.27A8.17,8.17,0,0,1,160,96.53,8,8,0,0,1,168,88h39.73A8.17,8.17,0,0,1,216,95.47,8,8,0,0,1,208,104Z"/></svg></span>
@@ -293,10 +313,9 @@ svg { display: block; }
         <div class="sug"><div class="sug-cover"><div class="ph g6" style="flex:1.4"></div><div class="sug-col"><div class="ph g1"></div><div class="ph g4"></div></div><span class="sug-tag" style="background:#E5F1E8;color:#2F6B45">к Новому году</span></div><b>Книга года 2026</b><span>1 240 фото · к 20 дек</span></div>
         <div class="sug"><div class="sug-cover"><div class="ph g5" style="flex:1.4"></div><div class="sug-col"><div class="ph g3"></div><div class="ph g1"></div></div><span class="sug-tag" style="">черновик готов</span></div><b>Дача, август</b><span>96 фото · 16 стр.</span></div>
       </div>
-      <div class="svcs">
-        <div class="svc"><span class="ico" style="background:var(--coral-tint);color:var(--coral-act);width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M232,48H168a32,32,0,0,0-32,32v87.73a8.17,8.17,0,0,1-7.47,8.25,8,8,0,0,1-8.53-8V80A32,32,0,0,0,88,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,23.94,7.9,7.9,0,0,0,5.12,7.55A8,8,0,0,0,136,232a24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM208,168H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,168Zm0-32H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,136Zm0-32H168.27A8.17,8.17,0,0,1,160,96.53,8,8,0,0,1,168,88h39.73A8.17,8.17,0,0,1,216,95.47,8,8,0,0,1,208,104Z"/></svg></span><div><b>Фотокнига</b><span>от 56 руб.</span></div></div>
-        <div class="svc"><span class="ico" style="background:#EEF0F7;color:#4C5F95;width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H72A16,16,0,0,0,56,56V72H40A16,16,0,0,0,24,88V200a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16V184h16a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM172,72a12,12,0,1,1-12,12A12,12,0,0,1,172,72Zm12,128H40V88H56v80a16,16,0,0,0,16,16H184Zm32-32H72V120.69l30.34-30.35a8,8,0,0,1,11.32,0L163.31,140,189,114.34a8,8,0,0,1,11.31,0L216,130.07V168Z"/></svg></span><div><b>Фотопечать</b><span>от 0,49 руб.</span></div></div>
-        <div class="svc"><span class="ico" style="background:var(--teal-tint);color:var(--teal-ink);width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M64.12,147.8a4,4,0,0,1-4,4.2H16a8,8,0,0,1-7.8-6.17,8.35,8.35,0,0,1,1.62-6.93A67.79,67.79,0,0,1,37,117.51a40,40,0,1,1,66.46-35.8,3.94,3.94,0,0,1-2.27,4.18A64.08,64.08,0,0,0,64,144C64,145.28,64,146.54,64.12,147.8Zm182-8.91A67.76,67.76,0,0,0,219,117.51a40,40,0,1,0-66.46-35.8,3.94,3.94,0,0,0,2.27,4.18A64.08,64.08,0,0,1,192,144c0,1.28,0,2.54-.12,3.8a4,4,0,0,0,4,4.2H240a8,8,0,0,0,7.8-6.17A8.33,8.33,0,0,0,246.17,138.89Zm-89,43.18a48,48,0,1,0-58.37,0A72.13,72.13,0,0,0,65.07,212,8,8,0,0,0,72,224H184a8,8,0,0,0,6.93-12A72.15,72.15,0,0,0,157.19,182.07Z"/></svg></span><div><b>Общий альбом</b><span>по QR-коду</span></div></div>
+      <div class="mini-svcs">
+        <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4C5F95" stroke-width="2" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="17" rx="1.5"/><path d="M6 14.5l3.5-3 3 2.5 2-1.5 3.5 3"/></svg>Фотопечать</span>
+        <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F6F67" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2z"/></svg>Общий альбом</span>
       </div>
     </div>
     <nav class="tabbar">
@@ -310,7 +329,7 @@ svg { display: block; }
 
 <!-- ===================== 2. Story Mode ===================== -->
 <section class="shot bg-2">
-  <span class="step">2 · Опишите книгу</span>
+  <span class="step"><span class="route">Путь Б</span> 2 · Опишите книгу</span>
   <h2>Скажите, какую книгу хотите</h2>
   <p class="sub">Тема, тон и объём словами — подбор фото и шаблона мы берём на себя</p>
   <div class="device"><div class="screen">
@@ -318,7 +337,7 @@ svg { display: block; }
     <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
     <div class="body" style="gap:16px">
       <div class="nav-bar"><span class="round"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg></span><b>Новая книга</b><span style="width:36px"></span></div>
-      <div class="chips" style="justify-content:center"><span class="chip on">Путешествие</span><span class="chip">Ребёнок</span><span class="chip">Свадьба</span><span class="chip">Выпускной</span></div>
+      <div class="chips scroll"><span class="chip on">Путешествие</span><span class="chip">Ребёнок</span><span class="chip">Свадьба</span><span class="chip">Выпускной</span><span class="chip">Новый год</span></div>
       <!-- Qalta: «Поняли так» — разобранный запрос с подтверждением -->
       <div class="parse">
         <q>Книга про поездку в <b>Карелию</b>, тёплая, на <b>24 страницы</b>, больше <b>пейзажей</b></q>
@@ -337,9 +356,38 @@ svg { display: block; }
   </div></div>
 </section>
 
+<!-- ===================== 3. Собираем книгу: состояние работы ИИ ===================== -->
+<section class="shot bg-5">
+  <span class="step"><span class="route">Путь Б</span> 3 · Собираем</span>
+  <h2>Видно, что делает ИИ</h2>
+  <p class="sub">Сборка идёт до 30 секунд — показываем этапы, а не крутящийся круг. Можно остановить</p>
+  <div class="device"><div class="screen">
+    <div class="island"></div>
+    <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
+    <div class="body" style="gap:22px">
+      <div class="nav-bar"><span class="round"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg></span><b>Карелия, июль</b><span style="width:36px"></span></div>
+      <div style="display:flex;gap:6px;height:190px;padding:0 6px;opacity:.9">
+        <div class="ph g2" style="flex:1.3;border-radius:14px"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="ph g6" style="flex:1;border-radius:14px"></div><div class="ph g3" style="flex:1;border-radius:14px"></div></div>
+      </div>
+      <div style="text-align:center;display:flex;flex-direction:column;gap:4px">
+        <b style="font-size:24px;letter-spacing:-0.02em">Собираем книгу</b>
+        <span style="font-size:15px;color:var(--mut)">обычно до 30 секунд</span>
+      </div>
+      <div class="card think">
+        <div class="think-row done"><i><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>Отобрали лучшие кадры</span><small>38 из 214</small></div>
+        <div class="think-row done"><i><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>Разложили по 4 главам</span></div>
+        <div class="think-row now"><i></i><span>Проверяем лица и обрез</span><small>21 из 38</small></div>
+        <div class="think-row wait"><i></i><span>Подбираем подписи</span></div>
+      </div>
+    </div>
+    <div class="bottom"><div class="btn btn-plain">Остановить</div></div>
+  </div></div>
+</section>
+
 <!-- ===================== 3. Автосборка ===================== -->
 <section class="shot bg-3">
-  <span class="step">3 · Автосборка</span>
+  <span class="step"><span class="route">Путь Б</span> 4 · Отбор фото</span>
   <h2>Лучшие 38 из 214</h2>
   <p class="sub">Дубли, смазанные и тёмные кадры убираем сами — вы видите, что и почему</p>
   <div class="device"><div class="screen">
@@ -350,7 +398,6 @@ svg { display: block; }
       <div class="card" style="display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;color:var(--mut)">Выбрано для книги</span><span style="font-size:13px;color:var(--mut)">4 главы</span></div>
         <div style="display:flex;align-items:baseline;gap:8px"><b class="num" style="font-size:44px;letter-spacing:-0.03em;line-height:1">38</b><span style="font-size:17px;color:var(--mut)">из 214 фото</span></div>
-        <div class="progress"><i style="width:100%"></i></div>
         <div class="grid">
           <i class="g1 sel"></i><i class="g2 sel"></i><i class="g3 off"></i><i class="g6 sel"></i>
           <i class="g4 sel"></i><i class="g5 off"></i><i class="g2 sel"></i><i class="g1 off"></i>
@@ -370,7 +417,7 @@ svg { display: block; }
 
 <!-- ===================== 4. Книга и цена: сцена + шторка ===================== -->
 <section class="shot bg-4">
-  <span class="step">4 · Книга и цена</span>
+  <span class="step">5 · Книга и цена · сюда сразу ведёт путь А</span>
   <h2>Книга на весь экран, цена — в шторке</h2>
   <p class="sub">Книги выбираются как тарифы: цена и дата получения видны сразу</p>
   <div class="device"><div class="screen">
@@ -388,47 +435,55 @@ svg { display: block; }
       <span class="grab"></span>
       <div class="pad" style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:21px;letter-spacing:-0.02em">Фотокнига</b><span style="font-size:13px;color:var(--mut)">24 страницы · 20×20</span></div>
       <div class="tariffs">
-        <div class="tariff"><div class="bk"><i style="background:linear-gradient(135deg,#ECC097,#C8806B)"></i></div><b>Lite</b><span class="pr">62,40</span><small>тонкие листы</small></div>
-        <div class="tariff on"><div class="bk"><i style="background:linear-gradient(135deg,#A9CDD2,#5C8A88)"></i></div><b>Classic</b><span class="pr">81,09</span><small>будет 14 ноября</small></div>
-        <div class="tariff"><div class="bk"><i style="width:26px;height:38px;background:linear-gradient(135deg,#DF948A,#A9443F)"></i></div><b>Premium</b><span class="pr">96,60</span><small>фотобумага 1 мм</small></div>
+        <div class="tariff"><div class="bk"><i style="background:linear-gradient(135deg,#ECC097,#C8806B)"></i></div><b>Lite</b><span class="pr">62,40 р.</span><small>будет 13 ноя</small></div>
+        <div class="tariff on"><div class="bk"><i style="background:linear-gradient(135deg,#A9CDD2,#5C8A88)"></i></div><b>Classic</b><span class="pr">81,09 р.</span><small>будет 14 ноя</small></div>
+        <div class="tariff"><div class="bk"><i style="width:26px;height:38px;background:linear-gradient(135deg,#DF948A,#A9443F)"></i></div><b>Premium</b><span class="pr">96,60 р.</span><small>будет 15 ноя</small></div>
       </div>
+      <div class="pad" style="font-size:14px;color:var(--mut);margin-top:-4px">Classic — плотные листы, раскрытие на 180°</div>
       <div class="pad"><div class="seg"><span class="on">Глянец</span><span>Зерно</span></div></div>
-      <div class="paybar"><div class="btn btn-primary">В корзину · 81,09 руб.</div></div>
+      <div class="paybar"><div class="btn btn-primary">В корзину · 81,09 р.</div></div>
     </div>
   </div></div>
 </section>
 
 <!-- ===================== 6. Оформление ===================== -->
 <section class="shot bg-6">
-  <span class="step">5 · Оформление</span>
+  <span class="step">6 · Оформление</span>
   <h2>Оплата в два касания</h2>
-  <p class="sub">Вход по номеру телефона только сейчас — собирать книгу можно было без регистрации</p>
+  <p class="sub">Номер телефона — только здесь: собирать книгу можно было без регистрации</p>
   <div class="device"><div class="screen">
     <div class="island"></div>
     <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
-    <div class="body" style="gap:16px">
-      <div class="lt"><div><h3>Корзина</h3><small>1 товар</small></div></div>
+    <div class="body" style="gap:12px">
+      <div class="nav-bar"><span class="round"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></span><b>Оформление</b><span style="width:36px"></span></div>
       <div class="group">
-        <div class="row"><span class="tile g1" style="width:52px;height:52px;border-radius:10px"></span><div class="t"><b>Карелия, июль</b><span>Classic 20×20 · 24 страницы · глянец</span></div><span class="v num">81,09</span></div>
+        <div class="row"><span class="tile g1" style="width:52px;height:52px;border-radius:10px"></span><div class="t"><b>Карелия, июль</b><span>Classic 20×20 · 24 страницы · глянец</span></div><span class="v num">81,09 р.</span></div>
+        <div class="row"><span style="width:52px;display:flex;justify-content:center;color:var(--ink-2)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></span><div class="t"><b>+375 29 •••-••-67</b><span>код из SMS — только при первом заказе</span></div></div>
       </div>
-      <div class="sec"><b>Доставка</b></div>
+      <div class="sec"><b>Доставка</b><a>Ещё 3 способа</a></div>
       <div class="group">
-        <div class="row"><span style="width:22px;height:22px;border-radius:50%;border:7px solid var(--coral-act);flex-shrink:0"></span><div class="t"><b>Мой пункт · Европочта</b><span>ПВЗ №112, ул. Притыцкого, 29 — как в прошлый раз</span></div><span class="v num">5,90<small>от 2 дней</small></span></div>
-        <div class="row"><span style="width:22px;height:22px;border-radius:50%;border:2px solid var(--mut-2);flex-shrink:0"></span><div class="t"><b>Курьер по Минску</b><span>в выбранный день</span></div><span class="v num">14,90</span></div>
-        <div class="row"><span style="width:22px;height:22px;border-radius:50%;border:2px solid var(--mut-2);flex-shrink:0"></span><div class="t"><b>Белпочта</b><span>бесплатно от 150 руб.</span></div><span class="v num">6,90</span></div>
-      </div>
+        <div class="row"><span style="width:22px;height:22px;border-radius:50%;border:7px solid var(--coral-act);flex-shrink:0"></span><div class="t"><b>Мой пункт · Европочта</b><span>ПВЗ №112, Притыцкого, 29 · от 2 дней</span></div><span class="v num">5,90 р.</span></div>
+        <div class="row"><span style="width:22px;height:22px;border-radius:50%;border:2px solid var(--mut-2);flex-shrink:0"></span><div class="t"><b>Курьер по Минску</b><span>в выбранный день</span></div><span class="v num">14,90 р.</span></div>
+              </div>
       
-      <div class="hint hint-coral" style="padding:14px 16px">
-        <p style="font-size:14px"><b style="font-size:14px">Проверено перед печатью:</b> 38 фото, лица в кадре, превью всех страниц. Пока заказ в статусе «Новый», его можно отменить.</p>
+      <div class="group"><div class="row"><i class="pik" style="width:26px;height:26px"><b style="font-size:15px">P</b></i><div class="t"><b>Списать пики</b><span>350 пиков — баллы за друзей</span></div><span style="width:46px;height:28px;border-radius:14px;background:var(--card-2);position:relative;flex-shrink:0"><i style="position:absolute;left:2px;top:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></i></span></div></div>
+      <div style="display:flex;flex-direction:column;gap:2px;padding:0 4px">
+        <div class="sum"><span>Книга</span><span class="num">81,09 р.</span></div>
+        <div class="sum"><span>Доставка</span><span class="num">5,90 р.</span></div>
+        <div class="sum" style="font-size:17px;font-weight:700;padding-top:4px"><span style="color:var(--fg)">Итого</span><span class="num">86,99 р.</span></div>
+      </div>
+      <div class="hint hint-teal" style="padding:12px 14px;flex-direction:row;gap:10px;align-items:flex-start">
+        <i style="width:22px;height:22px;border-radius:50%;background:var(--teal-ink);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>
+        <p style="font-size:14px"><b style="font-size:14px">Проверено:</b> 38 фото, лица в кадре. Отмена — до начала печати.</p>
       </div>
     </div>
-    <div class="bottom" style="padding-left:0;padding-right:0"><div class="paybar"><span class="paychip"><i></i>•• 4242<svg width="8" height="13" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></span><div class="btn btn-primary">Оплатить 86,99 руб.</div></div></div>
+    <div class="bottom" style="padding-left:0;padding-right:0"><div class="paybar"><span class="paychip"><i></i>•• 4242<svg width="8" height="13" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></span><div class="btn btn-primary">Оплатить 86,99 р.</div></div></div>
   </div></div>
 </section>
 
 <!-- ===================== 6. Отслеживание заказа ===================== -->
 <section class="shot bg-7">
-  <span class="step">6 · Отслеживание</span>
+  <span class="step">7 · Отслеживание</span>
   <h2>Видно, что сейчас с книгой</h2>
   <p class="sub">Этап, прогресс и дата — как у такси, только вместо машины книга на линии печати</p>
   <div class="device"><div class="screen">
@@ -453,7 +508,7 @@ svg { display: block; }
       </div>
       <div style="display:flex;gap:8px">
         <div class="btn btn-plain" style="flex:1;height:46px;font-size:15px;border-radius:14px">Поделиться статусом</div>
-        <div class="btn btn-plain" style="flex:1;height:46px;font-size:15px;border-radius:14px;color:var(--mut)">Отмена недоступна</div>
+        <div class="btn btn-plain" style="flex:1;height:46px;font-size:15px;border-radius:14px">Помощь</div>
       </div>
     </div>
     <nav class="tabbar"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.5V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.5z"/></svg>Главная</span><span class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h5"/></svg>Заказы</span><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5 8h14l-1.1 11.1a2 2 0 0 1-2 1.9H8.1a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Корзина</span></nav>
@@ -462,7 +517,7 @@ svg { display: block; }
 
 <!-- ===================== 7. Экран блокировки: Live Activity ===================== -->
 <section class="shot bg-5">
-  <span class="step">7 · Экран блокировки</span>
+  <span class="step">8 · Экран блокировки</span>
   <h2>Статус, не открывая приложение</h2>
   <p class="sub">Live Activity на экране блокировки и в Dynamic Island, уведомление на каждом этапе</p>
   <div class="device"><div class="screen lock">
@@ -483,14 +538,14 @@ svg { display: block; }
 
 <!-- ===================== 8. Помощь и брак ===================== -->
 <section class="shot bg-8">
-  <span class="step">8 · После заказа</span>
+  <span class="step">9 · После заказа</span>
   <h2>Брак — без пересылки</h2>
-  <p class="sub">Ассистент отвечает круглосуточно, а дефект достаточно сфотографировать</p>
+  <p class="sub">Ассистент честно назван ассистентом, отвечает круглосуточно, а человек — в одно касание</p>
   <div class="device"><div class="screen">
     <div class="island"></div>
     <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
     <div class="body" style="gap:12px">
-      <div class="nav-bar"><span class="round"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg></span><b style="display:flex;flex-direction:column;align-items:center;line-height:1.2">Помощь<small style="font-size:12px;color:var(--teal-ink);font-weight:500">● отвечаем сейчас</small></b><span style="width:36px"></span></div>
+      <div class="nav-bar"><span class="round"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg></span><b style="display:flex;flex-direction:column;align-items:center;line-height:1.2">Ассистент picPac<small style="font-size:12px;color:var(--teal-ink);font-weight:500">● решения по правилам гарантии</small></b><span style="width:36px"></span></div>
       <div style="align-self:flex-end;max-width:78%;background:var(--coral-act);color:#fff;padding:10px 14px;border-radius:20px 20px 6px 20px;font-size:15.5px;line-height:1.35">На одной странице полоса через всю фотографию</div>
       <div style="align-self:flex-end;width:150px;height:110px;border-radius:16px;position:relative;overflow:hidden" class="g3"><span style="position:absolute;left:0;right:0;top:46%;height:6px;background:rgba(255,255,255,.75)"></span></div>
       <div style="align-self:flex-start;max-width:84%;background:var(--card);padding:12px 14px;border-radius:20px 20px 20px 6px;font-size:15.5px;line-height:1.4;box-shadow:0 1px 2px var(--line)">Похоже на производственный брак: полоса появилась при печати. <b>Перепечатаем книгу бесплатно</b> — старую возвращать не нужно.</div>
@@ -500,7 +555,7 @@ svg { display: block; }
         <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--mut)">Будет у вас</span><span style="font-weight:600">≈ 19 ноября</span></div>
         <div class="btn btn-primary" style="height:46px;border-radius:13px;font-size:16px">Подтвердить</div>
       </div>
-      <div class="chips"><span class="chip">Где мой заказ?</span><span class="chip">Сроки доставки</span><span class="chip">Как вернуть</span></div>
+      <div class="chips"><span class="chip">Когда приедет новая?</span><span class="chip">Позвать человека</span></div>
     </div>
     <div class="bottom" style="flex-direction:row;align-items:center;gap:10px;padding-top:10px">
       <span class="round" style="flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8.5 6l1.5-2.5h4L15.5 6"/></svg></span>
