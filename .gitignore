@@ -2,3 +2,8 @@ screens/
 web screens/
 .DS_Store
 __pycache__/
+
+# Большие скиллы ставятся у каждого локально (команды в README)
+.claude/skills/design-taste-frontend/
+.claude/skills/canvas-design/
+.claude/skills/app-store-screenshots/

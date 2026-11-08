@@ -53,6 +53,18 @@
 
 Подробно: [notes/07-architecture.md](notes/07-architecture.md).
 
+## Скиллы для Claude Code
+
+В `.claude/skills/` лежат скиллы, которыми пользуется команда при дизайне и вёрстке: ui-ux-pro-max, ux-designer, transitions-dev, скиллы Эмиля Ковальски (анимации, mobile-native, apple-design и др.). Они подхватываются автоматически при открытии проекта в Claude Code.
+
+Три больших скилла в репозиторий не входят, их ставит себе каждый:
+
+```bash
+npx skills add Leonxlnx/taste-skill -s design-taste-frontend
+npx skills add anthropics/skills -s canvas-design
+npx skills add ParthJadhav/app-store-screenshots
+```
+
 ## Что в репозитории
 
 | Путь | Что |
