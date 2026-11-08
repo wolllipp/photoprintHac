@@ -7,3 +7,9 @@ __pycache__/
 .claude/skills/design-taste-frontend/
 .claude/skills/canvas-design/
 .claude/skills/app-store-screenshots/
+
+# services/api
+services/api/.venv/
+services/api/.env
+services/api/storage/
+.pytest_cache/

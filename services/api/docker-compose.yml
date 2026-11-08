@@ -1,0 +1,13 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: picpac
+      POSTGRES_PASSWORD: picpac
+      POSTGRES_DB: picpac
+    ports:
+      - "5433:5432"   # 5433, чтобы не конфликтовать с локальным Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
