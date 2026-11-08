@@ -237,11 +237,10 @@ svg { display: block; }
 .topbar .brand { position: absolute; left: 50%; transform: translateX(-50%); font-family: 'Pacifico', cursive; color: var(--coral); font-size: 27px; line-height: 1; padding-bottom: 6px; }
 /* пики: число слева, маленькая 3D-монетка справа, тонкая обводка — как баллы в Яндекс Go */
 .points { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 5px 0 11px; border-radius: 999px; background: rgba(255,255,255,.6); box-shadow: inset 0 0 0 1px rgba(35,43,42,.12); color: var(--fg); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.pik { width: 20px; height: 20px; border-radius: 50%; position: relative; transform: rotate(-14deg); font-style: normal;
-  background: radial-gradient(circle at 34% 28%, #F6B6A6 0%, #D9766C 38%, #B84F4B 72%, #8E3532 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255,220,210,.55), inset -1.5px -2px 0 rgba(90,25,22,.35), 1px 2px 3px rgba(120,40,35,.35);
+.pik { width: 20px; height: 20px; border-radius: 50%; position: relative; transform: rotate(-8deg); font-style: normal;
+  background: linear-gradient(160deg, #D46F69 0%, #B84F4B 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.28), inset 0 -1.5px 0 rgba(0,0,0,.12);
   display: flex; align-items: center; justify-content: center; }
-.pik::after { content: ""; position: absolute; left: 4px; top: 3px; width: 7px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.55); transform: rotate(-25deg); filter: blur(.4px); }
 .pik b { font-family: 'Pacifico', cursive; font-weight: 400; color: #fff; font-size: 12px; line-height: 1; padding: 0 1px 3px 0; text-shadow: 0 1px 0 rgba(90,25,22,.45); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
