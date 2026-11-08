@@ -235,8 +235,8 @@ svg { display: block; }
 .sug > span { font-size: 12.5px; color: var(--mut); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; position: relative; }
 .topbar .brand { position: absolute; left: 50%; transform: translateX(-50%); font-family: 'Pacifico', cursive; color: var(--coral); font-size: 27px; line-height: 1; padding-bottom: 6px; }
-.points { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 4px; border-radius: 999px; background: var(--card); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; box-shadow: 0 1px 2px rgba(35,43,42,.06); }
-.points i { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #F2A65A 0%, #CC605B 60%, #A9443F 100%); color: #fff; display: flex; align-items: center; justify-content: center; }
+.points { display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--coral-tint); color: var(--coral-link); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.points svg { color: var(--coral-act); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
 </style>
@@ -264,7 +264,7 @@ svg { display: block; }
       <div class="topbar">
         <span class="avatar">И</span>
         <span class="brand">PicPac</span>
-        <span class="points"><i><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H180.92c.39-.33.79-.65,1.17-1A29.53,29.53,0,0,0,192,49.57,32.62,32.62,0,0,0,158.44,16,29.53,29.53,0,0,0,137,25.91a54.94,54.94,0,0,0-9,14.48,54.94,54.94,0,0,0-9-14.48A29.53,29.53,0,0,0,97.56,16,32.62,32.62,0,0,0,64,49.57,29.53,29.53,0,0,0,73.91,71c.38.33.78.65,1.17,1H40A16,16,0,0,0,24,88v32a16,16,0,0,0,16,16v64a16,16,0,0,0,16,16h60a4,4,0,0,0,4-4V120H40V88h80v32h16V88h80v32H136v92a4,4,0,0,0,4,4h60a16,16,0,0,0,16-16V136a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72ZM84.51,59a13.69,13.69,0,0,1-4.5-10A16.62,16.62,0,0,1,96.59,32h.49a13.69,13.69,0,0,1,10,4.5c8.39,9.48,11.35,25.2,12.39,34.92C109.71,70.39,94,67.43,84.51,59Zm87,0c-9.49,8.4-25.24,11.36-35,12.4C137.7,60.89,141,45.5,149,36.51a13.69,13.69,0,0,1,10-4.5h.49A16.62,16.62,0,0,1,176,49.08,13.69,13.69,0,0,1,171.49,59Z"/></svg></i>350</span>
+        <span class="points"><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor"><path d="M207.58,63.84C186.85,53.48,159.33,48,128,48S69.15,53.48,48.42,63.84,16,88.78,16,104v48c0,15.22,11.82,29.85,32.42,40.16S96.67,208,128,208s58.85-5.48,79.58-15.84S240,167.22,240,152V104C240,88.78,228.18,74.15,207.58,63.84Zm-87.58,96v32c-19-.62-35-3.42-48-7.49V153.05A203.43,203.43,0,0,0,120,159.86Zm16,0a203.43,203.43,0,0,0,48-6.81v31.31c-13,4.07-29,6.87-48,7.49ZM32,152V133.53a82.88,82.88,0,0,0,16.42,10.63c2.43,1.21,5,2.35,7.58,3.43V178C40.17,170.16,32,160.29,32,152Zm168,26V147.59c2.61-1.08,5.15-2.22,7.58-3.43A82.88,82.88,0,0,0,224,133.53V152C224,160.29,215.83,170.16,200,178Z"/></svg>350</span>
       </div>
       <!-- активный заказ сверху, как текущая поездка в Яндекс Go -->
       <div class="order-strip">
