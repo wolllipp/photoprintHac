@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>picPac — редизайн главной (концепт)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Lora:ital,wght@0,500;0,600;1,500&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   ДИЗАЙН-ТОКЕНЫ picPac (станут packages/theme/theme.ts)
+   Цвета сняты с текущего сайта и приложения, оттенки
+   кнопок углублены ради контраста (WCAG AA).
+   ========================================================= */
+:root {
+  /* бренд */
+  --coral-500: #CC605B;   /* фирменный коралловый: логотип, акценты, декор */
+  --coral-600: #B84F4B;   /* кнопки с белым текстом: контраст 4.93 */
+  --coral-700: #A9443F;   /* коралловый текст на бежевом: контраст 5.36 */
+  --coral-100: #FBEDEC;   /* фон бейджей и выделений */
+  --coral-50:  #FDF5F4;
+  --sand-50:   #F9F4EE;   /* фирменный бежевый фон */
+  --sand-100:  #F3EBE1;
+  --sand-200:  #E8DCCD;
+  --ink-900:   #2A3533;   /* основной текст: контраст 11.6 */
+  --ink-700:   #3B4B4A;   /* фирменный тёмный (кнопки «Загрузить фото») */
+  --ink-500:   #5B6664;   /* вторичный текст: контраст 5.44 */
+  --teal-300:  #82DFD6;   /* фирменный бирюзовый (иконки соцсетей) */
+  --teal-100:  #DDF6F3;
+  --blue-400:  #758CC2;   /* бейдж «скидка» */
+  --white:     #FFFFFF;
+  --success:   #2F7D5B;
+
+  /* типографика */
+  --font-ui: "Manrope", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Lora", Georgia, serif;
+  --font-logo: "Pacifico", cursive;
+  --text-xs: 13px;  --text-sm: 15px;  --text-md: 17px;  --text-lg: 20px;
+  --text-xl: 26px;  --text-2xl: 34px; --text-3xl: 48px;
+
+  /* отступы (шаг 4) */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 72px;
+
+  /* радиусы и тени */
+  --radius-sm: 10px; --radius-md: 16px; --radius-lg: 24px; --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(42,53,51,.06), 0 2px 8px rgba(42,53,51,.05);
+  --shadow-md: 0 8px 24px rgba(42,53,51,.08);
+  --shadow-lg: 0 24px 48px rgba(42,53,51,.12);
+
+  --container: 1200px;
+  --ease-out: cubic-bezier(.22,1,.36,1);
+}
+
+/* ---------- база ---------- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-ui); font-size: var(--text-md); line-height: 1.55;
+  color: var(--ink-900); background: var(--sand-50);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+img, svg { display: block; }
+.container { width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 var(--space-5); }
+.section { padding: var(--space-8) 0; }
+.eyebrow { font-size: var(--text-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--coral-700); }
+.h2 { font-family: var(--font-display); font-weight: 600; font-size: var(--text-2xl); line-height: 1.2; margin-top: var(--space-2); }
+.lead { color: var(--ink-500); font-size: var(--text-md); max-width: 620px; margin-top: var(--space-3); }
+.section-head { display: flex; flex-direction: column; margin-bottom: var(--space-7); }
+:focus-visible { outline: 3px solid var(--teal-300); outline-offset: 2px; border-radius: 6px; }
+
+/* ---------- компонент: Button ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 48px; padding: 0 var(--space-5); border-radius: var(--radius-pill);
+  font-weight: 700; font-size: var(--text-sm); transition: transform .15s var(--ease-out), background .2s, box-shadow .2s;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--coral-600); color: var(--white); box-shadow: 0 6px 16px rgba(184,79,75,.28); }
+.btn-primary:hover { background: var(--coral-700); }
+.btn-dark { background: var(--ink-700); color: var(--white); }
+.btn-dark:hover { background: var(--ink-900); }
+.btn-ghost { background: var(--white); color: var(--ink-900); box-shadow: inset 0 0 0 1.5px var(--sand-200); }
+.btn-ghost:hover { box-shadow: inset 0 0 0 1.5px var(--ink-500); }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+
+/* ---------- компонент: Badge ---------- */
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700; }
+.badge-coral { background: var(--coral-100); color: var(--coral-700); }
+.badge-teal { background: var(--teal-100); color: #1F6F67; }
+.badge-ink { background: var(--ink-700); color: var(--white); }
+
+/* =========================================================
+   PromoBar
+   ========================================================= */
+.promo { background: var(--ink-700); color: var(--white); font-size: var(--text-sm); }
+.promo .container { display: flex; align-items: center; justify-content: center; gap: var(--space-3); min-height: 40px; flex-wrap: wrap; text-align: center; }
+.promo b { color: var(--teal-300); }
+
+/* =========================================================
+   SiteHeader
+   ========================================================= */
+.header { position: sticky; top: 0; z-index: 50; background: rgba(249,244,238,.86); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); border-bottom: 1px solid var(--sand-200); }
+.header .container { display: flex; align-items: center; gap: var(--space-6); min-height: 72px; }
+.logo { font-family: var(--font-logo); font-size: 30px; color: var(--coral-500); line-height: 1; padding-bottom: 6px; }
+.nav { display: flex; gap: var(--space-5); flex: 1; }
+.nav a { font-weight: 600; font-size: var(--text-sm); color: var(--ink-900); padding: var(--space-2) 0; position: relative; }
+.nav a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 2px; height: 2px; background: var(--coral-500); transform: scaleX(0); transform-origin: left; transition: transform .25s var(--ease-out); }
+.nav a:hover::after, .nav a[aria-current="page"]::after { transform: scaleX(1); }
+.header-actions { display: flex; align-items: center; gap: var(--space-2); }
+.icon-btn { width: 44px; height: 44px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center; position: relative; }
+.icon-btn:hover { background: var(--sand-100); }
+.icon-btn .count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--coral-600); color: var(--white); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+.menu-btn { display: none; }
+
+/* =========================================================
+   Hero + StoryInput + BookPreview
+   ========================================================= */
+.hero { padding: var(--space-7) 0 var(--space-8); overflow: hidden; }
+.hero .container { display: flex; align-items: center; gap: var(--space-7); }
+.hero-copy { flex: 1 1 52%; display: flex; flex-direction: column; gap: var(--space-5); }
+.hero-copy > .badge { align-self: flex-start; }
+.hero h1 { font-family: var(--font-display); font-weight: 600; font-size: var(--text-3xl); line-height: 1.1; letter-spacing: -.01em; }
+.hero h1 em { font-style: italic; color: var(--coral-700); }
+.hero-sub { font-size: var(--text-lg); color: var(--ink-500); max-width: 540px; }
+
+.story { background: var(--white); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); max-width: 560px; border: 1px solid var(--sand-200); }
+.story-top { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2) 0; font-size: var(--text-xs); font-weight: 700; color: var(--ink-500); }
+.story-input { display: flex; gap: var(--space-2); align-items: flex-end; }
+.story textarea { flex: 1; min-width: 0; width: 100%; resize: none; border: 0; outline: 0; font: inherit; font-size: var(--text-md); color: var(--ink-900); padding: var(--space-2); min-height: 56px; background: transparent; }
+.story textarea::placeholder { color: #8A9391; }
+.story-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: 0 var(--space-2) var(--space-1); }
+.chip { padding: 6px 12px; border-radius: var(--radius-pill); background: var(--sand-50); border: 1px solid var(--sand-200); font-size: var(--text-xs); font-weight: 600; color: var(--ink-700); transition: background .2s, border-color .2s; }
+.chip:hover { background: var(--coral-50); border-color: var(--coral-500); }
+.chip[aria-pressed="true"] { background: var(--coral-100); border-color: var(--coral-500); color: var(--coral-700); }
+
+.hero-alt { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.hero-alt span { color: var(--ink-500); font-size: var(--text-sm); }
+.privacy-note { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--ink-500); }
+
+.hero-visual { flex: 1 1 48%; display: flex; justify-content: center; position: relative; min-height: 440px; align-items: center; }
+.book { position: relative; width: 460px; max-width: 100%; aspect-ratio: 2 / 1.12; display: flex; filter: drop-shadow(0 30px 40px rgba(42,53,51,.18)); transform: rotate(-4deg); }
+.page { flex: 1; background: var(--white); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.page-left { border-radius: 10px 2px 2px 10px; }
+.page-right { border-radius: 2px 10px 10px 2px; box-shadow: inset 12px 0 18px -14px rgba(42,53,51,.35); }
+.photo { border-radius: 4px; flex: 1; position: relative; overflow: hidden; }
+.row { display: flex; gap: 10px; flex: 1; }
+.ph-1 { background: linear-gradient(160deg, #F6C9A8 0%, #E9907A 55%, #9C5B5B 100%); }
+.ph-2 { background: linear-gradient(180deg, #BFE3E7 0%, #8FC6C3 60%, #5E8C7A 100%); }
+.ph-3 { background: linear-gradient(200deg, #F3E3C3 0%, #D9B98E 100%); }
+.ph-4 { background: linear-gradient(170deg, #C8D3EA 0%, #8EA2CF 70%, #5E6F99 100%); }
+.ph-5 { background: linear-gradient(150deg, #F9D9C9 0%, #E7A99B 100%); }
+.photo::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -30%; height: 60%; background: rgba(255,255,255,.18); border-radius: 50%; }
+.photo .sun { position: absolute; width: 22%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,250,235,.85); top: 18%; right: 16%; }
+.page-caption { font-family: var(--font-display); font-style: italic; font-size: 13px; color: var(--ink-500); }
+
+.float-card { position: absolute; background: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: var(--space-3) var(--space-4); display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-xs); font-weight: 600; max-width: 250px; }
+.float-card .dot { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.float-card small { display: block; font-weight: 500; color: var(--ink-500); }
+.fc-1 { top: 18px; left: 0; animation: float 6s ease-in-out infinite; }
+.fc-2 { bottom: 26px; right: 0; animation: float 6s ease-in-out infinite -3s; }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .fc-1, .fc-2 { animation: none; } html { scroll-behavior: auto; } }
+
+/* =========================================================
+   TrustStrip
+   ========================================================= */
+.trust { border-top: 1px solid var(--sand-200); border-bottom: 1px solid var(--sand-200); background: var(--white); }
+.trust .container { display: flex; justify-content: space-between; gap: var(--space-5); padding-top: var(--space-5); padding-bottom: var(--space-5); flex-wrap: wrap; }
+.trust-item { display: flex; align-items: center; gap: var(--space-3); flex: 1 1 200px; }
+.trust-item .ic { width: 44px; height: 44px; border-radius: 14px; background: var(--coral-50); color: var(--coral-700); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.trust-item b { display: block; font-size: var(--text-sm); }
+.trust-item span { font-size: var(--text-xs); color: var(--ink-500); }
+
+/* =========================================================
+   HowItWorks / StepCard
+   ========================================================= */
+.steps { display: flex; gap: var(--space-5); }
+.step { flex: 1; background: var(--white); border-radius: var(--radius-lg); padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3); box-shadow: var(--shadow-sm); }
+.step-num { width: 40px; height: 40px; border-radius: 12px; background: var(--ink-700); color: var(--white); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.step h3 { font-size: var(--text-lg); font-weight: 700; }
+.step p { color: var(--ink-500); font-size: var(--text-sm); }
+.step-mini { margin-top: auto; padding-top: var(--space-3); display: flex; gap: 6px; }
+.step-mini i { flex: 1; height: 44px; border-radius: 6px; }
+
+/* =========================================================
+   Products / ProductCard
+   ========================================================= */
+.tabs { display: inline-flex; background: var(--white); border-radius: var(--radius-pill); padding: 4px; box-shadow: var(--shadow-sm); margin-bottom: var(--space-6); }
+.tab { padding: 10px 18px; border-radius: var(--radius-pill); font-weight: 700; font-size: var(--text-sm); color: var(--ink-500); }
+.tab[aria-selected="true"] { background: var(--ink-700); color: var(--white); }
+.products { display: flex; gap: var(--space-5); flex-wrap: wrap; }
+.product { flex: 1 1 260px; background: var(--white); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); transition: transform .3s var(--ease-out), box-shadow .3s; }
+.product:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.product-media { aspect-ratio: 4 / 3; position: relative; display: flex; align-items: center; justify-content: center; }
+.product-media .badge { position: absolute; top: var(--space-4); left: var(--space-4); }
+.mini-book { width: 46%; aspect-ratio: 1; border-radius: 4px 10px 10px 4px; box-shadow: 10px 14px 24px rgba(42,53,51,.22), inset 6px 0 0 rgba(0,0,0,.08); position: relative; }
+.mini-book.tall { aspect-ratio: 21/30; width: 34%; }
+.mini-book::after { content: ""; position: absolute; inset: 14% 12% 30% 12%; border-radius: 3px; background: rgba(255,255,255,.35); }
+.mini-prints { display: flex; }
+.mini-prints i { width: 70px; height: 100px; border-radius: 4px; border: 5px solid var(--white); box-shadow: var(--shadow-md); margin-left: -22px; }
+.mini-prints i:nth-child(1) { transform: rotate(-10deg); } .mini-prints i:nth-child(3) { transform: rotate(9deg); }
+.product-body { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); flex: 1; }
+.product-body h3 { font-size: var(--text-lg); font-weight: 800; }
+.specs { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--ink-500); }
+.specs li { list-style: none; display: flex; gap: var(--space-2); }
+.specs li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--coral-500); margin-top: 9px; flex-shrink: 0; }
+.price { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-2); row-gap: 2px; margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--sand-100); }
+.price .from { font-size: var(--text-xs); color: var(--ink-500); }
+.price .now { font-size: var(--text-xl); font-weight: 800; white-space: nowrap; }
+.price .old { font-size: var(--text-sm); color: var(--ink-500); text-decoration: line-through; white-space: nowrap; }
+.price .unit { flex-basis: 100%; font-size: var(--text-xs); color: var(--ink-500); }
+
+/* ---------- ComparisonTable (одна единица объёма) ---------- */
+.compare { margin-top: var(--space-6); background: var(--white); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow-x: auto; }
+.compare table { width: 100%; border-collapse: collapse; min-width: 640px; font-size: var(--text-sm); }
+.compare th, .compare td { padding: 14px var(--space-5); text-align: left; border-bottom: 1px solid var(--sand-100); }
+.compare thead th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-500); background: var(--sand-50); }
+.compare tbody th { font-weight: 600; color: var(--ink-500); width: 26%; }
+.compare tr:last-child td, .compare tr:last-child th { border-bottom: 0; }
+.compare-note { font-size: var(--text-xs); color: var(--ink-500); padding: var(--space-3) var(--space-5) var(--space-4); }
+
+/* =========================================================
+   Events / EventChip
+   ========================================================= */
+.events { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.event { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5) var(--space-3) var(--space-3); background: var(--white); border-radius: var(--radius-pill); box-shadow: var(--shadow-sm); font-weight: 700; font-size: var(--text-sm); transition: transform .2s var(--ease-out), box-shadow .2s; }
+.event:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.event i { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+
+/* =========================================================
+   SharedAlbum + QRCard
+   ========================================================= */
+.shared { background: var(--ink-700); color: var(--white); border-radius: 32px; padding: var(--space-7); display: flex; gap: var(--space-7); align-items: center; overflow: hidden; position: relative; }
+.shared .eyebrow { color: var(--teal-300); }
+.shared .h2 { color: var(--white); }
+.shared p { color: rgba(255,255,255,.78); }
+.shared-copy { flex: 1 1 55%; display: flex; flex-direction: column; gap: var(--space-4); }
+.shared-steps { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-2); }
+.shared-steps div { display: flex; gap: var(--space-3); align-items: flex-start; font-size: var(--text-sm); }
+.shared-steps b { width: 28px; height: 28px; border-radius: 50%; background: var(--teal-300); color: var(--ink-900); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; }
+.shared-visual { flex: 1 1 45%; display: flex; justify-content: center; }
+.qr-card { background: var(--white); color: var(--ink-900); border-radius: var(--radius-lg); padding: var(--space-5); width: 280px; display: flex; flex-direction: column; gap: var(--space-3); align-items: center; box-shadow: var(--shadow-lg); transform: rotate(3deg); }
+.qr-card h4 { font-family: var(--font-display); font-size: var(--text-lg); text-align: center; }
+.qr-card small { color: var(--ink-500); text-align: center; font-size: var(--text-xs); }
+.qr { width: 160px; height: 160px; }
+.avatars { display: flex; }
+.avatars i { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--white); margin-left: -8px; }
+.avatars span { margin-left: var(--space-2); font-size: var(--text-xs); font-weight: 700; color: var(--ink-500); align-self: center; }
+
+/* =========================================================
+   Guarantee + Delivery
+   ========================================================= */
+.two-col { display: flex; gap: var(--space-5); }
+.panel { flex: 1; background: var(--white); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: var(--space-4); }
+.panel h3 { font-size: var(--text-lg); font-weight: 800; }
+.panel p { color: var(--ink-500); font-size: var(--text-sm); }
+.claim-steps { display: flex; gap: var(--space-3); }
+.claim-steps div { flex: 1; background: var(--sand-50); border-radius: var(--radius-md); padding: var(--space-4); font-size: var(--text-xs); color: var(--ink-500); display: flex; flex-direction: column; gap: 6px; }
+.claim-steps b { color: var(--ink-900); font-size: var(--text-sm); }
+.precheck { margin-top: auto; padding-top: var(--space-5); border-top: 1px solid var(--sand-100); display: flex; flex-direction: column; gap: var(--space-3); }
+.precheck h3 { font-size: var(--text-md); }
+.delivery-row { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--sand-100); font-size: var(--text-sm); }
+.delivery-row:last-child { border-bottom: 0; }
+.delivery-row .name { flex: 1; font-weight: 600; }
+.delivery-row .name small { display: block; font-weight: 500; color: var(--ink-500); font-size: var(--text-xs); }
+.delivery-row .term { color: var(--ink-500); width: 110px; }
+.delivery-row .cost { font-weight: 800; width: 90px; text-align: right; }
+.timeline { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--ink-500); background: var(--teal-100); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.timeline b { color: var(--ink-900); }
+
+/* =========================================================
+   FAQ (FaqItem)
+   ========================================================= */
+.faq { display: flex; flex-direction: column; gap: var(--space-3); max-width: 820px; }
+.faq details { background: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+.faq summary { list-style: none; cursor: pointer; padding: var(--space-5); font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 24px; font-weight: 500; color: var(--coral-700); transition: transform .25s var(--ease-out); }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { padding: 0 var(--space-5) var(--space-5); color: var(--ink-500); font-size: var(--text-sm); }
+
+/* =========================================================
+   SiteFooter
+   ========================================================= */
+.footer { background: var(--ink-900); color: rgba(255,255,255,.72); padding: var(--space-7) 0 var(--space-6); margin-top: var(--space-8); font-size: var(--text-sm); }
+.footer .container { display: flex; flex-direction: column; gap: var(--space-6); }
+.footer-top { display: flex; gap: var(--space-7); flex-wrap: wrap; }
+.footer-col { display: flex; flex-direction: column; gap: var(--space-2); min-width: 160px; }
+.footer-col b { color: var(--white); margin-bottom: var(--space-1); }
+.footer-col a:hover { color: var(--white); }
+.footer .logo { color: var(--coral-500); }
+.footer-brand { flex: 1 1 260px; display: flex; flex-direction: column; gap: var(--space-3); }
+.footer-legal { border-top: 1px solid rgba(255,255,255,.12); padding-top: var(--space-5); font-size: var(--text-xs); color: rgba(255,255,255,.5); display: flex; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+
+/* =========================================================
+   AssistantFab + MobileCTA
+   ========================================================= */
+.fab { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: var(--space-3); background: var(--white); border-radius: var(--radius-pill); padding: 8px 18px 8px 8px; box-shadow: var(--shadow-lg); font-weight: 700; font-size: var(--text-sm); }
+.fab .ava { width: 40px; height: 40px; border-radius: 50%; background: var(--coral-600); color: var(--white); display: flex; align-items: center; justify-content: center; }
+.fab small { display: block; font-weight: 500; font-size: 12px; color: var(--success); }
+.mobile-cta { display: none; }
+
+/* =========================================================
+   Адаптив
+   ========================================================= */
+@media (max-width: 980px) {
+  .nav { display: none; }
+  .menu-btn { display: inline-flex; }
+  .header .container { justify-content: space-between; }
+  .hero .container { flex-direction: column; align-items: stretch; }
+  .hero-visual { min-height: 340px; width: 100%; }
+  .steps, .two-col { flex-direction: column; }
+  .shared { flex-direction: column; padding: var(--space-6); }
+}
+@media (max-width: 600px) {
+  :root { --text-3xl: 34px; --text-2xl: 27px; --text-lg: 18px; }
+  .container { padding: 0 var(--space-4); }
+  .section { padding: var(--space-7) 0; }
+  .hero { padding-top: var(--space-5); }
+  .hero-sub { font-size: var(--text-md); }
+  .story-input { flex-direction: column; align-items: stretch; }
+  .story textarea { min-height: 84px; }
+  .book { width: 320px; }
+  .float-card { max-width: 200px; padding: var(--space-2) var(--space-3); }
+  .fc-1 { left: -4px; top: 0; } .fc-2 { right: -4px; bottom: 0; }
+  .trust-item { flex: 1 1 100%; }
+  .claim-steps { flex-direction: column; }
+  .delivery-row .term { width: 80px; }
+  .fab { display: none; }
+  .mobile-cta { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; gap: var(--space-2); padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom)); background: rgba(255,255,255,.94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--sand-200); }
+  .mobile-cta .btn { flex: 1; }
+  .mobile-cta .icon-btn { flex: 0 0 48px; height: 48px; background: var(--sand-50); }
+  body { padding-bottom: 80px; }
+  .promo .container { font-size: var(--text-xs); }
+}
+</style>
+</head>
+<body>
+
+<!-- component: PromoBar -->
+<div class="promo">
+  <div class="container"><span><b>−30%</b> на фотокниги Premium до 30.11</span><span aria-hidden="true">·</span><span>Бесплатная доставка Белпочтой от 150 руб.</span></div>
+</div>
+
+<!-- component: SiteHeader -->
+<header class="header">
+  <div class="container">
+    <a href="#" class="logo" aria-label="picPac, на главную">PicPac</a>
+    <nav class="nav" aria-label="Основное меню">
+      <a href="#products" aria-current="page">Фотокниги</a>
+      <a href="#products">Фотопечать</a>
+      <a href="#events">По событиям</a>
+      <a href="#shared">Общий альбом</a>
+      <a href="#delivery">Доставка и оплата</a>
+    </nav>
+    <div class="header-actions">
+      <button class="icon-btn" aria-label="Поиск"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <button class="icon-btn" aria-label="Войти"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button>
+      <button class="icon-btn" aria-label="Корзина, 2 товара"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span class="count">2</span></button>
+      <button class="icon-btn menu-btn" aria-label="Меню"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- component: Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-copy">
+      <span class="badge badge-teal">Новое · фотокнига за пару минут</span>
+      <h1>Ваши фото из телефона — <em>в&nbsp;готовую фотокнигу</em></h1>
+      <p class="hero-sub">Опишите, какую книгу хотите, или просто загрузите фото. Мы сами отберём лучшие кадры, разложим их по страницам и проверим качество до печати.</p>
+
+      <!-- component: StoryInput -->
+      <div class="story">
+        <div class="story-top">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#CC605B"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5 9.8 12.2 3.5 10l6.3-1.7z"/></svg>
+          Опишите книгу словами
+        </div>
+        <div class="story-input">
+          <textarea aria-label="Описание книги" placeholder="Книга про нашу поездку в Карелию, тёплый тон, 24 страницы, больше пейзажей"></textarea>
+          <button class="btn btn-primary" aria-label="Собрать книгу">Собрать
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="story-chips">
+          <button class="chip" aria-pressed="true">Путешествие</button>
+          <button class="chip" aria-pressed="false">Первый год ребёнка</button>
+          <button class="chip" aria-pressed="false">Свадьба</button>
+          <button class="chip" aria-pressed="false">Выпускной</button>
+        </div>
+      </div>
+
+      <div class="hero-alt">
+        <a href="#" class="btn btn-dark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+          Загрузить фото
+        </a>
+        <span>или <a href="#products" style="color:var(--coral-700);font-weight:700">выбрать продукт</a></span>
+      </div>
+      <div class="privacy-note">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        Фото обрабатываются на наших серверах в Беларуси и не передаются третьим лицам
+      </div>
+    </div>
+
+    <!-- component: BookPreview -->
+    <div class="hero-visual" aria-hidden="true">
+      <div class="book">
+        <div class="page page-left">
+          <div class="photo ph-1" style="flex:1.4"><span class="sun"></span></div>
+          <div class="row"><div class="photo ph-3"></div><div class="photo ph-5"></div></div>
+        </div>
+        <div class="page page-right">
+          <div class="page-caption">Карелия, июль</div>
+          <div class="photo ph-2" style="flex:1.2"><span class="sun" style="background:rgba(255,255,255,.7)"></span></div>
+          <div class="row"><div class="photo ph-4"></div></div>
+        </div>
+      </div>
+      <div class="float-card fc-1">
+        <span class="dot" style="background:var(--teal-100)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F6F67" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+        <span>Лицо у края — кадр сдвинули<small>до печати, а не после</small></span>
+      </div>
+      <div class="float-card fc-2">
+        <span class="dot" style="background:var(--coral-100)"><svg width="18" height="18" viewBox="0 0 24 24" fill="#A9443F"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5 9.8 12.2 3.5 10l6.3-1.7z"/></svg></span>
+        <span>Из 214 фото выбрали 38 лучших<small>дубли и смазанные убраны</small></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- component: TrustStrip -->
+<section class="trust" aria-label="Почему picPac">
+  <div class="container">
+    <div class="trust-item"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.3.3 3.8 2 4.5 5.4"/></svg></span><div><b>60 000+ клиентов</b><span>по всей Беларуси</span></div></div>
+    <div class="trust-item"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>Изготовим за 3 рабочих дня</b><span>плюс доставка от 1 дня</span></div></div>
+    <div class="trust-item"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span><div><b>Перепечатаем брак бесплатно</b><span>по фото дефекта, без пересылки</span></div></div>
+    <div class="trust-item"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span><div><b>Ответим круглосуточно</b><span>ассистент 24/7, люди с 9 до 21</span></div></div>
+  </div>
+</section>
+
+<!-- component: HowItWorks -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Как это работает</span>
+      <h2 class="h2">Три шага вместо часа в редакторе</h2>
+      <p class="lead">Больше не нужно раскладывать каждое фото по рамкам вручную. Редактор остаётся — если захотите поправить что-то сами.</p>
+    </div>
+    <div class="steps">
+      <!-- component: StepCard -->
+      <article class="step">
+        <span class="step-num">1</span>
+        <h3>Загрузите фото или опишите книгу</h3>
+        <p>Прямо из галереи телефона. Можно сразу все фото поездки — мы разберёмся.</p>
+        <div class="step-mini"><i class="ph-1"></i><i class="ph-2"></i><i class="ph-3"></i><i class="ph-4"></i></div>
+      </article>
+      <article class="step">
+        <span class="step-num">2</span>
+        <h3>Получите готовый макет</h3>
+        <p>Отберём лучшие кадры, уберём дубли, разложим по главам и проверим, чтобы лица не попали под обрез.</p>
+        <div class="step-mini"><i class="ph-5" style="flex:2"></i><i class="ph-2"></i></div>
+      </article>
+      <article class="step">
+        <span class="step-num">3</span>
+        <h3>Проверьте и закажите</h3>
+        <p>Листайте превью, меняйте что хотите, оплачивайте картой или через ЕРИП. Книга приедет через несколько дней.</p>
+        <div class="step-mini"><i style="background:var(--ink-700)"></i><i style="background:var(--coral-500)"></i><i style="background:var(--teal-300)"></i></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- component: Products -->
+<section class="section" id="products" style="padding-top:0">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Продукты</span>
+      <h2 class="h2">Выберите формат</h2>
+      <p class="lead">Цены и объём указаны одинаково для всех книг: в страницах, где 1 разворот = 2 страницы.</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Тип продукта">
+      <button class="tab" role="tab" aria-selected="true">Фотокниги</button>
+      <button class="tab" role="tab" aria-selected="false">Фотопечать</button>
+    </div>
+    <div class="products">
+      <!-- component: ProductCard -->
+      <article class="product">
+        <div class="product-media" style="background:#F6E7C9"><span class="badge badge-coral">−20%</span><div class="mini-book" style="background:linear-gradient(135deg,#E9B98F,#C8806B)"></div></div>
+        <div class="product-body">
+          <h3>Фотокнига Lite</h3>
+          <ul class="specs"><li>Тонкие листы, как в журнале</li><li>Много фото: до 400 в книге</li><li>20×20, 21×30, 25×25 см</li></ul>
+          <div class="price"><span class="from">от</span><span class="now">56,00 руб.</span><span class="old">70,00</span><span class="unit">24 страницы</span></div>
+        </div>
+      </article>
+      <article class="product">
+        <div class="product-media" style="background:#DCE8EC"><span class="badge badge-ink">Выбор picPac</span><div class="mini-book" style="background:linear-gradient(135deg,#A9C9CF,#5E8C8A)"></div></div>
+        <div class="product-body">
+          <h3>Фотокнига Classic</h3>
+          <ul class="specs"><li>Плотные листы, глянец или зерно</li><li>Раскрывается на 180°</li><li>20×20, 21×30 см</li></ul>
+          <div class="price"><span class="from">от</span><span class="now">72,90 руб.</span><span class="old">81,00</span><span class="unit">20 страниц</span></div>
+        </div>
+      </article>
+      <article class="product">
+        <div class="product-media" style="background:#F3DCD9"><span class="badge" style="background:var(--blue-400);color:#fff">−30%</span><div class="mini-book tall" style="background:linear-gradient(135deg,#D98C83,#A9443F)"></div></div>
+        <div class="product-body">
+          <h3>Фотокнига Premium</h3>
+          <ul class="specs"><li>Фотобумага, лист 1 мм</li><li>Без шва по центру разворота</li><li>5 форматов, до 30×30 см</li></ul>
+          <div class="price"><span class="from">от</span><span class="now">70,35 руб.</span><span class="old">100,50</span><span class="unit">10 страниц</span></div>
+        </div>
+      </article>
+      <article class="product">
+        <div class="product-media" style="background:#E7E1F1"><div class="mini-prints"><i class="ph-4"></i><i class="ph-1"></i><i class="ph-2"></i></div></div>
+        <div class="product-body">
+          <h3>Фотопечать</h3>
+          <ul class="specs"><li>Цифровая или фотохимическая</li><li>10×15, 15×20, 20×30 см</li><li>Покажем, если кадр обрежется</li></ul>
+          <div class="price"><span class="from">от</span><span class="now">0,49 руб.</span><span class="old">0,61</span><span class="unit">за фото</span></div>
+        </div>
+      </article>
+    </div>
+
+    <!-- component: ComparisonTable -->
+    <div class="compare">
+      <table>
+        <thead><tr><th></th><th>Lite</th><th>Classic</th><th>Premium</th></tr></thead>
+        <tbody>
+          <tr><th>Объём</th><td>до 160 страниц</td><td>до 60 страниц</td><td>до 60 страниц</td></tr>
+          <tr><th>Фото в книге</th><td>25–400</td><td>20–200</td><td>15–200</td></tr>
+          <tr><th>Листы</th><td>мелованная бумага 0,12 мм</td><td>мелованная бумага 0,28 мм</td><td>фотобумага 1 мм</td></tr>
+          <tr><th>Покрытие страниц</th><td>нет</td><td>глянец или зерно</td><td>матовое</td></tr>
+          <tr><th>Изготовление</th><td colspan="3">до 3 рабочих дней + доставка</td></tr>
+        </tbody>
+      </table>
+      <p class="compare-note">Данные по одной таблице на всех страницах сайта и в приложении — без расхождений.</p>
+    </div>
+  </div>
+</section>
+
+<!-- component: Events -->
+<section class="section" id="events" style="padding-top:0">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">По событиям</span>
+      <h2 class="h2">Готовые идеи для вашего повода</h2>
+    </div>
+    <div class="events">
+      <!-- component: EventChip -->
+      <a href="#" class="event"><i class="ph-1"></i>Путешествия</a>
+      <a href="#" class="event"><i class="ph-5"></i>Первый год ребёнка</a>
+      <a href="#" class="event"><i class="ph-3"></i>Свадьба</a>
+      <a href="#" class="event"><i class="ph-4"></i>Выпускной: сад, 4, 9, 11 класс</a>
+      <a href="#" class="event"><i class="ph-2"></i>Для семьи</a>
+      <a href="#" class="event"><i style="background:linear-gradient(135deg,#C6E3D6,#5E8C7A)"></i>Новый год</a>
+      <a href="#" class="event"><i style="background:linear-gradient(135deg,#F5D0D0,#CC605B)"></i>Love story</a>
+      <a href="#" class="event"><i style="background:linear-gradient(135deg,#F3E3C3,#BAA48F)"></i>Крещение</a>
+    </div>
+  </div>
+</section>
+
+<!-- component: SharedAlbum -->
+<section class="section" id="shared" style="padding-top:0">
+  <div class="container">
+    <div class="shared">
+      <div class="shared-copy">
+        <span class="eyebrow">Общий альбом</span>
+        <h2 class="h2">Один QR-код — и все гости добавят свои фото</h2>
+        <p>Для свадьбы, выпускного или корпоратива. Гостям не нужно ничего устанавливать: сканируют код, загружают фото и получают уведомление, когда альбом готов.</p>
+        <div class="shared-steps">
+          <div><b>1</b><span>Создайте альбом и распечатайте QR или отправьте ссылку в чат</span></div>
+          <div><b>2</b><span>Гости загружают фото с телефона, вы убираете лишнее</span></div>
+          <div><b>3</b><span>Мы собираем книгу, каждый заказывает свой экземпляр</span></div>
+        </div>
+        <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-2)">
+          <a href="#" class="btn btn-primary">Создать общий альбом</a>
+        </div>
+      </div>
+      <div class="shared-visual">
+        <!-- component: QRCard -->
+        <div class="qr-card">
+          <h4>Свадьба Ани и Миши</h4>
+          <svg class="qr" viewBox="0 0 29 29" shape-rendering="crispEdges" aria-label="Пример QR-кода">
+            <rect width="29" height="29" fill="#fff"/>
+            <g fill="#2A3533">
+              <path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM22 0h7v7h-7zM23 1v5h5V1zM24 2h3v3h-3zM0 22h7v7H0zM1 23v5h5v-5zM2 24h3v3H2z" fill-rule="evenodd"/>
+              <path d="M9 0h1v1H9zM11 0h2v1h-2zM15 0h1v2h-1zM18 0h2v1h-2zM9 2h3v1H9zM14 2h1v1h-1zM17 2h1v2h-1zM19 3h1v1h-1zM10 4h1v2h-1zM12 4h2v1h-2zM15 5h2v1h-2zM9 6h1v1H9zM11 6h1v1h-1zM13 6h1v1h-1zM18 6h2v1h-2zM0 9h2v1H0zM3 9h1v2H3zM5 9h3v1H5zM10 9h2v2h-2zM14 9h1v1h-1zM16 9h3v1h-3zM21 9h1v2h-1zM24 9h2v1h-2zM27 9h2v1h-2zM1 11h1v1H1zM6 11h2v1H6zM12 11h1v2h-1zM15 11h2v1h-2zM19 11h1v1h-1zM23 11h1v2h-1zM26 11h1v1h-1zM0 13h3v1H0zM5 13h1v1H5zM8 13h3v1H8zM14 13h1v2h-1zM17 13h3v1h-3zM22 13h1v1h-1zM25 13h3v1h-3zM2 15h2v1H2zM7 15h1v2H7zM10 15h1v1h-1zM12 15h1v1h-1zM16 15h1v1h-1zM19 15h2v2h-2zM24 15h1v1h-1zM27 15h1v2h-1zM0 17h1v1H0zM4 17h2v1H4zM9 17h2v1H9zM13 17h3v1h-3zM22 17h2v1h-2zM25 17h1v1h-1zM1 19h1v2H1zM3 19h3v1H3zM8 19h1v1H8zM11 19h1v2h-1zM15 19h1v1h-1zM17 19h2v1h-2zM21 19h1v2h-1zM24 19h3v1h-3zM9 21h1v1H9zM13 21h2v1h-2zM18 21h1v2h-1zM23 21h1v1h-1zM26 21h2v1h-2zM9 23h2v1H9zM12 23h1v2h-1zM15 23h2v1h-2zM20 23h3v1h-3zM25 23h1v2h-1zM28 23h1v1h-1zM10 25h1v1h-1zM14 25h1v2h-1zM17 25h1v1h-1zM19 25h2v1h-2zM22 25h2v1h-2zM27 25h1v2h-1zM9 27h2v1H9zM12 27h1v1h-1zM16 27h2v2h-2zM20 27h1v1h-1zM23 27h1v2h-1zM25 27h1v1h-1z"/>
+            </g>
+          </svg>
+          <small>Наведите камеру телефона и добавьте свои фото</small>
+          <div class="avatars"><i style="background:#E9907A"></i><i style="background:#8FC6C3"></i><i style="background:#8EA2CF"></i><i style="background:#D9B98E"></i><span>34 гостя · 412 фото</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- component: Guarantee + Delivery -->
+<section class="section" id="delivery" style="padding-top:0">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Без сюрпризов</span>
+      <h2 class="h2">Гарантия и доставка</h2>
+    </div>
+    <div class="two-col">
+      <div class="panel">
+        <h3>Если что-то пошло не так</h3>
+        <p>Одно правило для всех продуктов: производственный брак перепечатаем за наш счёт. Отправлять книгу обратно чаще всего не нужно.</p>
+        <div class="claim-steps">
+          <div><b>1. Фото дефекта</b>в приложении или на сайте, в карточке заказа</div>
+          <div><b>2. Проверим за день</b>и сразу запустим перепечать</div>
+          <div><b>3. Новая книга</b>приедет тем же способом бесплатно</div>
+        </div>
+        <div class="precheck">
+          <h3>А лучше — заранее</h3>
+          <p>Большинство «брака» — это обрезанные лица и размытые фото. Поэтому мы проверяем каждый снимок до оплаты:</p>
+          <ul class="specs">
+            <li>предупредим, если фото не хватает резкости или разрешения для формата;</li>
+            <li>сдвинем кадр, если лицо или текст попадают под обрез;</li>
+            <li>покажем превью каждой страницы перед заказом.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Доставка по Беларуси</h3>
+        <div class="timeline"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F6F67" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span><b>Изготовление — до 3 рабочих дней.</b> Срок доставки добавляется к нему.</span></div>
+        <div>
+          <!-- component: DeliveryRow -->
+          <div class="delivery-row"><span class="name">Европочта<small>до пункта выдачи</small></span><span class="term">от 2 дней</span><span class="cost">5,90 руб.</span></div>
+          <div class="delivery-row"><span class="name">Белпочта<small>бесплатно от 150 руб.</small></span><span class="term">2–3 дня</span><span class="cost">6,90 руб.</span></div>
+          <div class="delivery-row"><span class="name">Курьер по Минску<small>в пределах МКАД, будни до 22:00</small></span><span class="term">в выбранный день</span><span class="cost">14,90 руб.</span></div>
+          <div class="delivery-row"><span class="name">Курьер по Беларуси<small>в города с пунктами Европочты</small></span><span class="term">в выбранный день</span><span class="cost">19,90 руб.</span></div>
+          <div class="delivery-row"><span class="name">EMS<small>бесплатно от 300 руб.</small></span><span class="term">1–2 дня</span><span class="cost">20,90 руб.</span></div>
+        </div>
+        <p>Оплата картой Visa или Mastercard без комиссии или через ЕРИП.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- component: FAQ -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head"><span class="eyebrow">Вопросы</span><h2 class="h2">Частые вопросы</h2></div>
+    <div class="faq">
+      <!-- component: FaqItem -->
+      <details open><summary>Можно ли поправить макет после автосборки?</summary><p>Да. Готовый макет открывается в редакторе: меняйте фото, порядок страниц, текст и фон. Если результат не понравился, соберите заново с другим описанием.</p></details>
+      <details><summary>Что будет, если фото низкого качества?</summary><p>Мы проверяем каждое фото до заказа: подскажем, если снимку не хватает резкости или разрешения для выбранного формата, и предложим формат поменьше.</p></details>
+      <details><summary>Можно ли изменить заказ после оплаты?</summary><p>Пока заказ в статусе «Новый», его можно отменить в личном кабинете. После передачи в печать изменения уже невозможны — поэтому мы показываем превью и предупреждения до оплаты.</p></details>
+      <details><summary>Как с вами связаться?</summary><p>Ассистент в чате отвечает круглосуточно. Сотрудники поддержки — ежедневно с 9 до 21 в чате, Telegram и по почте support@picpac.by.</p></details>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- component: SiteFooter -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand"><span class="logo">PicPac</span><span>Фотокниги и фотопечать. Собственное производство в индустриальном парке «Великий камень».</span></div>
+      <div class="footer-col"><b>Продукты</b><a href="#">Фотокниги</a><a href="#">Фотопечать</a><a href="#">По событиям</a><a href="#">Общий альбом</a></div>
+      <div class="footer-col"><b>Помощь</b><a href="#">Доставка и оплата</a><a href="#">Вопросы и ответы</a><a href="#">Гарантия</a><a href="#">Блог</a></div>
+      <div class="footer-col"><b>Связь</b><a href="#">Чат 24/7</a><a href="#">Telegram</a><a href="#">Instagram</a><a href="#">support@picpac.by</a></div>
+    </div>
+    <div class="footer-legal"><span>ООО «Фотопринт» · Концепт редизайна, хакатон 2026</span><span>Политика обработки персональных данных · Договор оферты</span></div>
+  </div>
+</footer>
+
+<!-- component: AssistantFab -->
+<a href="#" class="fab"><span class="ava"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.2 6.3L20.5 10l-6.3 2.2L12 18.5 9.8 12.2 3.5 10l6.3-1.7z"/></svg></span><span>Спросить ассистента<small>● онлайн 24/7</small></span></a>
+
+<!-- component: MobileCTA -->
+<div class="mobile-cta">
+  <button class="icon-btn" aria-label="Спросить ассистента"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></button>
+  <a href="#" class="btn btn-primary">Собрать фотокнигу</a>
+</div>
+
+<script>
+  // Только переключение состояний для макета (без логики продукта)
+  document.querySelectorAll('.story-chips .chip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      document.querySelectorAll('.story-chips .chip').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+      c.setAttribute('aria-pressed', 'true');
+    });
+  });
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.setAttribute('aria-selected', 'false'); });
+      t.setAttribute('aria-selected', 'true');
+    });
+  });
+</script>
+</body>
+</html>

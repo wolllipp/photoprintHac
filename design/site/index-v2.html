@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>picPac — редизайн главной, v2 (концепт)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Inter — только запасной шрифт для устройств без SF Pro. Pacifico — приближение фирменного логотипа. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   ТОКЕНЫ (станут packages/theme/theme.ts)
+   Фирменные цвета picPac сохранены; оттенки действий углублены
+   до контраста WCAG AA. Подробности: notes/10-site-audit.md
+   ========================================================= */
+:root {
+  --coral:      #CC605B;  /* фирменный: логотип, акценты, декор */
+  --coral-act:  #B84F4B;  /* кнопки с белым текстом, 4.93:1 */
+  --coral-link: #A9443F;  /* ссылки на светлом, 5.36:1 */
+  --coral-tint: #FBEDEC;
+  --sand:       #F9F4EE;  /* фирменный бежевый — фон «плиток» */
+  --sand-2:     #F2EAE0;
+  --line:       #E6DCCF;
+  --white:      #FFFFFF;
+  --ink:        #1D2423;  /* основной текст */
+  --ink-2:      #3B4B4A;  /* фирменный тёмный — второстепенные кнопки, тёмные плитки */
+  --ink-3:      #5B6664;  /* вторичный текст, 5.44:1 на бежевом */
+  --ink-4:      #868E8C;  /* только крупный или декоративный текст */
+  --teal:       #82DFD6;  /* фирменный бирюзовый — статусы */
+  --teal-ink:   #1F6F67;
+  --teal-tint:  #DDF6F3;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-logo: "Pacifico", cursive;
+
+  /* типографика: размер + интерлиньяж + трекинг как набор */
+  --t-hero:   clamp(44px, 7vw, 80px);   --lh-hero: 1.04; --tr-hero: -0.03em;
+  --t-h1:     clamp(36px, 5vw, 56px);   --lh-h1: 1.07;   --tr-h1: -0.025em;
+  --t-h2:     clamp(28px, 3.4vw, 40px); --lh-h2: 1.1;    --tr-h2: -0.02em;
+  --t-h3:     clamp(22px, 2.2vw, 28px); --lh-h3: 1.15;   --tr-h3: -0.015em;
+  --t-lead:   clamp(19px, 1.8vw, 24px); --lh-lead: 1.35; --tr-lead: -0.005em;
+  --t-body:   17px; --lh-body: 1.47;
+  --t-small:  14px; --lh-small: 1.43; --tr-small: 0.005em;
+  --t-micro:  12px; --tr-micro: 0.01em;
+
+  --r-sm: 12px; --r-md: 18px; --r-lg: 28px; --r-pill: 980px;
+  --gap: 12px;
+  --max: 1080px; --max-wide: 1440px;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body { font-family: var(--font); font-size: var(--t-body); line-height: var(--lh-body); color: var(--ink); background: var(--white); -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+svg { display: block; }
+:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; border-radius: 8px; }
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 22px; }
+.center { text-align: center; }
+
+/* ---------- типографические стили ---------- */
+.eyebrow { font-size: var(--t-small); font-weight: 600; color: var(--coral-link); letter-spacing: var(--tr-small); }
+.hero-title { font-size: var(--t-hero); line-height: var(--lh-hero); letter-spacing: var(--tr-hero); font-weight: 700; }
+.h1 { font-size: var(--t-h1); line-height: var(--lh-h1); letter-spacing: var(--tr-h1); font-weight: 700; }
+.h2 { font-size: var(--t-h2); line-height: var(--lh-h2); letter-spacing: var(--tr-h2); font-weight: 700; }
+.h3 { font-size: var(--t-h3); line-height: var(--lh-h3); letter-spacing: var(--tr-h3); font-weight: 600; }
+.lead { font-size: var(--t-lead); line-height: var(--lh-lead); letter-spacing: var(--tr-lead); font-weight: 500; color: var(--ink-3); }
+.muted { color: var(--ink-3); }
+
+/* ---------- компонент: Button / TextLink ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 22px; border-radius: var(--r-pill); font-size: var(--t-body); font-weight: 500; letter-spacing: -0.01em; transition: transform 140ms var(--ease-out), background-color 200ms ease; -webkit-tap-highlight-color: transparent; }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--coral-act); color: var(--white); }
+.btn-secondary { background: transparent; color: var(--coral-link); box-shadow: inset 0 0 0 1px var(--coral-link); }
+.btn-dark { background: var(--ink-2); color: var(--white); }
+.btn-sm { min-height: 32px; padding: 0 14px; font-size: var(--t-small); }
+.link { color: var(--coral-link); font-weight: 500; display: inline-flex; align-items: center; gap: 2px; }
+.link::after { content: "›"; font-size: 1.15em; line-height: 1; transform: translateY(-1px); transition: transform 200ms var(--ease-out); }
+.ctas { display: flex; gap: 24px; align-items: center; justify-content: center; flex-wrap: wrap; }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover { background: var(--coral-link); }
+  .btn-secondary:hover { background: var(--coral-tint); }
+  .btn-dark:hover { background: var(--ink); }
+  .link:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .link:hover::after { transform: translate(2px, -1px); }
+}
+
+/* =========================================================
+   GlobalNav — полупрозрачный материал, контент под ним
+   ========================================================= */
+.gnav { position: sticky; top: 0; z-index: 100; height: 48px; background: rgba(249, 244, 238, .72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
+.gnav::after { content: ""; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px; pointer-events: none; background: linear-gradient(rgba(29,36,35,.04), transparent); opacity: 0; transition: opacity 200ms ease; }
+.gnav.scrolled::after { opacity: 1; }
+.gnav .wrap { max-width: var(--max-wide); height: 100%; display: flex; align-items: center; gap: 28px; }
+.logo { font-family: var(--font-logo); font-size: 22px; color: var(--coral); line-height: 1; padding-bottom: 4px; }
+.gnav-links { display: flex; gap: 30px; flex: 1; justify-content: center; }
+.gnav-links a { font-size: var(--t-micro); letter-spacing: var(--tr-micro); color: var(--ink); opacity: .82; transition: opacity 200ms ease; }
+.gnav-links a[aria-current="page"] { opacity: 1; font-weight: 600; }
+.gnav-icons { display: flex; gap: 6px; }
+.gicon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--ink); opacity: .82; position: relative; transition: opacity 200ms ease, background-color 200ms ease; }
+.gicon .dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--coral); }
+.gicon.menu { display: none; }
+@media (hover: hover) and (pointer: fine) { .gnav-links a:hover, .gicon:hover { opacity: 1; } }
+@media (prefers-reduced-transparency: reduce) { .gnav { background: var(--sand); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+/* ---------- компонент: Ribbon ---------- */
+.ribbon { background: var(--sand); padding: 14px 22px; text-align: center; font-size: var(--t-small); line-height: var(--lh-small); }
+.ribbon .link { margin-left: 6px; }
+
+/* =========================================================
+   Tile — базовый блок «плитки» как на apple.com
+   ========================================================= */
+.tile { padding: 72px 0 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+.tile .copy { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 22px; max-width: 760px; }
+.tile .ctas { margin-top: 8px; }
+.tile-sand { background: var(--sand); }
+.tile-white { background: var(--white); }
+.tile-dark { background: var(--ink); color: var(--white); }
+.tile-dark .lead, .tile-dark .muted { color: rgba(255,255,255,.72); }
+.tile-dark .eyebrow { color: var(--teal); }
+.tile-dark .link { color: var(--teal); }
+
+/* ---------- Hero ---------- */
+.hero { padding-top: 64px; }
+.hero .hero-title span { color: var(--coral); }
+.hero .lead { max-width: 620px; }
+
+/* компонент: StoryBar — поле «опишите книгу», как строка поиска */
+.storybar { margin: 28px auto 0; width: min(640px, calc(100% - 44px)); background: var(--white); border-radius: var(--r-lg); box-shadow: 0 1px 1px rgba(29,36,35,.04), 0 12px 32px rgba(29,36,35,.08); padding: 10px 10px 10px 22px; display: flex; align-items: center; gap: 12px; text-align: left; transition: box-shadow 200ms ease; }
+.storybar:focus-within { box-shadow: 0 0 0 3px rgba(130,223,214,.6), 0 12px 32px rgba(29,36,35,.08); }
+.storybar svg.spark { flex-shrink: 0; color: var(--coral); }
+.storybar input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: var(--t-body); letter-spacing: -0.01em; padding: 10px 0; }
+.storybar input::placeholder { color: var(--ink-4); }
+.storybar .btn { flex-shrink: 0; }
+.chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; padding: 0 22px; }
+.chip { min-height: 32px; padding: 0 14px; border-radius: var(--r-pill); background: rgba(29,36,35,.05); font-size: var(--t-small); color: var(--ink-2); transition: background-color 200ms ease, transform 140ms var(--ease-out); }
+.chip:active { transform: scale(.97); }
+.chip[aria-pressed="true"] { background: var(--ink-2); color: var(--white); }
+@media (hover: hover) and (pointer: fine) { .chip:hover:not([aria-pressed="true"]) { background: rgba(29,36,35,.09); } }
+.hero-note { margin-top: 14px; padding: 0 22px; font-size: var(--t-micro); color: var(--ink-3); }
+.hero-note svg { display: inline-block; vertical-align: -1px; margin-right: 5px; }
+
+/* компонент: BookStage — фотокнига на «сцене» */
+.stage { width: 100%; max-width: 1100px; margin-top: 48px; height: clamp(300px, 42vw, 500px); position: relative; display: flex; justify-content: center; align-items: flex-end; }
+.spread { width: min(760px, 88%); aspect-ratio: 2 / 1.06; display: flex; position: relative; filter: drop-shadow(0 40px 50px rgba(29,36,35,.18)) drop-shadow(0 6px 10px rgba(29,36,35,.08)); transform: translateY(18%); }
+.leaf { flex: 1; background: var(--white); padding: 4.2%; display: flex; flex-direction: column; gap: 3.5%; }
+.leaf:first-child { border-radius: 14px 3px 3px 14px; }
+.leaf:last-child { border-radius: 3px 14px 14px 3px; box-shadow: inset 18px 0 22px -18px rgba(29,36,35,.3); }
+.leaf .row { display: flex; gap: 3.5%; flex: 1; }
+.pic { flex: 1; border-radius: 4px; position: relative; overflow: hidden; }
+.pic::after { content: ""; position: absolute; left: -15%; right: -15%; bottom: -35%; height: 65%; border-radius: 50%; background: rgba(255,255,255,.16); }
+.sun { position: absolute; width: 18%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,251,240,.85); top: 16%; right: 14%; }
+.caption { font-size: clamp(10px, 1.2vw, 13px); color: var(--ink-3); font-weight: 500; letter-spacing: .02em; }
+.g1 { background: linear-gradient(165deg, #F7CFAF 0%, #E79179 55%, #A3605D 100%); }
+.g2 { background: linear-gradient(180deg, #C4E6E9 0%, #8FC6C3 60%, #5A8A79 100%); }
+.g3 { background: linear-gradient(200deg, #F4E5C6 0%, #D8B68B 100%); }
+.g4 { background: linear-gradient(170deg, #CCD6EC 0%, #8EA2CF 70%, #5D6E98 100%); }
+.g5 { background: linear-gradient(150deg, #FADBCB 0%, #E5A496 100%); }
+.g6 { background: linear-gradient(160deg, #D7E9DA 0%, #8DB79B 100%); }
+
+/* компонент: Pill — статус поверх сцены */
+.pill { position: absolute; display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px 10px 10px; border-radius: var(--r-pill); background: rgba(255,255,255,.82); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); box-shadow: 0 8px 24px rgba(29,36,35,.12); font-size: var(--t-small); font-weight: 600; letter-spacing: -0.005em; text-align: left; white-space: nowrap; }
+.pill i { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pill small { display: block; font-weight: 400; font-size: var(--t-micro); color: var(--ink-3); }
+.pill-a { left: 6%; top: 8%; }
+.pill-b { right: 6%; top: 26%; }
+
+/* =========================================================
+   Feature: проверка качества (CropDemo)
+   ========================================================= */
+.crop-demo { margin-top: 48px; display: flex; gap: 20px; justify-content: center; padding: 0 22px 72px; flex-wrap: wrap; }
+.crop-card { width: 300px; max-width: 100%; background: var(--white); border-radius: var(--r-md); padding: 16px; display: flex; flex-direction: column; gap: 12px; text-align: left; box-shadow: 0 1px 2px rgba(29,36,35,.05); }
+.crop-frame { aspect-ratio: 3 / 2; border-radius: 8px; position: relative; overflow: hidden; }
+.crop-frame .person { position: absolute; bottom: 0; width: 26%; height: 72%; }
+.crop-frame .person::before { content: ""; position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 58%; aspect-ratio: 1; border-radius: 50%; background: #F1D1BC; }
+.crop-frame .person::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 62%; border-radius: 40% 40% 0 0; background: #3B4B4A; }
+.cut-line { position: absolute; top: 0; bottom: 0; border-left: 2px dashed rgba(255,255,255,.95); }
+.cut-zone { position: absolute; top: 0; bottom: 0; background: rgba(184,79,75,.38); }
+.face-box { position: absolute; border: 2px solid var(--teal); border-radius: 6px; }
+.crop-card b { font-size: var(--t-body); font-weight: 600; letter-spacing: -0.01em; }
+.crop-card span { font-size: var(--t-small); color: var(--ink-3); line-height: var(--lh-small); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-micro); font-weight: 600; padding: 4px 10px; border-radius: var(--r-pill); align-self: flex-start; }
+.status-bad { background: var(--coral-tint); color: var(--coral-link); }
+.status-ok { background: var(--teal-tint); color: var(--teal-ink); }
+
+/* =========================================================
+   Grid из двух плиток
+   ========================================================= */
+.duo { display: flex; gap: var(--gap); padding: var(--gap); background: var(--white); }
+.duo > .tile { flex: 1; border-radius: 0; min-height: 600px; padding-top: 56px; }
+
+/* компонент: QRCard */
+.qr-wrap { margin-top: auto; padding: 32px 0 0; display: flex; justify-content: center; width: 100%; }
+.qr-card { width: 250px; background: var(--white); color: var(--ink); border-radius: 22px 22px 0 0; padding: 22px 22px 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.qr-card b { font-size: var(--t-body); letter-spacing: -0.01em; }
+.qr-card small { font-size: var(--t-micro); color: var(--ink-3); text-align: center; }
+.qr { width: 150px; height: 150px; }
+.faces { display: flex; align-items: center; }
+.faces i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--white); margin-left: -7px; }
+.faces span { margin-left: 8px; font-size: var(--t-micro); font-weight: 600; color: var(--ink-3); }
+
+/* компонент: ChatPreview */
+.chat { margin-top: auto; padding: 32px 22px 0; width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 8px; }
+.bubble { max-width: 82%; padding: 10px 14px; border-radius: 20px; font-size: var(--t-small); line-height: var(--lh-small); text-align: left; letter-spacing: -0.005em; }
+.bubble.me { align-self: flex-end; background: var(--coral-act); color: var(--white); border-bottom-right-radius: 6px; }
+.bubble.bot { align-self: flex-start; background: var(--white); color: var(--ink); border-bottom-left-radius: 6px; box-shadow: 0 1px 2px rgba(29,36,35,.06); }
+.bubble.bot b { font-weight: 600; }
+.chat-tail { height: 28px; }
+
+/* =========================================================
+   Compare — «Какая фотокнига вам подходит?»
+   ========================================================= */
+.compare { padding: 80px 0 88px; background: var(--white); }
+.compare .head { text-align: center; display: flex; flex-direction: column; gap: 10px; margin-bottom: 48px; padding: 0 22px; }
+.models { display: flex; gap: 0; max-width: var(--max); margin: 0 auto; padding: 0 22px; }
+.model { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 18px; gap: 10px; }
+.model + .model { border-left: 1px solid var(--line); }
+.book-3d { height: 150px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 14px; }
+.book-3d i { display: block; border-radius: 3px 9px 9px 3px; box-shadow: 14px 18px 30px rgba(29,36,35,.2), inset 5px 0 0 rgba(0,0,0,.09), inset -2px 0 0 rgba(255,255,255,.25); position: relative; }
+.book-3d i::after { content: ""; position: absolute; inset: 14% 13% 34% 13%; border-radius: 3px; background: rgba(255,255,255,.38); }
+.model-new { font-size: var(--t-micro); font-weight: 600; color: var(--coral-link); height: 16px; }
+.model h3 { font-size: var(--t-h3); line-height: var(--lh-h3); letter-spacing: var(--tr-h3); font-weight: 700; }
+.model .tag { font-size: var(--t-small); color: var(--ink-3); min-height: 40px; max-width: 220px; }
+.model .price { font-size: var(--t-body); font-weight: 600; }
+.model .price s { color: var(--ink-4); font-weight: 400; font-size: var(--t-small); margin-left: 4px; }
+.model .ctas { gap: 18px; margin: 8px 0 18px; }
+.spec { width: 100%; padding: 18px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.spec svg { color: var(--ink-2); margin-bottom: 4px; }
+.spec b { font-size: var(--t-body); font-weight: 600; letter-spacing: -0.01em; }
+.spec span { font-size: var(--t-micro); color: var(--ink-3); }
+.compare-foot { text-align: center; margin-top: 32px; font-size: var(--t-small); color: var(--ink-3); padding: 0 22px; }
+
+/* =========================================================
+   Prints — фотопечать
+   ========================================================= */
+.prints { margin-top: 44px; height: 360px; position: relative; width: 100%; max-width: 700px; }
+.print { position: absolute; bottom: -40px; width: 180px; aspect-ratio: 2/3; background: var(--white); padding: 9px 9px 0; border-radius: 3px; box-shadow: 0 24px 40px rgba(29,36,35,.18); }
+.print i { display: block; height: calc(100% - 9px); border-radius: 2px; }
+.print:nth-child(1) { left: 12%; transform: rotate(-12deg); }
+.print:nth-child(2) { left: 37%; bottom: -20px; z-index: 2; transform: rotate(-1deg); }
+.print:nth-child(3) { right: 12%; transform: rotate(11deg); }
+.fmt { position: absolute; z-index: 3; top: 0; left: 50%; translate: -50% 0; }
+
+/* =========================================================
+   Events — горизонтальная галерея со scroll-snap
+   ========================================================= */
+.events { padding: 80px 0 88px; background: var(--sand); }
+.events .head { max-width: var(--max); margin: 0 auto 28px; padding: 0 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.rail { --edge: max(22px, calc((100vw - var(--max)) / 2 + 22px)); display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--edge); padding: 4px var(--edge) 24px; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.ev { flex: 0 0 300px; height: 380px; border-radius: var(--r-lg); scroll-snap-align: start; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: 26px; color: var(--white); transition: transform 300ms var(--ease-out); }
+.ev::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.18), transparent 45%, rgba(0,0,0,.22)); }
+.ev > * { position: relative; }
+.ev small { font-size: var(--t-micro); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
+.ev b { font-size: var(--t-h3); line-height: var(--lh-h3); letter-spacing: var(--tr-h3); font-weight: 700; }
+.ev .plus { align-self: flex-end; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.92); color: var(--ink); display: flex; align-items: center; justify-content: center; }
+@media (hover: hover) and (pointer: fine) { .ev:hover { transform: scale(1.015); } }
+
+/* =========================================================
+   Promise — гарантия и доставка цифрами
+   ========================================================= */
+.promise { padding: 88px 0; background: var(--white); }
+.promise .head { text-align: center; margin-bottom: 52px; display: flex; flex-direction: column; gap: 10px; padding: 0 22px; }
+.facts { display: flex; max-width: var(--max); margin: 0 auto; padding: 0 22px; }
+.fact { flex: 1; text-align: center; padding: 0 22px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.fact + .fact { border-left: 1px solid var(--line); }
+.fact .num { font-size: clamp(40px, 5vw, 56px); line-height: 1; letter-spacing: -0.03em; font-weight: 700; }
+.fact .num small { font-size: .42em; letter-spacing: -0.01em; font-weight: 600; margin-left: 2px; }
+.fact b { font-size: var(--t-body); font-weight: 600; letter-spacing: -0.01em; }
+.fact span { font-size: var(--t-small); color: var(--ink-3); max-width: 240px; }
+.delivery { max-width: 760px; margin: 56px auto 0; padding: 0 22px; }
+.delivery details { border-top: 1px solid var(--line); }
+.delivery details:last-child { border-bottom: 1px solid var(--line); }
+.delivery summary { list-style: none; cursor: pointer; padding: 20px 0; display: flex; justify-content: space-between; align-items: center; font-size: var(--t-body); font-weight: 600; letter-spacing: -0.01em; }
+.delivery summary::-webkit-details-marker { display: none; }
+.delivery summary::after { content: ""; width: 10px; height: 10px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); transform: rotate(45deg) translateY(-3px); transition: transform 240ms var(--ease-out); }
+.delivery details[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
+.drow { display: flex; padding: 10px 0; font-size: var(--t-small); gap: 12px; }
+.drow span:first-child { flex: 1; }
+.drow span:nth-child(2) { color: var(--ink-3); width: 120px; }
+.drow span:last-child { font-weight: 600; width: 80px; text-align: right; }
+.delivery p { font-size: var(--t-small); color: var(--ink-3); padding-bottom: 20px; }
+
+/* =========================================================
+   Footer
+   ========================================================= */
+.footer { background: var(--sand); color: var(--ink-3); font-size: var(--t-micro); line-height: 1.5; padding: 20px 0 28px; }
+.footer .wrap { display: flex; flex-direction: column; gap: 18px; }
+.footer .note { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.fcols { display: flex; gap: 40px; flex-wrap: wrap; }
+.fcol { display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
+.fcol b { color: var(--ink); font-weight: 600; }
+.fcol a { color: var(--ink-3); }
+@media (hover: hover) and (pointer: fine) { .fcol a:hover { color: var(--ink); text-decoration: underline; } }
+.flegal { border-top: 1px solid var(--line); padding-top: 16px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+/* =========================================================
+   Появление при прокрутке (короткое, ease-out, без «скачков»)
+   ========================================================= */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity 700ms var(--ease-out), transform 700ms var(--ease-out); }
+.reveal.in { opacity: 1; transform: none; }
+.reveal.d1 { transition-delay: 60ms; } .reveal.d2 { transition-delay: 120ms; } .reveal.d3 { transition-delay: 180ms; }
+.no-js .reveal { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { transform: none; transition: opacity 300ms ease; }
+  .btn:active, .chip:active { transform: none; }
+  .ev, .link::after, .delivery summary::after { transition: none; }
+}
+
+/* =========================================================
+   Адаптив
+   ========================================================= */
+@media (max-width: 1068px) {
+  .gnav-links { gap: 22px; }
+}
+@media (max-width: 834px) {
+  .gnav-links { display: none; }
+  .gnav .wrap { justify-content: space-between; }
+  .gicon.menu { display: inline-flex; }
+  .duo { flex-direction: column; }
+  .duo > .tile { min-height: 560px; }
+  .models { overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; }
+  .model { flex: 0 0 72%; scroll-snap-align: center; }
+  .facts { flex-direction: column; gap: 36px; }
+  .fact + .fact { border-left: 0; }
+}
+@media (max-width: 600px) {
+  .tile { padding-top: 56px; }
+  .hero { padding-top: 44px; }
+  .storybar { flex-wrap: wrap; padding: 12px 12px 12px 18px; }
+  .storybar input { flex-basis: calc(100% - 40px); }
+  .storybar .btn { flex: 1 1 100%; }
+  .stage { height: 300px; margin-top: 36px; }
+  .spread { width: 94%; transform: translateY(8%); }
+  .pill { font-size: var(--t-micro); padding: 8px 12px 8px 8px; }
+  .pill i { width: 24px; height: 24px; }
+  .pill-a { left: 3%; top: 0; }
+  .pill-b { right: 3%; top: 20%; }
+  .prints { height: 290px; }
+  .fmt { white-space: normal; width: max-content; max-width: calc(100% - 32px); }
+  .print { width: 130px; }
+  .ev { flex-basis: 78vw; height: 340px; }
+  .drow span:nth-child(2) { width: 90px; }
+}
+</style>
+</head>
+<body class="no-js">
+
+<!-- component: GlobalNav -->
+<nav class="gnav" aria-label="Основное меню">
+  <div class="wrap">
+    <a href="#" class="logo" aria-label="picPac, на главную">PicPac</a>
+    <div class="gnav-links">
+      <a href="#books" aria-current="page">Фотокниги</a>
+      <a href="#prints">Фотопечать</a>
+      <a href="#events">По событиям</a>
+      <a href="#shared">Общий альбом</a>
+      <a href="#promise">Доставка</a>
+      <a href="#help">Поддержка</a>
+    </div>
+    <div class="gnav-icons">
+      <button class="gicon" aria-label="Поиск"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.6-4.6"/></svg></button>
+      <button class="gicon" aria-label="Корзина, есть товары"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.1 11.1a2 2 0 0 1-2 1.9H8.1a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg><span class="dot"></span></button>
+      <button class="gicon menu" aria-label="Меню"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9h16M4 15h16"/></svg></button>
+    </div>
+  </div>
+</nav>
+
+<!-- component: Ribbon -->
+<div class="ribbon">Фотокниги Premium −30% до 30 ноября.<a href="#books" class="link">Выбрать</a></div>
+
+<main>
+<!-- component: Hero -->
+<section class="tile tile-white hero" aria-labelledby="hero-title">
+  <div class="copy">
+    <span class="eyebrow reveal">Новое</span>
+    <h1 class="hero-title reveal d1" id="hero-title">Фотокнига.<br><span>Соберётся сама.</span></h1>
+    <p class="lead reveal d2">Опишите книгу словами или загрузите фото с телефона. Мы отберём лучшие кадры, разложим по страницам и проверим качество до печати.</p>
+  </div>
+
+  <!-- component: StoryBar -->
+  <form class="storybar reveal d3" onsubmit="return false" role="search" aria-label="Собрать книгу по описанию">
+    <svg class="spark" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2 6.1 6.1 2-6.1 2-2 6.1-2-6.1-6.1-2 6.1-2z"/></svg>
+    <input type="text" aria-label="Описание книги" placeholder="Поездка в Карелию, тёплый тон, 24 страницы">
+    <button class="btn btn-primary" type="submit">Собрать книгу</button>
+  </form>
+  <div class="chips reveal d3" role="group" aria-label="Идеи">
+    <button class="chip" aria-pressed="true">Путешествие</button>
+    <button class="chip" aria-pressed="false">Первый год ребёнка</button>
+    <button class="chip" aria-pressed="false">Свадьба</button>
+    <button class="chip" aria-pressed="false">Выпускной</button>
+  </div>
+  <div class="ctas reveal d3" style="margin-top:18px">
+    <a href="#" class="link">Или загрузить фото</a>
+    <a href="#books" class="link">Выбрать книгу самому</a>
+  </div>
+  <span class="hero-note reveal d3"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Фото обрабатываются на наших серверах в Беларуси и не передаются третьим лицам</span>
+
+  <!-- component: BookStage -->
+  <div class="stage" aria-hidden="true">
+    <div class="spread reveal">
+      <div class="leaf">
+        <div class="pic g1" style="flex:1.45"><span class="sun"></span></div>
+        <div class="row"><div class="pic g3"></div><div class="pic g5"></div></div>
+      </div>
+      <div class="leaf">
+        <span class="caption">Карелия · июль</span>
+        <div class="pic g2" style="flex:1.2"><span class="sun" style="background:rgba(255,255,255,.75)"></span></div>
+        <div class="row"><div class="pic g4"></div><div class="pic g6"></div></div>
+      </div>
+    </div>
+    <span class="pill pill-a reveal d2"><i style="background:var(--coral-tint);color:var(--coral-link)"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 6.1 6.1 2-6.1 2-2 6.1-2-6.1-6.1-2 6.1-2z"/></svg></i><span>38 лучших из 214 фото<small>дубли и смазанные убраны</small></span></span>
+    <span class="pill pill-b reveal d3"><i style="background:var(--teal-tint);color:var(--teal-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>Все лица в кадре<small>проверено до печати</small></span></span>
+  </div>
+</section>
+
+<!-- component: FeatureTile — проверка качества -->
+<section class="tile tile-sand" aria-labelledby="q-title">
+  <div class="copy">
+    <span class="eyebrow reveal">Проверка до печати</span>
+    <h2 class="h1 reveal d1" id="q-title">Никто не останется<br>без головы.</h2>
+    <p class="lead reveal d2">Фото с телефона и фотобумага разной формы, поэтому край кадра всегда обрезается. Мы находим лица и сдвигаем кадр до оплаты, а не после печати.</p>
+    <div class="ctas reveal d3"><a href="#" class="link">Как работает проверка</a></div>
+  </div>
+  <!-- component: CropDemo -->
+  <div class="crop-demo">
+    <div class="crop-card reveal d1">
+      <div class="crop-frame g2">
+        <div class="person" style="left:76%"></div>
+        <div class="cut-zone" style="left:85%;right:0"></div>
+        <div class="cut-line" style="left:85%"></div>
+      </div>
+      <span class="status status-bad">Было</span>
+      <b>Лицо уходит под обрез</b>
+      <span>Фото 4:3 на формате 10×15 теряет края. Сейчас это видно только после печати.</span>
+    </div>
+    <div class="crop-card reveal d2">
+      <div class="crop-frame g2">
+        <div class="person" style="left:58%"></div>
+        <div class="face-box" style="left:61.5%;width:19%;top:26%;height:28%"></div>
+        <div class="cut-line" style="left:85%;opacity:.55"></div>
+      </div>
+      <span class="status status-ok">Стало</span>
+      <b>Кадр сдвинут автоматически</b>
+      <span>Или подскажем формат 15×20 — он совпадает с пропорциями фото с телефона.</span>
+    </div>
+  </div>
+</section>
+
+<!-- component: Duo -->
+<div class="duo">
+  <!-- Tile: общий альбом -->
+  <section class="tile tile-dark" id="shared" aria-labelledby="shared-title">
+    <div class="copy">
+      <span class="eyebrow reveal">Общий альбом</span>
+      <h2 class="h2 reveal d1" id="shared-title">Один QR-код.<br>Фото всех гостей.</h2>
+      <p class="lead reveal d2" style="font-size:var(--t-body)">Свадьба, выпускной, корпоратив. Гости сканируют код и загружают фото без приложения, а когда альбом готов, каждый заказывает свой экземпляр.</p>
+      <div class="ctas reveal d3"><a href="#" class="btn btn-primary btn-sm">Создать альбом</a><a href="#" class="link">Подробнее</a></div>
+    </div>
+    <div class="qr-wrap reveal d2">
+      <!-- component: QRCard -->
+      <div class="qr-card">
+        <b>Свадьба Ани и Миши</b>
+        <svg class="qr" viewBox="0 0 29 29" shape-rendering="crispEdges" aria-label="Пример QR-кода">
+          <rect width="29" height="29" fill="#fff"/>
+          <g fill="#1D2423">
+            <path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM22 0h7v7h-7zM23 1v5h5V1zM24 2h3v3h-3zM0 22h7v7H0zM1 23v5h5v-5zM2 24h3v3H2z" fill-rule="evenodd"/>
+            <path d="M9 0h1v1H9zM11 0h2v1h-2zM15 0h1v2h-1zM18 0h2v1h-2zM9 2h3v1H9zM14 2h1v1h-1zM17 2h1v2h-1zM19 3h1v1h-1zM10 4h1v2h-1zM12 4h2v1h-2zM15 5h2v1h-2zM9 6h1v1H9zM11 6h1v1h-1zM13 6h1v1h-1zM18 6h2v1h-2zM0 9h2v1H0zM3 9h1v2H3zM5 9h3v1H5zM10 9h2v2h-2zM14 9h1v1h-1zM16 9h3v1h-3zM21 9h1v2h-1zM24 9h2v1h-2zM27 9h2v1h-2zM1 11h1v1H1zM6 11h2v1H6zM12 11h1v2h-1zM15 11h2v1h-2zM19 11h1v1h-1zM23 11h1v2h-1zM26 11h1v1h-1zM0 13h3v1H0zM5 13h1v1H5zM8 13h3v1H8zM14 13h1v2h-1zM17 13h3v1h-3zM22 13h1v1h-1zM25 13h3v1h-3zM2 15h2v1H2zM7 15h1v2H7zM10 15h1v1h-1zM12 15h1v1h-1zM16 15h1v1h-1zM19 15h2v2h-2zM24 15h1v1h-1zM27 15h1v2h-1zM0 17h1v1H0zM4 17h2v1H4zM9 17h2v1H9zM13 17h3v1h-3zM22 17h2v1h-2zM25 17h1v1h-1zM1 19h1v2H1zM3 19h3v1H3zM8 19h1v1H8zM11 19h1v2h-1zM15 19h1v1h-1zM17 19h2v1h-2zM21 19h1v2h-1zM24 19h3v1h-3zM9 21h1v1H9zM13 21h2v1h-2zM18 21h1v2h-1zM23 21h1v1h-1zM26 21h2v1h-2zM9 23h2v1H9zM12 23h1v2h-1zM15 23h2v1h-2zM20 23h3v1h-3zM25 23h1v2h-1zM28 23h1v1h-1zM10 25h1v1h-1zM14 25h1v2h-1zM17 25h1v1h-1zM19 25h2v1h-2zM22 25h2v1h-2zM27 25h1v2h-1zM9 27h2v1H9zM12 27h1v1h-1zM16 27h2v2h-2zM20 27h1v1h-1zM23 27h1v2h-1zM25 27h1v1h-1z"/>
+          </g>
+        </svg>
+        <small>Наведите камеру телефона</small>
+        <div class="faces"><i style="background:#E79179"></i><i style="background:#8FC6C3"></i><i style="background:#8EA2CF"></i><i style="background:#D8B68B"></i><span>34 гостя · 412 фото</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tile: ассистент -->
+  <section class="tile tile-sand" id="help" aria-labelledby="help-title">
+    <div class="copy">
+      <span class="eyebrow reveal">Поддержка</span>
+      <h2 class="h2 reveal d1" id="help-title">Ответим в 3 часа ночи.<br>И в 3 часа дня.</h2>
+      <p class="lead reveal d2" style="font-size:var(--t-body)">Ассистент знает сроки, доставку и статус вашего заказа и отвечает круглосуточно. Люди на связи каждый день с 9 до 21.</p>
+      <div class="ctas reveal d3"><a href="#" class="btn btn-dark btn-sm">Задать вопрос</a></div>
+    </div>
+    <!-- component: ChatPreview -->
+    <div class="chat">
+      <div class="bubble me reveal d1">Когда приедет мой заказ?</div>
+      <div class="bubble bot reveal d2">Фотокнига Classic уже в печати. Европочта доставит её в пункт выдачи <b>в четверг, 14 ноября</b>.</div>
+      <div class="bubble me reveal d3">А если что-то будет с браком?</div>
+      <div class="bubble bot reveal d3">Пришлите фото дефекта прямо здесь — перепечатаем бесплатно, книгу возвращать не нужно.</div>
+      <div class="chat-tail"></div>
+    </div>
+  </section>
+</div>
+
+<!-- component: Compare -->
+<section class="compare" id="books" aria-labelledby="cmp-title">
+  <div class="head">
+    <h2 class="h1 reveal" id="cmp-title">Какая фотокнига вам подходит?</h2>
+    <div class="reveal d1"><a href="#" class="link">Сравнить все характеристики</a></div>
+  </div>
+  <div class="models">
+    <!-- component: ModelColumn -->
+    <article class="model reveal d1">
+      <div class="book-3d"><i style="width:120px;height:120px;background:linear-gradient(135deg,#ECC097,#C8806B)"></i></div>
+      <span class="model-new">Много фото</span>
+      <h3>Lite</h3>
+      <p class="tag">Тонкие листы, как в журнале. Для больших историй.</p>
+      <p class="price">от 56 руб.<s>70 руб.</s></p>
+      <div class="ctas"><a href="#" class="btn btn-primary btn-sm">Собрать</a><a href="#" class="link">Подробнее</a></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 5.5C6.5 4 9.5 4 12 5.5v14c-2.5-1.5-5.5-1.5-8 0zM20 5.5C17.5 4 14.5 4 12 5.5v14c2.5-1.5 5.5-1.5 8 0z"/></svg><b>до 160 страниц</b><span>от 24 страниц</span></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 15l5-4.5 4 3.5 3-2.5 5 4"/></svg><b>25–400 фото</b><span>в одной книге</span></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h12v16H6z"/><path d="M9 4v16" opacity=".5"/></svg><b>Мелованная бумага</b><span>0,12 мм, без покрытия</span></div>
+    </article>
+    <article class="model reveal d2">
+      <div class="book-3d"><i style="width:128px;height:128px;background:linear-gradient(135deg,#A9CDD2,#5C8A88)"></i></div>
+      <span class="model-new">Выбор picPac</span>
+      <h3>Classic</h3>
+      <p class="tag">Плотные листы и раскрытие на 180°. Подходит почти всем.</p>
+      <p class="price">от 72,90 руб.<s>81 руб.</s></p>
+      <div class="ctas"><a href="#" class="btn btn-primary btn-sm">Собрать</a><a href="#" class="link">Подробнее</a></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 5.5C6.5 4 9.5 4 12 5.5v14c-2.5-1.5-5.5-1.5-8 0zM20 5.5C17.5 4 14.5 4 12 5.5v14c2.5-1.5 5.5-1.5 8 0z"/></svg><b>до 60 страниц</b><span>от 20 страниц</span></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 15l5-4.5 4 3.5 3-2.5 5 4"/></svg><b>20–200 фото</b><span>в одной книге</span></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h12v16H6z"/><path d="M9 4v16" opacity=".5"/></svg><b>Мелованная бумага</b><span>0,28 мм, глянец или зерно</span></div>
+    </article>
+    <article class="model reveal d3">
+      <div class="book-3d"><i style="width:104px;height:146px;background:linear-gradient(135deg,#DF948A,#A9443F)"></i></div>
+      <span class="model-new">−30% до 30.11</span>
+      <h3>Premium</h3>
+      <p class="tag">Фотобумага на картоне 1 мм, без шва по центру. На поколения.</p>
+      <p class="price">от 70,35 руб.<s>100,50 руб.</s></p>
+      <div class="ctas"><a href="#" class="btn btn-primary btn-sm">Собрать</a><a href="#" class="link">Подробнее</a></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 5.5C6.5 4 9.5 4 12 5.5v14c-2.5-1.5-5.5-1.5-8 0zM20 5.5C17.5 4 14.5 4 12 5.5v14c2.5-1.5 5.5-1.5 8 0z"/></svg><b>до 60 страниц</b><span>от 10 страниц</span></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 15l5-4.5 4 3.5 3-2.5 5 4"/></svg><b>15–200 фото</b><span>в одной книге</span></div>
+      <div class="spec"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4h12v16H6z"/><path d="M9 4v16" opacity=".5"/></svg><b>Фотобумага 1 мм</b><span>матовая, 5 форматов</span></div>
+    </article>
+  </div>
+  <p class="compare-foot reveal">Объём всех книг указан в страницах: 1 разворот = 2 страницы. Изготовление до 3 рабочих дней.</p>
+</section>
+
+<!-- component: FeatureTile — фотопечать -->
+<section class="tile tile-sand" id="prints" aria-labelledby="pr-title">
+  <div class="copy">
+    <span class="eyebrow reveal">Фотопечать</span>
+    <h2 class="h1 reveal d1" id="pr-title">Фото в руках.<br>От 0,49 руб.</h2>
+    <p class="lead reveal d2">Цифровая или фотохимическая печать, матовая или глянцевая. Покажем, если кадр обрежется, и подскажем формат, где он поместится целиком.</p>
+    <div class="ctas reveal d3"><a href="#" class="btn btn-primary">Напечатать фото</a><a href="#" class="link">Форматы и цены</a></div>
+  </div>
+  <div class="prints" aria-hidden="true">
+    <div class="print reveal d1"><i class="g4"></i></div>
+    <div class="print reveal d2"><i class="g1"></i></div>
+    <div class="print reveal d3"><i class="g6"></i></div>
+    <span class="pill fmt reveal d3"><i style="background:var(--teal-tint);color:var(--teal-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>15×20 — без обрезки<small>совпадает с фото с телефона</small></span></span>
+  </div>
+</section>
+
+<!-- component: EventsRail -->
+<section class="events" id="events" aria-labelledby="ev-title">
+  <div class="head">
+    <h2 class="h1 reveal" id="ev-title">Для любого повода.</h2>
+    <a href="#" class="link reveal d1">Все события</a>
+  </div>
+  <div class="rail" tabindex="0" aria-label="События, прокручивается горизонтально">
+    <a href="#" class="ev g1"><small>Путешествия</small><b>Лето, которое<br>хочется листать</b><span class="plus">+</span></a>
+    <a href="#" class="ev g5"><small>Дети</small><b>Первый год —<br>в одной книге</b><span class="plus">+</span></a>
+    <a href="#" class="ev g3"><small>Свадьба</small><b>Альбом из фото<br>всех гостей</b><span class="plus">+</span></a>
+    <a href="#" class="ev g4"><small>Выпускной</small><b>Сад, 4, 9<br>и 11 класс</b><span class="plus">+</span></a>
+    <a href="#" class="ev g6"><small>Новый год</small><b>Книга<br>вашего года</b><span class="plus">+</span></a>
+    <a href="#" class="ev g2"><small>Семья</small><b>История,<br>которую передают</b><span class="plus">+</span></a>
+  </div>
+</section>
+
+<!-- component: Promise -->
+<section class="promise" id="promise" aria-labelledby="pm-title">
+  <div class="head">
+    <h2 class="h1 reveal" id="pm-title">Без мелкого шрифта.</h2>
+    <p class="lead reveal d1">Одни правила для всех продуктов.</p>
+  </div>
+  <div class="facts">
+    <div class="fact reveal d1"><span class="num">3<small>дня</small></span><b>Изготовление</b><span>Не больше трёх рабочих дней. Срок доставки добавляется к нему.</span></div>
+    <div class="fact reveal d2"><span class="num">0<small>руб.</small></span><b>Перепечатка брака</b><span>По фото дефекта в приложении. Отправлять книгу обратно не нужно.</span></div>
+    <div class="fact reveal d3"><span class="num">5,90<small>руб.</small></span><b>Доставка от</b><span>До пункта Европочты. Белпочтой бесплатно от 150 руб.</span></div>
+  </div>
+  <!-- component: DeliveryDetails -->
+  <div class="delivery reveal">
+    <details>
+      <summary>Все способы доставки</summary>
+      <div class="drow"><span>Европочта, пункт выдачи</span><span>от 2 дней</span><span>5,90 руб.</span></div>
+      <div class="drow"><span>Белпочта, бесплатно от 150 руб.</span><span>2–3 дня</span><span>6,90 руб.</span></div>
+      <div class="drow"><span>Курьер по Минску, будни до 22:00</span><span>в выбранный день</span><span>14,90 руб.</span></div>
+      <div class="drow"><span>Курьер по Беларуси</span><span>в выбранный день</span><span>19,90 руб.</span></div>
+      <div class="drow"><span>EMS, бесплатно от 300 руб.</span><span>1–2 дня</span><span>20,90 руб.</span></div>
+    </details>
+    <details>
+      <summary>Оплата</summary>
+      <p>Картой Visa или Mastercard без комиссии или через ЕРИП. Номер заказа для ЕРИП придёт на почту.</p>
+    </details>
+    <details>
+      <summary>Можно ли изменить заказ</summary>
+      <p>Пока заказ в статусе «Новый», его можно отменить в личном кабинете. После передачи в печать изменить его нельзя, поэтому до оплаты мы показываем превью каждой страницы и предупреждения о качестве.</p>
+    </details>
+  </div>
+</section>
+</main>
+
+<!-- component: Footer -->
+<footer class="footer">
+  <div class="wrap">
+    <p class="note">Цены указаны со скидкой и действуют до 30 ноября 2026 года. Срок изготовления не включает доставку. Это концепт редизайна, подготовленный на хакатоне.</p>
+    <div class="fcols">
+      <div class="fcol"><b>Продукты</b><a href="#">Фотокниги</a><a href="#">Фотопечать</a><a href="#">Общий альбом</a><a href="#">По событиям</a></div>
+      <div class="fcol"><b>Помощь</b><a href="#">Доставка и оплата</a><a href="#">Вопросы и ответы</a><a href="#">Гарантия</a><a href="#">Статус заказа</a></div>
+      <div class="fcol"><b>Связь</b><a href="#">Чат 24/7</a><a href="#">Telegram</a><a href="#">Instagram</a><a href="#">support@picpac.by</a></div>
+      <div class="fcol"><b>О компании</b><a href="#">О нас</a><a href="#">Производство</a><a href="#">Блог</a><a href="#">Отзывы</a></div>
+    </div>
+    <div class="flegal"><span>ООО «Фотопринт», индустриальный парк «Великий камень»</span><span>Политика конфиденциальности · Договор оферты</span></div>
+  </div>
+</footer>
+
+<script>
+  document.body.classList.remove('no-js');
+  // Появление при прокрутке
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { rootMargin: '0px 0px -40px 0px', threshold: 0 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+  // Тень под навигацией только когда контент уходит под неё
+  var nav = document.querySelector('.gnav');
+  addEventListener('scroll', function () { nav.classList.toggle('scrolled', scrollY > 8); }, { passive: true });
+  // Состояния чипов
+  document.querySelectorAll('.chip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+      c.setAttribute('aria-pressed', 'true');
+    });
+  });
+</script>
+</body>
+</html>
