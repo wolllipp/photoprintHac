@@ -207,6 +207,18 @@ svg { display: block; }
 /* список без карточки: строки прямо на фоне, разделены тонкой полупрозрачной линией */
 .plain .row { padding: 12px 0; }
 .plain .row + .row::before { left: 48px; background: rgba(35,43,42,.10); }
+/* главная в духе Яндекс Go: поле, недавнее, сервисы */
+.search { height: 58px; border-radius: 18px; background: var(--card); display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; box-shadow: 0 1px 2px rgba(35,43,42,.04), 0 10px 26px rgba(35,43,42,.07); }
+.search .ph-text { flex: 1; font-size: 18px; font-weight: 600; color: var(--mut-2); letter-spacing: -0.01em; }
+.mic-btn { width: 42px; height: 42px; border-radius: 13px; background: var(--coral-tint); color: var(--coral-act); display: flex; align-items: center; justify-content: center; }
+.ico { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.recent { margin-top: -6px; }
+.recent .row + .row::before { left: 52px; }
+.new-dot { font-size: 11px; font-weight: 700; letter-spacing: .03em; color: var(--coral-act); background: var(--coral-tint); padding: 3px 8px; border-radius: 999px; margin-right: 4px; }
+.svcs { display: flex; gap: 8px; }
+.svc { flex: 1; background: var(--card); border-radius: 20px; padding: 12px; display: flex; flex-direction: column; gap: 14px; min-height: 118px; justify-content: space-between; }
+.svc b { display: block; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.svc span:not(.ico) { font-size: 12px; color: var(--mut); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
 </style>
@@ -224,42 +236,35 @@ svg { display: block; }
 <!-- ===================== 1. Главная ===================== -->
 <section class="shot bg-1">
   <span class="step">1 · Главная</span>
-  <h2>Фото уже ждут книгу</h2>
-  <p class="sub">Приложение само замечает поездку в галерее и предлагает черновик</p>
+  <h2>Одно поле вместо меню</h2>
+  <p class="sub">Описание, фото или голос — а недавние проекты сразу под полем, как адреса в Яндекс Go</p>
   <div class="device"><div class="screen">
     <div class="island"></div>
     <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
-    <div class="body" style="gap:16px">
+    <div class="body" style="gap:18px">
       <div class="lt" style="align-items:center"><span style="font-family:'Pacifico',cursive;color:var(--coral);font-size:28px;line-height:1;padding-bottom:6px">PicPac</span><span class="avatar">И</span></div>
-      <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;gap:4px;height:92px">
-          <div class="ph g1" style="flex:2"></div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="ph g2" style="flex:1"></div><div class="ph g6" style="flex:1"></div></div>
-        </div>
-        <div style="padding:0 4px;display:flex;flex-direction:column;gap:3px">
-          <span style="font-size:13px;color:var(--mut)">Найдено в галерее</span>
-          <b style="font-size:20px;letter-spacing:-0.02em">Карелия, июль · 214 фото</b>
-          <span style="font-size:14px;color:var(--mut)">Черновик готов · 24 страницы · 38 кадров</span>
-        </div>
-        <div class="btn btn-primary" style="height:46px;border-radius:14px;font-size:16px">Открыть черновик</div>
+      <!-- Яндекс Go: одно поле ввода, недавнее — прямо под ним -->
+      <div class="search">
+        <span style="color:var(--coral-act);display:flex"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M232,48H168a32,32,0,0,0-32,32v87.73a8.17,8.17,0,0,1-7.47,8.25,8,8,0,0,1-8.53-8V80A32,32,0,0,0,88,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,23.94,7.9,7.9,0,0,0,5.12,7.55A8,8,0,0,0,136,232a24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM208,168H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,168Zm0-32H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,136Zm0-32H168.27A8.17,8.17,0,0,1,160,96.53,8,8,0,0,1,168,88h39.73A8.17,8.17,0,0,1,216,95.47,8,8,0,0,1,208,104Z"/></svg></span>
+        <span class="ph-text">Какую книгу соберём?</span>
+        <span class="mic-btn"><svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M80,128V64a48,48,0,0,1,96,0v64a48,48,0,0,1-96,0Zm128,0a8,8,0,0,0-16,0,64,64,0,0,1-128,0,8,8,0,0,0-16,0,80.11,80.11,0,0,0,72,79.6V240a8,8,0,0,0,16,0V207.6A80.11,80.11,0,0,0,208,128Z"/></svg></span>
       </div>
-      <div class="actions">
-        <span class="act main"><i><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5.5C6.5 4 9.5 4 12 5.5v14c-2.5-1.5-5.5-1.5-8 0zM20 5.5C17.5 4 14.5 4 12 5.5v14c2.5-1.5 5.5-1.5 8 0z"/></svg></i>Фотокнига</span>
-        <span class="act"><i><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6" y="3.5" width="12" height="17" rx="1.5"/><path d="M6 14.5l3.5-3 3 2.5 2-1.5 3.5 3"/></svg></i>Фотопечать</span>
-        <span class="act"><i><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg></i>Общий альбом</span>
-        <span class="act"><i><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l2.1 6.4L20.5 11l-6.4 2.1L12 19.5l-2.1-6.4L3.5 11l6.4-1.6z"/></svg></i>Опишите словами</span>
+      <div class="plain recent">
+        <div class="row"><span class="ico" style="background:#E6EEF8;color:#3F6FB0"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M215.52,197.26a8,8,0,0,1-1.86,8.39l-24,24A8,8,0,0,1,184,232a7.09,7.09,0,0,1-.79,0,8,8,0,0,1-5.87-3.52l-44.07-66.12L112,183.59V208a8,8,0,0,1-2.34,5.65s-14,14.06-15.88,15.88A7.91,7.91,0,0,1,91,231.41a8,8,0,0,1-10.41-4.35l-.06-.15-14.7-36.76L29,175.42a8,8,0,0,1-2.69-13.08l16-16A8,8,0,0,1,48,144H72.4l21.27-21.27L27.56,78.65a8,8,0,0,1-1.22-12.32l24-24a8,8,0,0,1,8.39-1.86l85.94,31.25L176.2,40.19a28,28,0,0,1,39.6,39.6l-31.53,31.53Z"/></svg></span><div class="t"><b>Карелия, июль</b><span>черновик из галереи · 214 фото</span></div><span class="new-dot">новое</span><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
+        <div class="row"><span class="ico" style="background:#FBEADF;color:#B9622E"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M215.58,54.55a7.53,7.53,0,0,0-1.32-1.27A79.68,79.68,0,0,0,160,32h-8a16,16,0,0,0-16,16v56H55.2A40.07,40.07,0,0,0,16,72a8,8,0,0,0,0,16,24,24,0,0,1,24,24,80.09,80.09,0,0,0,80,80h40A79.94,79.94,0,0,0,215.58,54.55Zm-6.91,16A63.73,63.73,0,0,1,223.48,104H166.81ZM160,48a63.59,63.59,0,0,1,36.69,11.61L152,95.35V48ZM104,224a16,16,0,1,1-16-16A16,16,0,0,1,104,224Zm104,0a16,16,0,1,1-16-16A16,16,0,0,1,208,224Z"/></svg></span><div class="t"><b>Первый год Матвея</b><span>Classic 20×20 · 18 из 24 страниц</span></div><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
+        <div class="row"><span class="ico" style="background:#F6E5EA;color:#A8475F"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M149.91,13.53A8,8,0,0,0,142.3,8H97.71a8,8,0,0,0-7.61,5.53,451,451,0,0,0-14.21,59.7c-7.26,44.25-4.35,75.76,8.65,93.66A40,40,0,0,0,112,183.42V232H96a8,8,0,1,0,0,16h48a8,8,0,0,0,0-16H128V183.42a39.94,39.94,0,0,0,27.46-16.53c13-17.9,15.92-49.41,8.66-93.66A451,451,0,0,0,149.91,13.53ZM93.8,64c3-15.58,6.73-29.81,9.79-40h32.83c3.06,10.19,6.77,24.42,9.8,40ZM232,52a12,12,0,1,1-12-12A12,12,0,0,1,232,52ZM184,20a12,12,0,1,1,12,12A12,12,0,0,1,184,20Zm24,80a12,12,0,1,1-12-12A12,12,0,0,1,208,100Z"/></svg></span><div class="t"><b>Свадьба Ани и Миши</b><span>общий альбом · 34 гостя</span></div><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
       </div>
-      <div class="sec"><b>Мои проекты</b><a>Все</a></div>
-      <div class="plain">
-        <div class="row"><img src="icons/child.png" alt="" width="36" height="36" style="flex-shrink:0;display:block"><div class="t"><b>Первый год Матвея</b><span>Classic 20×20 · 18 из 24 страниц</span></div><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
-        <div class="row"><img src="icons/wedding.png" alt="" width="36" height="36" style="flex-shrink:0;display:block"><div class="t"><b>Свадьба Ани и Миши</b><span>Общий альбом · 34 гостя</span></div><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
+      <div class="svcs">
+        <div class="svc"><span class="ico" style="background:var(--coral-tint);color:var(--coral-act);width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M232,48H168a32,32,0,0,0-32,32v87.73a8.17,8.17,0,0,1-7.47,8.25,8,8,0,0,1-8.53-8V80A32,32,0,0,0,88,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,23.94,7.9,7.9,0,0,0,5.12,7.55A8,8,0,0,0,136,232a24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM208,168H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,168Zm0-32H168.27a8.17,8.17,0,0,1-8.25-7.47,8,8,0,0,1,8-8.53h39.73a8.17,8.17,0,0,1,8.25,7.47A8,8,0,0,1,208,136Zm0-32H168.27A8.17,8.17,0,0,1,160,96.53,8,8,0,0,1,168,88h39.73A8.17,8.17,0,0,1,216,95.47,8,8,0,0,1,208,104Z"/></svg></span><div><b>Фотокнига</b><span>от 56 руб.</span></div></div>
+        <div class="svc"><span class="ico" style="background:#EEF0F7;color:#4C5F95;width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H72A16,16,0,0,0,56,56V72H40A16,16,0,0,0,24,88V200a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16V184h16a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM172,72a12,12,0,1,1-12,12A12,12,0,0,1,172,72Zm12,128H40V88H56v80a16,16,0,0,0,16,16H184Zm32-32H72V120.69l30.34-30.35a8,8,0,0,1,11.32,0L163.31,140,189,114.34a8,8,0,0,1,11.31,0L216,130.07V168Z"/></svg></span><div><b>Фотопечать</b><span>от 0,49 руб.</span></div></div>
+        <div class="svc"><span class="ico" style="background:var(--teal-tint);color:var(--teal-ink);width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M64.12,147.8a4,4,0,0,1-4,4.2H16a8,8,0,0,1-7.8-6.17,8.35,8.35,0,0,1,1.62-6.93A67.79,67.79,0,0,1,37,117.51a40,40,0,1,1,66.46-35.8,3.94,3.94,0,0,1-2.27,4.18A64.08,64.08,0,0,0,64,144C64,145.28,64,146.54,64.12,147.8Zm182-8.91A67.76,67.76,0,0,0,219,117.51a40,40,0,1,0-66.46-35.8,3.94,3.94,0,0,0,2.27,4.18A64.08,64.08,0,0,1,192,144c0,1.28,0,2.54-.12,3.8a4,4,0,0,0,4,4.2H240a8,8,0,0,0,7.8-6.17A8.33,8.33,0,0,0,246.17,138.89Zm-89,43.18a48,48,0,1,0-58.37,0A72.13,72.13,0,0,0,65.07,212,8,8,0,0,0,72,224H184a8,8,0,0,0,6.93-12A72.15,72.15,0,0,0,157.19,182.07Z"/></svg></span><div><b>Общий альбом</b><span>по QR-коду</span></div></div>
       </div>
-    </div>
-    <!-- Qalta: плавающая панель ввода — снять, сказать, загрузить -->
-    <div class="dock" style="bottom:106px">
-      <span aria-label="Камера"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M8.5 6l1.5-2.5h4L15.5 6"/></svg></span>
-      <span class="mic" aria-label="Сказать"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></span>
-      <span aria-label="Загрузить"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <!-- активный заказ на главной, как текущая поездка в Яндекс Go -->
+      <div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;border-radius:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:16px">Печатаем</b><span style="font-size:13px;color:var(--mut)">будет в чт, 14 ноября</span></div>
+        <div class="segbar"><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div>
+        <span style="font-size:13px;color:var(--mut)">Карелия, июль · готово 6 из 12 разворотов</span>
+      </div>
     </div>
     <nav class="tabbar">
       <span class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.5V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.5z"/></svg>Главная</span>
