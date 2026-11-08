@@ -204,6 +204,9 @@ svg { display: block; }
 .notif b { font-size: 15px; display: flex; justify-content: space-between; }
 .notif b small { font-weight: 400; color: var(--mut); font-size: 13px; }
 .notif p { font-size: 14px; line-height: 1.35; }
+/* список без карточки: строки прямо на фоне, разделены тонкой полупрозрачной линией */
+.plain .row { padding: 12px 0; }
+.plain .row + .row::before { left: 52px; background: rgba(35,43,42,.10); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
 </style>
@@ -226,17 +229,17 @@ svg { display: block; }
   <div class="device"><div class="screen">
     <div class="island"></div>
     <div class="statusbar"><span>9:41</span><span class="batt"><i></i></span></div>
-    <div class="body">
+    <div class="body" style="gap:16px">
       <div class="lt" style="align-items:center"><span style="font-family:'Pacifico',cursive;color:var(--coral);font-size:28px;line-height:1;padding-bottom:6px">PicPac</span><span class="avatar">И</span></div>
       <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;gap:4px;height:118px">
+        <div style="display:flex;gap:4px;height:92px">
           <div class="ph g1" style="flex:2"></div>
           <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="ph g2" style="flex:1"></div><div class="ph g6" style="flex:1"></div></div>
         </div>
         <div style="padding:0 4px;display:flex;flex-direction:column;gap:3px">
           <span style="font-size:13px;color:var(--mut)">Найдено в галерее</span>
           <b style="font-size:20px;letter-spacing:-0.02em">Карелия, июль · 214 фото</b>
-          <span style="font-size:14px;color:var(--mut)">Черновик книги готов: 24 страницы, 38 лучших кадров</span>
+          <span style="font-size:14px;color:var(--mut)">Черновик готов · 24 страницы · 38 кадров</span>
         </div>
         <div class="btn btn-primary" style="height:46px;border-radius:14px;font-size:16px">Открыть черновик</div>
       </div>
@@ -247,8 +250,9 @@ svg { display: block; }
         <span class="act"><i><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l2.1 6.4L20.5 11l-6.4 2.1L12 19.5l-2.1-6.4L3.5 11l6.4-1.6z"/></svg></i>Опишите словами</span>
       </div>
       <div class="sec"><b>Мои проекты</b><a>Все</a></div>
-      <div class="group">
+      <div class="plain">
         <div class="row"><span class="tile g5"></span><div class="t"><b>Первый год Матвея</b><span>Classic 20×20 · 18 из 24 страниц</span></div><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
+        <div class="row"><span class="tile g4"></span><div class="t"><b>Свадьба Ани и Миши</b><span>Общий альбом · 34 гостя</span></div><svg class="chev" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 6 6-6 6"/></svg></div>
       </div>
     </div>
     <!-- Qalta: плавающая панель ввода — снять, сказать, загрузить -->
