@@ -14,7 +14,7 @@ export default function Home() {
       contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 110 }]}
       showsVerticalScrollIndicator={false}>
       <TopBar initial="И" points={points} />
-      <AskField />
+      <AskField onPress={() => router.push('/story')} onMic={() => router.push({ pathname: '/story', params: { voice: '1' } })} />
       <Suggestions items={suggestions} onOpen={(id) => router.push({ pathname: '/book/[id]', params: { id } })} />
       <MyAlbums items={albums} />
       <MiniServices />
