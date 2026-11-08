@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,7 +15,7 @@ export default function Home() {
       showsVerticalScrollIndicator={false}>
       <TopBar initial="И" points={points} />
       <AskField />
-      <Suggestions items={suggestions} />
+      <Suggestions items={suggestions} onOpen={(id) => router.push({ pathname: '/book/[id]', params: { id } })} />
       <MyAlbums items={albums} />
       <MiniServices />
       <OrderStrip order={currentOrder} />

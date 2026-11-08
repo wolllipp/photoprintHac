@@ -47,3 +47,38 @@ export const currentOrder: CurrentOrder = {
 };
 
 export const STAGES: CurrentOrder['stage'][] = ['accepted', 'checked', 'printing', 'delivery', 'ready'];
+
+/* ---------- книга и цена (экран «Книга и цена», путь А) ---------- */
+export type Tariff = {
+  id: 'lite' | 'classic' | 'premium';
+  name: string;
+  price: number; // за проект, с текущей скидкой
+  readyBy: string;
+  about: string;
+  cover: [string, string];
+  tall?: boolean;
+};
+
+/** Цены за 24 страницы иллюстративные; источник правды — справочник D14 (бэкенд). */
+export const tariffs: Tariff[] = [
+  { id: 'lite', name: 'Lite', price: 62.4, readyBy: '13 ноя', about: 'Lite — тонкие листы, как в журнале', cover: ['#ECC097', '#C8806B'] },
+  { id: 'classic', name: 'Classic', price: 81.09, readyBy: '14 ноя', about: 'Classic — плотные листы, раскрытие на 180°', cover: ['#A9CDD2', '#5C8A88'] },
+  { id: 'premium', name: 'Premium', price: 96.6, readyBy: '15 ноя', about: 'Premium — фотобумага 1 мм, без шва по центру', cover: ['#DF948A', '#A9443F'], tall: true },
+];
+
+export const drafts: Record<string, { title: string; pages: number; format: string; photos: number }> = {
+  karelia: { title: 'Карелия, июль', pages: 24, format: '20×20', photos: 38 },
+  'year-2026': { title: 'Книга года 2026', pages: 40, format: '21×30', photos: 96 },
+  dacha: { title: 'Дача, август', pages: 16, format: '20×20', photos: 24 },
+};
+
+/* ---------- оформление ---------- */
+export const delivery = [
+  { id: 'evropochta', title: 'Мой пункт · Европочта', sub: 'ПВЗ №112, Притыцкого, 29 · от 2 дней', price: 5.9 },
+  { id: 'courier', title: 'Курьер по Минску', sub: 'в выбранный день', price: 14.9 },
+] as const;
+
+export const phoneMasked = '+375 29 •••-••-67';
+
+/** Цена пика пока не утверждена (Алеся, #30) — условно 1 пик = 0,01 р. */
+export const PIK_RATE = 0.01;

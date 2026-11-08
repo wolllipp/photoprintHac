@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { StoreProvider } from '@/data/store';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -18,11 +19,13 @@ export default function RootLayout() {
   if (!loaded && !error) return null;
 
   return (
-    <>
+    <StoreProvider>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="book/[id]" />
+        <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
       </Stack>
-    </>
+    </StoreProvider>
   );
 }
