@@ -235,9 +235,14 @@ svg { display: block; }
 .sug > span { font-size: 12.5px; color: var(--mut); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; position: relative; }
 .topbar .brand { position: absolute; left: 50%; transform: translateX(-50%); font-family: 'Pacifico', cursive; color: var(--coral); font-size: 27px; line-height: 1; padding-bottom: 6px; }
-.points { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 4px; border-radius: 999px; background: var(--coral-tint); color: var(--coral-link); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-/* «пик» — монетка с фирменной курсивной P */
-.pik { width: 24px; height: 24px; border-radius: 50%; background: var(--coral-act); color: #fff; font-family: 'Pacifico', cursive; font-style: normal; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; padding: 0 1px 3px 0; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.12); }
+/* пики: число слева, маленькая 3D-монетка справа, тонкая обводка — как баллы в Яндекс Go */
+.points { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 5px 0 11px; border-radius: 999px; background: rgba(255,255,255,.6); box-shadow: inset 0 0 0 1px rgba(35,43,42,.12); color: var(--fg); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.pik { width: 20px; height: 20px; border-radius: 50%; position: relative; transform: rotate(-14deg); font-style: normal;
+  background: radial-gradient(circle at 34% 28%, #F6B6A6 0%, #D9766C 38%, #B84F4B 72%, #8E3532 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255,220,210,.55), inset -1.5px -2px 0 rgba(90,25,22,.35), 1px 2px 3px rgba(120,40,35,.35);
+  display: flex; align-items: center; justify-content: center; }
+.pik::after { content: ""; position: absolute; left: 4px; top: 3px; width: 7px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.55); transform: rotate(-25deg); filter: blur(.4px); }
+.pik b { font-family: 'Pacifico', cursive; font-weight: 400; color: #fff; font-size: 12px; line-height: 1; padding: 0 1px 3px 0; text-shadow: 0 1px 0 rgba(90,25,22,.45); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
 </style>
@@ -265,7 +270,7 @@ svg { display: block; }
       <div class="topbar">
         <span class="avatar">И</span>
         <span class="brand">PicPac</span>
-        <span class="points" aria-label="350 пиков"><i class="pik">P</i>350</span>
+        <span class="points" aria-label="350 пиков">350<i class="pik"><b>P</b></i></span>
       </div>
       <!-- активный заказ сверху, как текущая поездка в Яндекс Go -->
       <div class="order-strip">
