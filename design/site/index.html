@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>picPac — главная, редизайн v3 (структура текущего сайта)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Jost — современная версия геометрического гротеска, близкого к текущему шрифту сайта. Pacifico — приближение логотипа. -->
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   ТОКЕНЫ picPac (станут packages/theme/theme.ts)
+   Цвета сняты с текущего сайта; оттенки действий углублены
+   ради контраста. Аудит: notes/10-site-audit.md
+   ========================================================= */
+:root {
+  --coral:      #CC605B;   /* фирменный: логотип, акценты */
+  --coral-act:  #B84F4B;   /* кнопки, белый текст 4.93:1 */
+  --coral-link: #A9443F;   /* ссылки и активные пункты 5.36:1 */
+  --coral-tint: #FBEDEC;
+  --sand:       #F9F4EE;   /* фирменный фон */
+  --sand-2:     #F2EAE0;
+  --line:       #E8DED2;
+  --white:      #FFFFFF;
+  --ink:        #232B2A;   /* текст */
+  --ink-2:      #3B4B4A;   /* фирменный тёмный (кнопка «Загрузить фотографии») */
+  --ink-3:      #5B6664;   /* вторичный текст 5.44:1 */
+  --teal:       #82DFD6;   /* фирменный (иконки соцсетей) */
+  --teal-ink:   #1F6F67;
+  --blue:       #758CC2;   /* бейдж «Скидка» */
+  --sand-badge: #B59B83;   /* бейдж «Скидка» второй */
+
+  --font: "Jost", "Futura", "Century Gothic", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-logo: "Pacifico", cursive;
+
+  --t-xs: 13px; --t-sm: 15px; --t-md: 17px; --t-lg: 20px;
+  --t-h3: 24px; --t-h2: clamp(30px, 3.6vw, 44px); --t-h1: clamp(38px, 5.4vw, 64px);
+
+  --r-sm: 12px; --r-md: 20px; --r-lg: 28px; --r-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(35,43,42,.05), 0 4px 14px rgba(35,43,42,.05);
+  --shadow-md: 0 14px 36px rgba(35,43,42,.10);
+  --max: 1240px;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); font-size: var(--t-md); line-height: 1.5; color: var(--ink); background: var(--sand); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+svg { display: block; }
+:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; border-radius: 8px; }
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+.section { padding: 88px 0 0; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+.h2 { font-size: var(--t-h2); line-height: 1.1; font-weight: 500; letter-spacing: -0.015em; }
+
+/* ---------- Button ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 28px; border-radius: var(--r-pill); font-size: var(--t-md); font-weight: 500; letter-spacing: .01em; transition: transform 140ms var(--ease-out), background-color 200ms ease, box-shadow 200ms ease; -webkit-tap-highlight-color: transparent; }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--coral-act); color: var(--white); }
+.btn-dark { background: var(--ink-2); color: var(--white); }
+.btn-light { background: rgba(255,255,255,.92); color: var(--ink); }
+.btn-outline { box-shadow: inset 0 0 0 1.5px var(--line); background: var(--white); }
+.btn-sm { min-height: 42px; padding: 0 20px; font-size: var(--t-sm); }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; transition: background-color 200ms ease, transform 140ms var(--ease-out); }
+.icon-btn:active { transform: scale(.94); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover { background: var(--coral-link); }
+  .btn-dark:hover { background: var(--ink); }
+  .btn-light:hover { background: var(--white); }
+  .btn-outline:hover { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+  .icon-btn:hover { background: var(--sand-2); }
+}
+
+/* =========================================================
+   1. TopBar — служебная строка (как на текущем сайте)
+   ========================================================= */
+.topbar { background: var(--white); border-bottom: 1px solid var(--line); font-size: var(--t-sm); }
+.topbar .wrap { display: flex; align-items: center; gap: 28px; min-height: 48px; }
+.lang { display: flex; gap: 2px; background: var(--sand); border-radius: var(--r-pill); padding: 3px; }
+.lang button { padding: 3px 10px; border-radius: var(--r-pill); font-size: var(--t-xs); font-weight: 500; color: var(--ink-3); }
+.lang button[aria-pressed="true"] { background: var(--white); color: var(--ink); box-shadow: var(--shadow-sm); }
+.toplinks { display: flex; gap: 24px; flex: 1; color: var(--ink-3); }
+.toplinks a { transition: color 200ms ease; }
+.social { display: flex; gap: 4px; }
+.social a { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-2); transition: background-color 200ms ease; }
+.top-actions { display: flex; align-items: center; gap: 6px; }
+.top-actions a { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--r-pill); font-weight: 500; transition: background-color 200ms ease; }
+.cart-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--coral-act); color: var(--white); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+@media (hover: hover) and (pointer: fine) {
+  .toplinks a:hover { color: var(--ink); }
+  .social a:hover, .top-actions a:hover { background: var(--sand); }
+}
+
+/* =========================================================
+   2. Header — логотип и продукты (те же 6 разделов)
+   ========================================================= */
+.header { position: sticky; top: 0; z-index: 50; background: rgba(249,244,238,.85); backdrop-filter: saturate(170%) blur(16px); -webkit-backdrop-filter: saturate(170%) blur(16px); border-bottom: 1px solid transparent; transition: border-color 200ms ease, box-shadow 200ms ease; }
+.header.scrolled { border-bottom-color: var(--line); box-shadow: 0 6px 20px rgba(35,43,42,.05); }
+.header .wrap { display: flex; align-items: center; gap: 40px; min-height: 84px; }
+.logo { font-family: var(--font-logo); font-size: 36px; color: var(--coral); line-height: 1; padding-bottom: 8px; flex-shrink: 0; }
+.nav { display: flex; gap: 4px; flex: 1; justify-content: flex-end; }
+.nav-item { position: relative; }
+.nav-item > a, .nav-item > button { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: var(--r-pill); font-size: var(--t-md); font-weight: 500; white-space: nowrap; transition: background-color 200ms ease, color 200ms ease; }
+.nav-item > a[aria-current="page"], .nav-item.open > button { color: var(--coral-link); background: var(--coral-tint); }
+.nav-item svg.chev { transition: transform 200ms var(--ease-out); }
+.nav-item.open svg.chev { transform: rotate(180deg); }
+.dropdown { position: absolute; top: calc(100% + 8px); left: 0; min-width: 300px; background: var(--white); border-radius: var(--r-md); box-shadow: var(--shadow-md); padding: 8px; display: flex; flex-direction: column; opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top left; pointer-events: none; transition: opacity 160ms ease, transform 200ms var(--ease-out); }
+.nav-item.open .dropdown { opacity: 1; transform: none; pointer-events: auto; }
+.dropdown a { display: flex; gap: 14px; align-items: center; padding: 10px 12px; border-radius: var(--r-sm); transition: background-color 160ms ease; }
+.dropdown a i { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; }
+.dropdown b { display: block; font-weight: 500; }
+.dropdown small { color: var(--ink-3); font-size: var(--t-xs); }
+.menu-btn { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .nav-item > a:hover, .nav-item > button:hover { background: var(--sand-2); }
+  .dropdown a:hover { background: var(--sand); }
+}
+
+/* =========================================================
+   3. Hero — фото, заголовок, «Создать онлайн»
+   ========================================================= */
+.hero { padding-top: 16px; }
+.hero-card { position: relative; border-radius: 32px; overflow: hidden; min-height: 620px; display: flex; align-items: flex-end; }
+.hero-photo { position: absolute; inset: 0; background:
+    radial-gradient(60% 70% at 78% 40%, rgba(255,240,226,.95) 0%, rgba(255,240,226,0) 60%),
+    linear-gradient(120deg, #E9C7AE 0%, #D99B86 38%, #B97D73 62%, #7E625F 100%); }
+/* «фотокнига в руках» — композиция вместо фотографии-заглушки */
+.hero-book { position: absolute; right: 7%; top: 50%; width: 46%; max-width: 560px; aspect-ratio: 2 / 1.08; transform: translateY(-50%) rotate(-6deg); display: flex; filter: drop-shadow(0 40px 50px rgba(60,30,25,.35)); }
+.hero-book .leaf { flex: 1; background: #FFFDF9; padding: 4%; display: flex; flex-direction: column; gap: 4%; }
+.hero-book .leaf:first-child { border-radius: 12px 3px 3px 12px; }
+.hero-book .leaf:last-child { border-radius: 3px 12px 12px 3px; box-shadow: inset 16px 0 20px -16px rgba(60,30,25,.35); }
+.hero-book .row { display: flex; gap: 4%; flex: 1; }
+.pic { flex: 1; border-radius: 3px; position: relative; overflow: hidden; }
+.pic::after { content: ""; position: absolute; left: -15%; right: -15%; bottom: -35%; height: 65%; border-radius: 50%; background: rgba(255,255,255,.16); }
+.sun { position: absolute; width: 20%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,251,240,.85); top: 16%; right: 14%; }
+.g1 { background: linear-gradient(165deg, #F7CFAF 0%, #E79179 55%, #A3605D 100%); }
+.g2 { background: linear-gradient(180deg, #C4E6E9 0%, #8FC6C3 60%, #5A8A79 100%); }
+.g3 { background: linear-gradient(200deg, #F4E5C6 0%, #D8B68B 100%); }
+.g4 { background: linear-gradient(170deg, #CCD6EC 0%, #8EA2CF 70%, #5D6E98 100%); }
+.g5 { background: linear-gradient(150deg, #FADBCB 0%, #E5A496 100%); }
+.g6 { background: linear-gradient(160deg, #D7E9DA 0%, #8DB79B 100%); }
+/* мягкая подложка только под текстом, а не затемнение всего фото */
+.hero-scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(40,26,24,.55) 0%, rgba(40,26,24,.25) 38%, rgba(40,26,24,0) 60%); }
+.hero-copy { position: relative; z-index: 2; padding: 64px; max-width: 640px; color: var(--white); display: flex; flex-direction: column; gap: 20px; }
+.hero-copy h1 { font-size: var(--t-h1); line-height: 1.04; font-weight: 600; letter-spacing: -0.02em; }
+.hero-copy p { font-size: var(--t-lg); line-height: 1.45; color: rgba(255,255,255,.9); max-width: 500px; }
+.hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.new-tag { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); background: var(--coral-tint); color: var(--coral-link); }
+
+/* =========================================================
+   4. Топ продуктов — карусель карточек
+   ========================================================= */
+.carousel-nav { display: flex; gap: 8px; }
+.carousel-nav button { width: 48px; height: 48px; border-radius: 50%; background: var(--white); box-shadow: var(--shadow-sm); display: inline-flex; align-items: center; justify-content: center; transition: transform 140ms var(--ease-out), opacity 200ms ease; }
+.carousel-nav button:active { transform: scale(.94); }
+.carousel-nav button[disabled] { opacity: .4; pointer-events: none; }
+.track { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 4px 4px 24px; margin: -4px -4px 0; scrollbar-width: none; }
+.track::-webkit-scrollbar { display: none; }
+.product { flex: 0 0 calc((100% - 60px) / 4); min-width: 260px; scroll-snap-align: start; background: var(--white); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 16px; box-shadow: var(--shadow-sm); transition: transform 300ms var(--ease-out), box-shadow 300ms ease; }
+.product-media { aspect-ratio: 1; border-radius: 18px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.badge { position: absolute; top: 14px; left: 14px; padding: 6px 12px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--white); }
+.b-new { background: var(--coral-act); } .b-sale { background: var(--blue); } .b-pick { background: var(--ink-2); } .b-sale2 { background: var(--sand-badge); }
+.mini-book { width: 52%; aspect-ratio: 1; border-radius: 4px 10px 10px 4px; box-shadow: 14px 18px 28px rgba(35,43,42,.22), inset 6px 0 0 rgba(0,0,0,.09); position: relative; transform: rotate(-4deg); transition: transform 400ms var(--ease-out); }
+.mini-book.tall { aspect-ratio: 21/30; width: 40%; }
+.mini-book::after { content: ""; position: absolute; inset: 14% 12% 32% 12%; border-radius: 3px; background: rgba(255,255,255,.38); }
+.mini-prints { display: flex; width: 72%; justify-content: center; padding-left: 8%; }
+.mini-prints i { width: 30%; aspect-ratio: 2/3; border: 6px solid var(--white); border-radius: 4px; box-shadow: var(--shadow-md); margin-left: -8%; }
+.mini-prints i:first-child { transform: rotate(-9deg); } .mini-prints i:last-child { transform: rotate(8deg); }
+.product-body { padding: 0 6px 6px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.product h3 { font-size: var(--t-lg); line-height: 1.25; font-weight: 500; }
+.product-foot { margin-top: auto; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-top: 8px; flex-wrap: wrap; }
+.product-foot span { font-size: var(--t-sm); color: var(--ink-3); }
+.price { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.price s { font-size: var(--t-sm); color: var(--ink-3); }
+.price b { font-size: 24px; font-weight: 600; color: var(--coral-link); letter-spacing: -0.01em; }
+@media (hover: hover) and (pointer: fine) {
+  .product:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+  .product:hover .mini-book { transform: rotate(-1deg) scale(1.03); }
+}
+
+/* =========================================================
+   5. С нами создают — фото клиентов
+   ========================================================= */
+.ugc { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 4px 24px; margin: -4px -4px 0; scrollbar-width: none; }
+.ugc::-webkit-scrollbar { display: none; }
+.post { flex: 0 0 calc((100% - 60px) / 4); min-width: 250px; scroll-snap-align: start; background: var(--white); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; }
+.post-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; font-size: var(--t-sm); }
+.post-head i { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.post-head b { font-weight: 500; display: block; line-height: 1.2; }
+.post-head small { color: var(--ink-3); font-size: 12px; }
+.post-img { aspect-ratio: 4/5; position: relative; display: flex; align-items: flex-end; padding: 18px; }
+.post-img .cap { color: var(--white); font-size: var(--t-sm); line-height: 1.4; text-shadow: 0 1px 8px rgba(0,0,0,.25); }
+.post-foot { display: flex; gap: 16px; padding: 12px 16px; font-size: var(--t-sm); color: var(--ink-3); align-items: center; }
+.post-foot span { display: inline-flex; gap: 6px; align-items: center; }
+
+/* =========================================================
+   6. Вопросы и ответы — категории слева, аккордеон справа
+   ========================================================= */
+.faq { display: flex; gap: 48px; align-items: flex-start; }
+.faq-cats { flex: 0 0 280px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 108px; }
+.faq-cats button { text-align: left; padding: 12px 16px; border-radius: var(--r-sm); font-size: var(--t-md); color: var(--ink-3); transition: background-color 200ms ease, color 200ms ease; }
+.faq-cats button[aria-selected="true"] { background: var(--white); color: var(--coral-link); font-weight: 500; box-shadow: var(--shadow-sm); }
+.faq-list { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.faq-list details { background: var(--white); border-radius: var(--r-md); box-shadow: var(--shadow-sm); }
+.faq-list summary { list-style: none; cursor: pointer; padding: 22px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: var(--t-lg); font-weight: 500; }
+.faq-list summary::-webkit-details-marker { display: none; }
+.faq-list summary i { width: 36px; height: 36px; border-radius: 50%; background: var(--sand); flex-shrink: 0; position: relative; transition: background-color 200ms ease, transform 240ms var(--ease-out); }
+.faq-list summary i::before, .faq-list summary i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; border-radius: 1px; background: var(--coral-link); transform: translate(-50%, -50%); }
+.faq-list summary i::after { transform: translate(-50%, -50%) rotate(90deg); }
+.faq-list details[open] summary i { transform: rotate(45deg); background: var(--coral-tint); }
+.faq-list details p { padding: 0 24px 24px; color: var(--ink-3); max-width: 720px; }
+@media (hover: hover) and (pointer: fine) { .faq-cats button:hover:not([aria-selected="true"]) { background: var(--sand-2); color: var(--ink); } }
+
+/* =========================================================
+   7. Преимущества — 4 пункта
+   ========================================================= */
+.perks { display: flex; gap: 20px; }
+.perk { flex: 1; background: var(--white); border-radius: var(--r-lg); padding: 32px 28px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow-sm); }
+.perk .ic { width: 56px; height: 56px; border-radius: 18px; background: var(--coral-tint); color: var(--coral-link); display: flex; align-items: center; justify-content: center; }
+.perk h3 { font-size: var(--t-lg); font-weight: 500; line-height: 1.25; }
+.perk p { color: var(--ink-3); font-size: var(--t-sm); }
+.perk a { color: var(--coral-link); font-weight: 500; }
+
+/* =========================================================
+   8. Footer — подписка, разделы, контакты
+   ========================================================= */
+.footer { margin-top: 96px; background: var(--white); border-top: 1px solid var(--line); padding: 64px 0 32px; font-size: var(--t-sm); }
+.ftop { display: flex; gap: 56px; flex-wrap: wrap; }
+.subscribe { flex: 1 1 360px; display: flex; flex-direction: column; gap: 14px; }
+.subscribe h3 { font-size: 26px; font-weight: 500; line-height: 1.2; }
+.subscribe p { color: var(--ink-3); }
+.sub-form { display: flex; gap: 8px; background: var(--sand); border-radius: var(--r-pill); padding: 6px; }
+.sub-form input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 0 16px; font-size: var(--t-md); }
+.sub-form input::placeholder { color: #8A9290; }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: var(--t-xs); color: var(--ink-3); }
+.consent input { margin-top: 3px; accent-color: var(--coral-act); }
+.consent a { text-decoration: underline; text-underline-offset: 2px; }
+.fcol { flex: 0 1 180px; display: flex; flex-direction: column; gap: 10px; }
+.fcol b { font-weight: 500; font-size: var(--t-md); margin-bottom: 4px; }
+.fcol a { color: var(--ink-3); transition: color 200ms ease; }
+.fcontact { flex: 0 1 300px; display: flex; flex-direction: column; gap: 10px; color: var(--ink-3); }
+.fcontact b { color: var(--ink); font-weight: 500; font-size: var(--t-md); margin-bottom: 4px; }
+.fcontact .social { margin-top: 6px; }
+.pay { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pay-methods { display: flex; gap: 8px; flex-wrap: wrap; }
+.pay-methods span { padding: 6px 12px; border-radius: 8px; background: var(--sand); font-size: var(--t-xs); font-weight: 600; color: var(--ink-2); letter-spacing: .02em; }
+.legal { margin-top: 20px; font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+.legal a { text-decoration: underline; text-underline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .fcol a:hover { color: var(--ink); } }
+
+/* ---------- ChatFab ---------- */
+.fab { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 8px; border-radius: var(--r-pill); background: var(--white); box-shadow: 0 12px 32px rgba(35,43,42,.16); font-weight: 500; transition: transform 140ms var(--ease-out); }
+.fab:active { transform: scale(.97); }
+.fab i { width: 44px; height: 44px; border-radius: 50%; background: var(--coral-act); color: var(--white); display: flex; align-items: center; justify-content: center; }
+.fab small { display: block; font-size: 12px; color: var(--teal-ink); font-weight: 500; line-height: 1.2; }
+
+/* ---------- Появление при прокрутке ---------- */
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out); }
+.reveal.in { opacity: 1; transform: none; }
+.no-js .reveal { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { transform: none; transition: opacity 250ms ease; }
+  .btn:active, .icon-btn:active, .fab:active { transform: none; }
+  .track, .ugc { scroll-behavior: auto; }
+}
+@media (prefers-reduced-transparency: reduce) { .header { background: var(--sand); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+/* =========================================================
+   Адаптив
+   ========================================================= */
+@media (max-width: 1180px) {
+  .toplinks { gap: 16px; }
+  .nav-item > a, .nav-item > button { padding: 10px 12px; }
+}
+@media (max-width: 980px) {
+  .toplinks, .topbar .social { display: none; }
+  .topbar .wrap { justify-content: space-between; }
+  .nav { display: none; }
+  .menu-btn { display: inline-flex; margin-left: auto; }
+  .header .wrap { min-height: 68px; }
+  .logo { font-size: 30px; }
+  .hero-card { min-height: 560px; }
+  .hero-book { width: 70%; right: -6%; top: 34%; }
+  .hero-scrim { background: linear-gradient(0deg, rgba(40,26,24,.72) 0%, rgba(40,26,24,.35) 45%, rgba(40,26,24,0) 70%); }
+  .hero-copy { padding: 40px; }
+  .faq { flex-direction: column; gap: 20px; }
+  .faq-cats { position: static; flex: none; flex-direction: row; overflow-x: auto; width: 100%; scrollbar-width: none; }
+  .faq-cats button { white-space: nowrap; }
+  .perks { flex-wrap: wrap; }
+  .perk { flex: 1 1 calc(50% - 10px); }
+}
+@media (max-width: 600px) {
+  :root { --t-lg: 18px; }
+  .wrap { padding: 0 16px; }
+  .section { padding-top: 64px; }
+  .topbar .wrap { min-height: 44px; gap: 12px; }
+  .top-actions a span.lbl { display: none; }
+  .hero { padding-top: 8px; }
+  .hero-card { min-height: 660px; border-radius: 24px; }
+  .hero-book { width: 88%; right: -10%; top: 5%; transform: rotate(-6deg); }
+  .hero-copy { padding: 28px 24px; gap: 14px; }
+  .hero-copy p { font-size: var(--t-md); }
+  .hero-ctas .btn { flex: 1 1 100%; }
+  .carousel-nav { display: none; }
+  .product, .post { flex-basis: 78%; min-width: 0; }
+  .perk { flex-basis: 100%; padding: 20px; display: grid; grid-template-columns: 48px 1fr; column-gap: 16px; row-gap: 4px; align-items: start; }
+  .perk .ic { width: 48px; height: 48px; border-radius: 14px; grid-row: span 2; }
+  .perk h3 { font-size: var(--t-md); }
+  .faq-list summary { font-size: var(--t-md); padding: 18px 20px; }
+  .faq-list details p { padding: 0 20px 20px; }
+  .ftop { gap: 36px; }
+  .fcol { flex-basis: calc(50% - 18px); }
+  .fab { right: 16px; bottom: 16px; padding: 6px; }
+  .fab .lbl { display: none; }
+}
+</style>
+</head>
+<body class="no-js">
+
+<!-- 1. component: TopBar -->
+<div class="topbar">
+  <div class="wrap">
+    <div class="lang" role="group" aria-label="Язык"><button aria-pressed="true">Ru</button><button aria-pressed="false">Bel</button></div>
+    <nav class="toplinks" aria-label="Служебное меню">
+      <a href="#">Оплата и доставка</a>
+      <a href="#faq">Вопросы и ответы</a>
+      <a href="#">Блог</a>
+      <a href="#">Обратная связь</a>
+      <a href="#ugc">Отзывы</a>
+    </nav>
+    <div class="social">
+      <a href="#" aria-label="Instagram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
+      <a href="#" aria-label="TikTok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 4c.4 2.6 2.2 4.3 5 4.5"/></svg></a>
+      <a href="#" aria-label="Telegram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 4 3 11l6 2.5L19 7l-7.5 8L18 20z"/></svg></a>
+    </div>
+    <div class="top-actions">
+      <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg><span class="lbl">Вход</span></a>
+      <a href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.1 11.1a2 2 0 0 1-2 1.9H8.1a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg><span class="lbl">Корзина</span><span class="cart-count">0</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- 2. component: Header -->
+<header class="header">
+  <div class="wrap">
+    <a href="#" class="logo" aria-label="picPac, на главную">PicPac</a>
+    <nav class="nav" aria-label="Продукты">
+      <!-- Те же 6 разделов, что и сейчас: две группы в выпадающих меню, чтобы пункты не переносились -->
+      <div class="nav-item">
+        <button aria-expanded="false" aria-haspopup="true">Фотопечать <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="dropdown">
+          <a href="#"><i class="g1"></i><span><b>Фотохимическая фотопечать</b><small>Fuji Frontier, хранение 100+ лет · от 0,65 руб.</small></span></a>
+          <a href="#"><i class="g4"></i><span><b>Цифровая фотопечать</b><small>Яркие цвета · от 0,49 руб.</small></span></a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <button aria-expanded="false" aria-haspopup="true">Фотокниги <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="dropdown">
+          <a href="#"><i style="background:linear-gradient(135deg,#ECC097,#C8806B)"></i><span><b>Фотокниги Lite</b><small>Тонкие листы, много фото · от 56 руб.</small></span></a>
+          <a href="#"><i style="background:linear-gradient(135deg,#A9CDD2,#5C8A88)"></i><span><b>Фотокниги Classic</b><small>Плотные листы, разворот 180° · от 72,90 руб.</small></span></a>
+          <a href="#"><i style="background:linear-gradient(135deg,#DF948A,#A9443F)"></i><span><b>Фотокниги Premium</b><small>Фотобумага на картоне 1 мм · от 70,35 руб.</small></span></a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="#">Фотокниги по событиям</a></div>
+    </nav>
+    <button class="icon-btn menu-btn" aria-label="Меню"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button>
+  </div>
+</header>
+
+<main>
+<!-- 3. component: Hero -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-card">
+      <div class="hero-photo" aria-hidden="true"></div>
+      <div class="hero-book" aria-hidden="true">
+        <div class="leaf"><div class="pic g1" style="flex:1.4"><span class="sun"></span></div><div class="row"><div class="pic g3"></div><div class="pic g5"></div></div></div>
+        <div class="leaf"><div class="pic g2" style="flex:1.2"><span class="sun" style="background:rgba(255,255,255,.75)"></span></div><div class="row"><div class="pic g4"></div><div class="pic g6"></div></div></div>
+      </div>
+      <div class="hero-scrim" aria-hidden="true"></div>
+      <div class="hero-copy">
+        <h1 class="reveal">Напечатаем ваши истории быстро и&nbsp;красиво</h1>
+        <p class="reveal">Создайте дизайн фотоальбома или фотокарточек онлайн — с телефона или компьютера. Изготовим за 3 рабочих дня.</p>
+        <div class="hero-ctas reveal">
+          <a href="#" class="btn btn-primary">Создать онлайн
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a href="#" class="btn btn-light">Собрать из фото автоматически <span class="new-tag">Новое</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. component: TopProducts -->
+<section class="section" aria-labelledby="top-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 class="h2" id="top-title">Топ продуктов</h2>
+      <div class="carousel-nav">
+        <button aria-label="Назад" data-dir="-1" data-target="track" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></button>
+        <button aria-label="Вперёд" data-dir="1" data-target="track"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button>
+      </div>
+    </div>
+    <div class="track" id="track">
+      <!-- component: ProductCard -->
+      <a href="#" class="product reveal">
+        <div class="product-media" style="background:#F3DFBF"><span class="badge b-new">Новинка</span><div class="mini-book" style="background:linear-gradient(135deg,#ECC097,#C8806B)"></div></div>
+        <div class="product-body"><h3>Фотокниги Lite в книжной обложке 25×25 см</h3>
+          <div class="product-foot"><span>от 24 страниц</span><span class="price"><s>90,00</s><b>72,00 руб.</b></span></div></div>
+      </a>
+      <a href="#" class="product reveal">
+        <div class="product-media" style="background:#E7C2B6"><span class="badge b-sale">Скидка</span><div class="mini-book tall" style="background:linear-gradient(135deg,#DF948A,#A9443F)"></div></div>
+        <div class="product-body"><h3>Фотокнига Premium в книжной обложке 21×30 см</h3>
+          <div class="product-foot"><span>от 10 страниц</span><span class="price"><s>130,00</s><b>91,00 руб.</b></span></div></div>
+      </a>
+      <a href="#" class="product reveal">
+        <div class="product-media" style="background:#CFE0E3"><span class="badge b-pick">Выбор picPac</span><div class="mini-book" style="background:linear-gradient(135deg,#A9CDD2,#5C8A88)"></div></div>
+        <div class="product-body"><h3>Фотокниги Classic в книжной обложке 20×20 см</h3>
+          <div class="product-foot"><span>от 20 страниц</span><span class="price"><s>81,00</s><b>72,90 руб.</b></span></div></div>
+      </a>
+      <a href="#" class="product reveal">
+        <div class="product-media" style="background:#DCD8C0"><span class="badge b-sale2">Скидка</span><div class="mini-prints"><i class="g4"></i><i class="g1"></i><i class="g6"></i></div></div>
+        <div class="product-body"><h3>Фотопечать 10×15 см</h3>
+          <div class="product-foot"><span>от 1 фотографии</span><span class="price"><s>1,30</s><b>0,65 руб.</b></span></div></div>
+      </a>
+      <a href="#" class="product reveal">
+        <div class="product-media" style="background:#E5DCEF"><span class="badge b-sale">Скидка</span><div class="mini-prints"><i class="g2"></i><i class="g5"></i><i class="g3"></i></div></div>
+        <div class="product-body"><h3>Цифровая фотопечать 10×15 см</h3>
+          <div class="product-foot"><span>от 1 фотографии</span><span class="price"><s>0,61</s><b>0,49 руб.</b></span></div></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 5. component: UGC «С нами создают» -->
+<section class="section" id="ugc" aria-labelledby="ugc-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 class="h2" id="ugc-title">С нами создают</h2>
+      <a href="#" class="btn btn-outline btn-sm">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>
+        Подписаться
+      </a>
+    </div>
+    <div class="ugc">
+      <!-- component: UgcPost -->
+      <article class="post reveal">
+        <div class="post-head"><i class="g1"></i><span><b>kate.z</b><small>Минск</small></span></div>
+        <div class="post-img g3"><p class="cap">Наконец-то руки дошли сделать альбом. Отличное качество, смотреть и вспоминать — одно удовольствие</p></div>
+        <div class="post-foot"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="#CC605B"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>29</span><span>1 комментарий</span></div>
+      </article>
+      <article class="post reveal">
+        <div class="post-head"><i class="g5"></i><span><b>gusarova</b><small>Гомель</small></span></div>
+        <div class="post-img g5"><p class="cap">Первый год Матвея в одной книге</p></div>
+        <div class="post-foot"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="#CC605B"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>148</span><span>9 комментариев</span></div>
+      </article>
+      <article class="post reveal">
+        <div class="post-head"><i class="g2"></i><span><b>margaret.s</b><small>Брест</small></span></div>
+        <div class="post-img g2"><p class="cap">ICELAND — книга нашей поездки</p></div>
+        <div class="post-foot"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="#CC605B"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>87</span><span>13 комментариев</span></div>
+      </article>
+      <article class="post reveal">
+        <div class="post-head"><i class="g6"></i><span><b>inna.t</b><small>Минск</small></span></div>
+        <div class="post-img g6"><p class="cap">Серия книг «Агния от года до пяти»</p></div>
+        <div class="post-foot"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="#CC605B"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>54</span><span>1 комментарий</span></div>
+      </article>
+      <article class="post reveal">
+        <div class="post-head"><i class="g4"></i><span><b>olga.m</b><small>Витебск</small></span></div>
+        <div class="post-img g4"><p class="cap">Свадебная книга Premium — без шва по центру</p></div>
+        <div class="post-foot"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="#CC605B"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>63</span><span>4 комментария</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 6. component: FAQ -->
+<section class="section" id="faq" aria-labelledby="faq-title">
+  <div class="wrap">
+    <div class="section-head"><h2 class="h2" id="faq-title">Вопросы и ответы</h2></div>
+    <div class="faq">
+      <div class="faq-cats" role="tablist" aria-label="Темы вопросов">
+        <button role="tab" aria-selected="true">Оформление заказа</button>
+        <button role="tab" aria-selected="false">Работа в редакторе</button>
+        <button role="tab" aria-selected="false">Доставка и оплата</button>
+        <button role="tab" aria-selected="false">Фотокниги</button>
+        <button role="tab" aria-selected="false">Фотопечать</button>
+        <button role="tab" aria-selected="false">Общие вопросы</button>
+      </div>
+      <div class="faq-list">
+        <details open><summary>Как оформить фотокнигу?<i aria-hidden="true"></i></summary><p>Выберите книгу и формат, загрузите фото и разложите их по шаблону — или нажмите «Собрать из фото автоматически», и мы предложим готовый макет. Перед заказом проверьте превью каждой страницы.</p></details>
+        <details><summary>Как загрузить фотографии?<i aria-hidden="true"></i></summary><p>Прямо с телефона или компьютера: кнопка «Загрузить фото» в редакторе или перетаскивание файлов. Работает в любом современном браузере.</p></details>
+        <details><summary>Сколько стоит фотокнига?<i aria-hidden="true"></i></summary><p>Зависит от типа книги, формата и числа страниц: Lite — от 56 руб., Classic — от 72,90 руб., Premium — от 70,35 руб. Итоговая цена видна до оплаты.</p></details>
+        <details><summary>Когда я получу заказ?<i aria-hidden="true"></i></summary><p>Изготовление занимает до 3 рабочих дней. К нему добавляется срок доставки: Европочта от 2 дней, Белпочта 2–3 дня, EMS 1–2 дня.</p></details>
+        <details><summary>Что делать, если пришёл брак?<i aria-hidden="true"></i></summary><p>Сфотографируйте дефект и отправьте его в карточке заказа. Производственный брак перепечатаем за наш счёт — отправлять книгу обратно чаще всего не нужно.</p></details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. component: Perks -->
+<section class="section" aria-label="Преимущества">
+  <div class="wrap">
+    <div class="perks">
+      <div class="perk reveal"><span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span><h3>Гарантия качества</h3><p>Производственный брак перепечатаем бесплатно — по фото дефекта.</p></div>
+      <div class="perk reveal"><span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span><h3>Доставка по всей Беларуси</h3><p>Бесплатно при заказе от 150 руб. Белпочтой. <a href="#">Все способы</a></p></div>
+      <div class="perk reveal"><span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.3.3 3.8 2 4.5 5.4"/></svg></span><h3>60 000+ клиентов</h3><p>Множество довольных клиентов и честные <a href="#ugc">отзывы</a>.</p></div>
+      <div class="perk reveal"><span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><h3>Заказы 24/7</h3><p>Оформляйте онлайн в любое время. Поддержка ежедневно с 9 до 21.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- 8. component: Footer -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="ftop">
+      <div class="subscribe">
+        <a href="#" class="logo" aria-label="picPac">PicPac</a>
+        <h3>Подпишитесь на блог picPac</h3>
+        <p>Никакого спама. Подборки, акции, скидки и новинки — раз в неделю.</p>
+        <form class="sub-form" onsubmit="return false"><input type="email" placeholder="Ваш e-mail" aria-label="E-mail"><button class="btn btn-primary btn-sm" type="submit">Подписаться</button></form>
+        <label class="consent"><input type="checkbox"> <span>Я согласен на <a href="#">обработку персональных данных</a></span></label>
+      </div>
+      <div class="fcol"><b>Услуги</b><a href="#">Фотопечать</a><a href="#">Фотокниги Lite</a><a href="#">Фотокниги Classic</a><a href="#">Фотокниги Premium</a><a href="#">Фотокниги по событиям</a></div>
+      <div class="fcol"><b>Помощь</b><a href="#">Оплата и доставка</a><a href="#">Вопросы и ответы</a><a href="#">О нас</a><a href="#">Блог</a><a href="#">Реквизиты</a></div>
+      <div class="fcontact"><b>Контакты</b>
+        <span>Минская обл., Смолевичский р-н, индустриальный парк «Великий камень», Минский пр-т, 32, корпус В3</span>
+        <a href="#">support@picpac.by</a>
+        <span>Ежедневно с 9:00 до 21:00</span>
+        <div class="social">
+          <a href="#" aria-label="Instagram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
+          <a href="#" aria-label="TikTok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 4c.4 2.6 2.2 4.3 5 4.5"/></svg></a>
+          <a href="#" aria-label="Telegram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 4 3 11l6 2.5L19 7l-7.5 8L18 20z"/></svg></a>
+        </div>
+      </div>
+    </div>
+    <div class="pay">
+      <span class="muted" style="color:var(--ink-3)">Оплата картой без комиссии или через ЕРИП</span>
+      <div class="pay-methods"><span>VISA</span><span>Mastercard</span><span>Белкарт</span><span>ЕРИП</span></div>
+    </div>
+    <p class="legal">ООО «Фотопринт», 222210, Республика Беларусь, Минская обл., Смолевичский р-н, индустриальный парк «Великий камень», Минский пр-т, 32 (корпус В3). УНП 691701330. <a href="#">Договор оферты</a> · <a href="#">Политика обработки персональных данных</a> · <a href="#">Согласие на рассылку</a>. Концепт редизайна, хакатон 2026.</p>
+  </div>
+</footer>
+
+<!-- component: ChatFab -->
+<a href="#" class="fab" aria-label="Чат поддержки"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></i><span class="lbl">Есть вопрос?<small>● ответим сейчас</small></span></a>
+
+<script>
+  document.body.classList.remove('no-js');
+  // появление при прокрутке
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el, i) { el.style.transitionDelay = (i % 5) * 50 + 'ms'; io.observe(el); });
+  // граница шапки при прокрутке
+  var header = document.querySelector('.header');
+  addEventListener('scroll', function () { header.classList.toggle('scrolled', scrollY > 60); }, { passive: true });
+  // выпадающие меню
+  document.querySelectorAll('.nav-item > button').forEach(function (b) {
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var item = b.parentElement, open = !item.classList.contains('open');
+      document.querySelectorAll('.nav-item.open').forEach(function (x) { x.classList.remove('open'); x.firstElementChild.setAttribute('aria-expanded', 'false'); });
+      item.classList.toggle('open', open); b.setAttribute('aria-expanded', String(open));
+    });
+  });
+  document.addEventListener('click', function () { document.querySelectorAll('.nav-item.open').forEach(function (x) { x.classList.remove('open'); x.firstElementChild.setAttribute('aria-expanded', 'false'); }); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.body.click(); });
+  // стрелки карусели
+  var track = document.getElementById('track');
+  document.querySelectorAll('.carousel-nav button').forEach(function (b) {
+    b.addEventListener('click', function () { track.scrollBy({ left: Number(b.dataset.dir) * (track.clientWidth * 0.8) }); });
+  });
+  function syncArrows() {
+    var btns = document.querySelectorAll('.carousel-nav button');
+    btns[0].disabled = track.scrollLeft < 8;
+    btns[1].disabled = track.scrollLeft + track.clientWidth > track.scrollWidth - 8;
+  }
+  track.addEventListener('scroll', syncArrows, { passive: true }); syncArrows();
+  // переключатели
+  document.querySelectorAll('.lang button').forEach(function (b) { b.addEventListener('click', function () { document.querySelectorAll('.lang button').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true'); }); });
+  document.querySelectorAll('.faq-cats button').forEach(function (b) { b.addEventListener('click', function () { document.querySelectorAll('.faq-cats button').forEach(function (x) { x.setAttribute('aria-selected', 'false'); }); b.setAttribute('aria-selected', 'true'); }); });
+</script>
+</body>
+</html>
