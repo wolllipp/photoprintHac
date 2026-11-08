@@ -104,7 +104,7 @@ svg { display: block; }
 .seg span { flex: 1; text-align: center; padding: 7px 0; border-radius: 9px; font-size: 14px; font-weight: 500; color: var(--mut); }
 .seg span.on { background: var(--card); color: var(--fg); font-weight: 600; box-shadow: 0 1px 3px rgba(35,43,42,.12); }
 /* Плавающее меню-капсула из «стекла»: контент прокручивается под ним */
-.tabbar { position: absolute; left: 18px; right: 18px; bottom: 26px; z-index: 25; height: 64px; border-radius: 32px; padding: 5px;
+.tabbar { position: absolute; left: 50px; right: 50px; bottom: 26px; z-index: 25; height: 64px; border-radius: 32px; padding: 5px;
   display: flex; gap: 2px;
   background: rgba(255,255,255,.52);
   backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -235,8 +235,9 @@ svg { display: block; }
 .sug > span { font-size: 12.5px; color: var(--mut); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; position: relative; }
 .topbar .brand { position: absolute; left: 50%; transform: translateX(-50%); font-family: 'Pacifico', cursive; color: var(--coral); font-size: 27px; line-height: 1; padding-bottom: 6px; }
-.points { display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--coral-tint); color: var(--coral-link); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.points svg { color: var(--coral-act); }
+.points { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 4px; border-radius: 999px; background: var(--coral-tint); color: var(--coral-link); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+/* «пик» — монетка с фирменной курсивной P */
+.pik { width: 24px; height: 24px; border-radius: 50%; background: var(--coral-act); color: #fff; font-family: 'Pacifico', cursive; font-style: normal; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; padding: 0 1px 3px 0; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.12); }
 .legend { max-width: 1200px; margin: 0 auto; padding: 0 24px 72px; display: flex; gap: 32px; flex-wrap: wrap; color: var(--mut); font-size: 14px; }
 .legend b { color: var(--fg); }
 </style>
@@ -264,7 +265,7 @@ svg { display: block; }
       <div class="topbar">
         <span class="avatar">И</span>
         <span class="brand">PicPac</span>
-        <span class="points"><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor"><path d="M207.58,63.84C186.85,53.48,159.33,48,128,48S69.15,53.48,48.42,63.84,16,88.78,16,104v48c0,15.22,11.82,29.85,32.42,40.16S96.67,208,128,208s58.85-5.48,79.58-15.84S240,167.22,240,152V104C240,88.78,228.18,74.15,207.58,63.84Zm-87.58,96v32c-19-.62-35-3.42-48-7.49V153.05A203.43,203.43,0,0,0,120,159.86Zm16,0a203.43,203.43,0,0,0,48-6.81v31.31c-13,4.07-29,6.87-48,7.49ZM32,152V133.53a82.88,82.88,0,0,0,16.42,10.63c2.43,1.21,5,2.35,7.58,3.43V178C40.17,170.16,32,160.29,32,152Zm168,26V147.59c2.61-1.08,5.15-2.22,7.58-3.43A82.88,82.88,0,0,0,224,133.53V152C224,160.29,215.83,170.16,200,178Z"/></svg>350</span>
+        <span class="points" aria-label="350 пиков"><i class="pik">P</i>350</span>
       </div>
       <!-- активный заказ сверху, как текущая поездка в Яндекс Go -->
       <div class="order-strip">
@@ -298,7 +299,7 @@ svg { display: block; }
       <span class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.5V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.5z"/></svg>Главная</span>
       <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h5"/></svg>Заказы</span>
       <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5 8h14l-1.1 11.1a2 2 0 0 1-2 1.9H8.1a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Корзина</span>
-      <span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>Профиль</span>
+      
     </nav>
   </div></div>
 </section>
@@ -451,7 +452,7 @@ svg { display: block; }
         <div class="btn btn-plain" style="flex:1;height:46px;font-size:15px;border-radius:14px;color:var(--mut)">Отмена недоступна</div>
       </div>
     </div>
-    <nav class="tabbar"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.5V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.5z"/></svg>Главная</span><span class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h5"/></svg>Заказы</span><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5 8h14l-1.1 11.1a2 2 0 0 1-2 1.9H8.1a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Корзина</span><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>Профиль</span></nav>
+    <nav class="tabbar"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.5V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.5z"/></svg>Главная</span><span class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h5"/></svg>Заказы</span><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5 8h14l-1.1 11.1a2 2 0 0 1-2 1.9H8.1a2 2 0 0 1-2-1.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Корзина</span></nav>
   </div></div>
 </section>
 
