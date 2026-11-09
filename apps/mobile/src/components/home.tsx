@@ -396,6 +396,26 @@ function Tile({
   );
 }
 
+/** «Общий альбом»: стопка лиц — сразу видно, что альбом на компанию. */
+const FACES = ['friends-selfie', 'friends-night', 'birthday-cake'] as const;
+function SharedTile() {
+  return (
+    <Tap style={[s.tile, s.shared]} accessibilityRole="button" accessibilityLabel="Общий альбом, гости добавляют фото по QR-коду">
+      <View style={s.faces}>
+        {FACES.map((k, i) => (
+          <Photo key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} />
+        ))}
+        <View style={[s.face, s.faceMore]}>
+          <QrCodeIcon size={14} color={colors.tealInk} weight="bold" />
+        </View>
+      </View>
+      <View style={{ flex: 1 }} />
+      <Text style={s.tTitleS} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Общий альбом</Text>
+      <Text style={s.tSub} numberOfLines={1}>гости по QR-коду</Text>
+    </Tap>
+  );
+}
+
 /** «Позвать друга»: главное — сам бонус, крупно; монетка рядом. */
 function InviteTile() {
   return (
@@ -459,13 +479,7 @@ export function ActionTiles({
         />
         <View style={{ flex: 1, gap: TILE_GAP }}>
           {/* действия */}
-          <Tile
-            surface="photo"
-            photo={photos['friends-selfie']}
-            icon={<QrCodeIcon size={18} color="#fff" weight="fill" />}
-            title="Общий альбом"
-            sub="гости по QR-коду"
-          />
+          <SharedTile />
           <InviteTile />
         </View>
       </View>
@@ -499,7 +513,7 @@ export function AlbumCards({ items }: { items: Album[] }) {
         {items.map((a) => (
           <Tap key={a.id} style={s.album} accessibilityRole="button" accessibilityLabel={`${a.title}, ${a.subtitle}`}>
             <Photo source={photos[a.photo]} style={StyleSheet.absoluteFill} transition={250} />
-            <LinearGradient colors={['rgba(0,0,0,0.18)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.25)']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)' }]} />
             <View style={s.albumTop}>
               <Glass tone="dark" style={s.albumBadge}>
                 <Text style={s.chipText}>{a.badge}</Text>
@@ -510,10 +524,18 @@ export function AlbumCards({ items }: { items: Album[] }) {
             </View>
             {/* серебристое название: заливка градиентом по маске текста (в браузере маски нет — просто белое) */}
             {Platform.OS === 'web' ? (
-              <View style={s.albumTitleWrap}><Text style={[s.albumTitle, { color: 'rgba(255,255,255,0.9)' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{a.title}</Text></View>
+              <View style={s.albumTitleWrap}><Text style={[s.albumTitle, { color: 'rgba(255,255,255,0.88)' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{a.title}</Text></View>
             ) : (
-              <MaskedView style={s.albumTitleWrap} maskElement={<Text style={s.albumTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{a.title}</Text>}>
-                <LinearGradient colors={['rgba(255,255,255,1)', 'rgba(255,255,255,0.55)']} style={StyleSheet.absoluteFill} />
+              <MaskedView
+                style={s.albumTitleWrap}
+                maskElement={
+                  <View style={s.albumMask}>
+                    <Text style={s.albumTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{a.title}</Text>
+                  </View>
+                }>
+                {/* стекло: размытое фото под буквами, белый налёт и блик сверху */}
+                <BlurView intensity={28} tint="light" style={StyleSheet.absoluteFill} />
+                <LinearGradient colors={['rgba(255,255,255,0.92)', 'rgba(255,255,255,0.6)']} locations={[0.35, 0.75]} style={StyleSheet.absoluteFill} />
               </MaskedView>
             )}
           </Tap>
@@ -557,9 +579,20 @@ const s = StyleSheet.create({
   hintText: { fontSize: 13, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.8)' },
 
   /* плитки */
-  tile: { borderRadius: 26, backgroundColor: colors.card, padding: 16, overflow: 'hidden' },
+  tile: {
+    borderRadius: 26,
+    backgroundColor: colors.card,
+    padding: 16,
+    overflow: 'hidden',
+    // чуть объёма: светлая кромка сверху, тёмная — едва снизу, мягкая тёплая тень под плиткой
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(90,40,20,0.05), 0 1px 2px rgba(90,40,20,0.06), 0 8px 18px -10px rgba(90,40,20,0.22)',
+  },
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
+  shared: { flex: 1, height: TILE_S, backgroundColor: colors.tealTint },
+  faces: { flexDirection: 'row', alignItems: 'center' },
+  face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: colors.tealTint, overflow: 'hidden' },
+  faceMore: { marginLeft: -10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   invite: { flex: 1, height: TILE_S, backgroundColor: colors.coralAction },
   inviteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   inviteTitle: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
@@ -580,6 +613,7 @@ const s = StyleSheet.create({
   albumTop: { position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between' },
   albumBadge: { height: 28, paddingHorizontal: 11, borderRadius: 14, justifyContent: 'center' },
   more: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  albumTitleWrap: { position: 'absolute', left: 12, right: 12, bottom: -10, height: 76, justifyContent: 'flex-end' },
-  albumTitle: { fontSize: 62, lineHeight: 76, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000' },
+  albumTitleWrap: { position: 'absolute', left: 16, right: 16, top: 28, bottom: 0, justifyContent: 'center' },
+  albumMask: { flex: 1, justifyContent: 'center' },
+  albumTitle: { fontSize: 58, lineHeight: 70, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000', textAlign: 'center' },
 });
