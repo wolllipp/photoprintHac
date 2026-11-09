@@ -12,6 +12,7 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
 import { drafts, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { type PhotoName, pic } from '@/data/photos';
@@ -67,6 +68,7 @@ export default function BookScreen() {
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: ty.value }] }));
   const stageStyle = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, sheetH.value - ty.value) }));
 
+  const added = useAdded();
   const onAdd = () => {
     addToCart({
       projectId: id ?? 'karelia',
@@ -80,7 +82,8 @@ export default function BookScreen() {
       readyBy: tariff.readyBy,
       cover: draft.cover,
     });
-    router.push('/checkout');
+    // в корзину — и остаёмся здесь: человек сам решит, когда оформлять
+    added.show(draft.title, draft.cover);
   };
 
   return (
@@ -156,6 +159,7 @@ export default function BookScreen() {
           <Text style={s.ctaText}>В корзину</Text>
         </Tap>
       </Animated.View>
+      <AddedToast shown={added.shown} bottom={insets.bottom + 84} />
     </View>
   );
 }

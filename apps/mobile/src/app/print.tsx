@@ -2,13 +2,13 @@
  * Фотопечать: какие фото, какой формат, сколько копий — цена считается сразу, дальше обычное оформление.
  */
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { MinusIcon, PlusIcon } from 'phosphor-react-native';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
+import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
 import { type PhotoName, photos, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
@@ -31,6 +31,7 @@ export default function Print() {
   const count = SHOTS.length * copies;
   const total = Math.round(count * format.price * 100) / 100;
 
+  const added = useAdded();
   const onAdd = () => {
     addToCart({
       projectId: `print-${format.id}`,
@@ -44,7 +45,7 @@ export default function Print() {
       readyBy: 'завтра',
       cover: SHOTS[0],
     });
-    router.push('/checkout');
+    added.show(`Фотопечать ${format.id} · ${count} фото`, SHOTS[0]);
   };
 
   return (
@@ -95,6 +96,7 @@ export default function Print() {
           <AnimatedNumber value={total} format={rub} style={s.ctaText} />
         </Tap>
       </View>
+      <AddedToast shown={added.shown} bottom={insets.bottom + 80} />
     </View>
   );
 }
