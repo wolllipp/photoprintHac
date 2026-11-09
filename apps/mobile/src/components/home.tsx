@@ -30,8 +30,7 @@ import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, wit
 
 import { BlurView } from 'expo-blur';
 
-import { Glass, MaskedView, NATIVE_GLASS, ProgressiveBlur } from '@/components/glass';
-import { GlassView } from 'expo-glass-effect';
+import { Glass, MaskedView, ProgressiveBlur } from '@/components/glass';
 import { Logo } from '@/components/logo';
 import { Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
 import { STAGES, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
@@ -97,12 +96,14 @@ export function HeroPager({
   // при прокрутке вниз весь кадр уходит в размытие, а текст с кнопкой гаснут вместе — ничего не наезжает
   const blurOpacity = scrollY.interpolate({ inputRange: [0, height * 0.45], outputRange: [0, 1], extrapolate: 'clamp' });
   const uiOpacity = scrollY.interpolate({ inputRange: [0, height * 0.28], outputRange: [1, 0], extrapolate: 'clamp' });
+  // при потягивании вниз кадр не отъезжает от верха: сдвигаем его ровно на величину потягивания
+  const pin = scrollY.interpolate({ inputRange: [-height, 0], outputRange: [-height, 0], extrapolateRight: 'clamp' });
   const edgeOpacity = scrollY.interpolate({ inputRange: [0, height * 0.18], outputRange: [0, 1], extrapolate: 'clamp' });
 
   const onButton = () => (current.kind === 'album' ? onOpenBook(current.item.id) : onContinue());
 
   return (
-    <View style={{ width, height, overflow: 'hidden', backgroundColor: '#111' }}>
+    <Animated.View style={{ width, height, overflow: 'hidden', backgroundColor: '#111', zIndex: 1, transform: [{ translateY: pin }] }}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: uiOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }]}>
         <ScrollView
           ref={pager}
@@ -178,7 +179,7 @@ export function HeroPager({
         </Tap>
         <ScrollHint onPress={onContinue} />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -270,8 +271,8 @@ function ScrollHint({ onPress }: { onPress: () => void }) {
 function SlideView({
   slide, width, height, active, scrollY, uiOpacity,
 }: { slide: Slide; width: number; height: number; active: boolean; scrollY: Animated.Value; uiOpacity: Animated.AnimatedInterpolation<number> }) {
-  const stretch = scrollY.interpolate({ inputRange: [-height, 0], outputRange: [2, 1], extrapolateRight: 'clamp' });
-  const parallax = scrollY.interpolate({ inputRange: [-height, 0, height], outputRange: [-height / 2, 0, height * 0.35] });
+  const stretch = scrollY.interpolate({ inputRange: [-height, 0], outputRange: [1.8, 1], extrapolateRight: 'clamp' });
+  const parallax = scrollY.interpolate({ inputRange: [0, height], outputRange: [0, height * 0.35], extrapolateLeft: 'clamp' });
   const zoom = useSharedValue(1);
   useEffect(() => {
     if (active) {
@@ -407,19 +408,9 @@ function Tile({
   );
 }
 
-/**
- * Поверхность плитки. На iOS 26 — системное «жидкое стекло» с цветным оттенком:
- * свет на кромке, преломление и блик система рисует сама (как у вкладок внизу).
- * Где его нет — ровная заливка тем же цветом, без имитаций.
- */
-// один спокойный тёплый оттенок на все плитки; цвет — только в акцентах (иконки, +100, микрофон)
-const CALM = { glass: 'rgba(222,211,201,0.62)', flat: colors.card2 };
-const SURFACE = { peach: CALM, teal: CALM, plain: CALM, coral: CALM } as const;
-function TileBg({ kind }: { kind: keyof typeof SURFACE }) {
-  if (NATIVE_GLASS) {
-    return <GlassView pointerEvents="none" glassEffectStyle="regular" tintColor={SURFACE[kind].glass} style={[StyleSheet.absoluteFill, { borderRadius: 26 }]} />;
-  }
-  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: SURFACE[kind].flat }]} />;
+/** Поверхность плитки: ровная заливка одним спокойным тоном, без стекла и объёма. */
+function TileBg(_: { kind: 'peach' | 'teal' | 'plain' | 'coral' }) {
+  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.card2 }]} />;
 }
 
 /** «Общий альбом»: стопка лиц — сразу видно, что альбом на компанию. */
