@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { BookOpenTextIcon, CheckIcon, GiftIcon, ImagesIcon, LightningIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
+import { BookOpenTextIcon, ImagesIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -95,7 +95,6 @@ export default function Cart() {
               <View style={s.extras}>
                 {EXTRAS.map((e) => {
                   const on = extras.includes(e.id);
-                  const Icon = e.id === 'gift' ? GiftIcon : LightningIcon;
                   return (
                     <Tap
                       key={e.id}
@@ -107,18 +106,6 @@ export default function Cart() {
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: on }}
                       accessibilityLabel={`${e.title}, ${e.sub}, плюс ${rub(e.price)}`}>
-                      <View style={s.extraHead}>
-                        <View style={[s.extraIco, on && { backgroundColor: colors.coralAction }]}>
-                          <Icon size={20} color={on ? '#fff' : colors.peachInk} weight="fill" />
-                        </View>
-                        <View style={[s.box, on && s.boxOn]}>
-                          {on ? (
-                            <Animated.View entering={FadeIn.duration(duration.quick)}>
-                              <CheckIcon size={13} color="#fff" weight="bold" />
-                            </Animated.View>
-                          ) : null}
-                        </View>
-                      </View>
                       <Text style={s.extraTitle}>{e.title}</Text>
                       <Text style={s.extraSub}>{e.sub}</Text>
                       <Text style={s.extraPrice}>+{rub(e.price)}</Text>
@@ -359,15 +346,12 @@ const s = StyleSheet.create({
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
 
   extras: { flexDirection: 'row', gap: 10 },
-  extra: { flex: 1, backgroundColor: colors.card, borderRadius: 26, padding: 14, gap: 2, borderWidth: 2, borderColor: 'transparent' },
-  extraOn: { backgroundColor: colors.peach, borderColor: colors.coralAction },
-  extraHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  extraIco: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  extraTitle: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg },
-  extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut },
+  // выбранная — только рамкой, без значков и галочек
+  extra: { flex: 1, backgroundColor: colors.card, borderRadius: 26, paddingVertical: 18, paddingHorizontal: 12, gap: 2, alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
+  extraOn: { borderColor: colors.coralAction },
+  extraTitle: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
+  extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
   extraPrice: { fontSize: 17, fontFamily: fonts.display, color: colors.coralAction, marginTop: 8 },
-  box: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.mut2, alignItems: 'center', justifyContent: 'center' },
-  boxOn: { backgroundColor: colors.coralAction, borderColor: colors.coralAction },
 
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginTop: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
