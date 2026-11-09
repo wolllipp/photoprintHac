@@ -52,7 +52,7 @@ export default function Home() {
         {showIntro ? (
           <HeroPager atTop={atTop} items={suggestions} points={points} scrollY={scrollY} onContinue={toTiles} onOpenBook={openBook} />
         ) : null}
-        <View style={[s.content, { paddingTop: insets.top + (showIntro ? 16 : 6) }]}>
+        <View style={[s.content, { paddingTop: showIntro ? 20 : insets.top + 6 }]}>
           {showIntro ? null : <PlainTopBar points={points} />}
           <ActionTiles
             order={currentOrder}

@@ -4,6 +4,7 @@
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, fonts, photoGradients, type PhotoKey } from '@/theme';
@@ -34,17 +35,21 @@ export function Photo({ k, style }: { k: PhotoKey; style?: StyleProp<ViewStyle> 
 
 /** Пик — монетка с фирменной курсивной P, лёгкий объём. */
 export function Pik({ size = 20 }: { size?: number }) {
+  const r = size / 2;
+  const fs = size * 0.5;
   return (
-    <LinearGradient
-      colors={['#D46F69', colors.coralAction]}
-      start={{ x: 0.2, y: 0 }}
-      end={{ x: 0.8, y: 1 }}
-      style={[
-        styles.pik,
-        { width: size, height: size, borderRadius: size / 2, transform: [{ rotate: '-8deg' }] },
-      ]}>
-      <Text style={[styles.pikP, { fontSize: size * 0.6, lineHeight: size * 1.05 }]}>P</Text>
-    </LinearGradient>
+    <Svg width={size} height={size}>
+      <Defs>
+        <SvgGradient id="pik" x1="0.15" y1="0" x2="0.85" y2="1">
+          <Stop offset="0" stopColor="#E0837C" />
+          <Stop offset="1" stopColor={colors.coralAction} />
+        </SvgGradient>
+      </Defs>
+      <Circle cx={r} cy={r} r={r} fill="url(#pik)" />
+      <Circle cx={r} cy={r} r={r * 0.76} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth={Math.max(1, size * 0.05)} />
+      {/* у Unbounded высота заглавной ≈0.7 кегля — опускаем базовую линию на половину */}
+      <SvgText x={r} y={r + fs * 0.35} fontSize={fs} fontFamily={fonts.display} fill="#fff" textAnchor="middle">P</SvgText>
+    </Svg>
   );
 }
 

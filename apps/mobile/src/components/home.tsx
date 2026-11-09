@@ -208,15 +208,15 @@ function OverlapTitle({ text, size }: { text: string; size: number }) {
         const last = i === lines.length - 1;
         const style = { height: Math.round(size * 1.08), marginTop: i === 0 ? 0 : lh - Math.round(size * 1.08) };
         if (Platform.OS === 'web') {
-          return <Text key={i} style={[line, style, { color: last ? '#fff' : 'rgba(255,255,255,0.72)' }]}>{l}</Text>;
+          return <Text key={i} style={[line, style, { color: last ? '#fff' : 'rgba(255,255,255,0.6)' }]}>{l}</Text>;
         }
         return (
           <MaskedView key={i} style={style} maskElement={<Text style={line}>{l}</Text>}>
             {/* невидимая копия задаёт маске ширину, иначе она схлопывается в ноль */}
             <Text style={[line, { opacity: 0 }]}>{l}</Text>
             <LinearGradient
-              colors={last ? ['#fff', '#fff'] : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.95)']}
-              locations={[0.05, 0.85]}
+              colors={last ? ['#fff', 'rgba(255,255,255,0.86)'] : ['#fff', 'rgba(255,255,255,0.12)']}
+              locations={last ? [0.4, 1] : [0.25, 0.9]}
               style={StyleSheet.absoluteFill}
             />
           </MaskedView>
@@ -396,6 +396,24 @@ function Tile({
   );
 }
 
+/** «Позвать друга»: главное — сам бонус, крупно; монетка рядом. */
+function InviteTile() {
+  return (
+    <Tap style={[s.tile, s.invite]} accessibilityRole="button" accessibilityLabel={`Позвать друга, ${tiles.inviteBonus}`}>
+      <View style={s.inviteHead}>
+        <Text style={s.inviteTitle}>Позвать друга</Text>
+        <CaretRightIcon size={14} color="rgba(255,255,255,0.85)" weight="bold" />
+      </View>
+      <View style={{ flex: 1 }} />
+      <View style={s.inviteRow}>
+        <Text style={s.inviteNum}>+100</Text>
+        <Pik size={26} />
+      </View>
+      <Text style={s.inviteSub}>пиков за друга</Text>
+    </Tap>
+  );
+}
+
 export function ActionTiles({
   order,
   onAsk,
@@ -441,8 +459,14 @@ export function ActionTiles({
         />
         <View style={{ flex: 1, gap: TILE_GAP }}>
           {/* действия */}
-          <Tile surface="peach" icon={<QrCodeIcon size={18} color={iconPeach} weight="fill" />} title="Общий альбом" sub="гости по QR-коду" />
-          <Tile surface="peach" icon={<Pik size={22} />} title="Позвать друга" sub={tiles.inviteBonus} />
+          <Tile
+            surface="photo"
+            photo={photos['friends-selfie']}
+            icon={<QrCodeIcon size={18} color="#fff" weight="fill" />}
+            title="Общий альбом"
+            sub="гости по QR-коду"
+          />
+          <InviteTile />
         </View>
       </View>
 
@@ -536,6 +560,12 @@ const s = StyleSheet.create({
   tile: { borderRadius: 26, backgroundColor: colors.card, padding: 16, overflow: 'hidden' },
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
+  invite: { flex: 1, height: TILE_S, backgroundColor: colors.coralAction },
+  inviteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  inviteTitle: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
+  inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  inviteNum: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.8, color: '#fff' },
+  inviteSub: { fontSize: 13, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.85)' },
   tTitleS: { fontSize: 16, lineHeight: 19, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
   tTitleL: { fontSize: 21, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
   tSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 3 },
