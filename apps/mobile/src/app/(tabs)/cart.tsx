@@ -121,7 +121,7 @@ export default function Cart() {
               <Tap style={s.cta} onPress={() => router.push('/checkout')} accessibilityRole="button" accessibilityLabel={`Оформить, ${rub(total)}`}>
                 <Text style={s.ctaText}>Оформить</Text>
                 <View style={s.ctaSum}>
-                  <AnimatedNumber value={total} format={rub} style={s.ctaText} />
+                  <AnimatedNumber value={total} format={rub} style={s.ctaTotal} />
                 </View>
               </Tap>
             </Animated.View>
@@ -357,6 +357,8 @@ const s = StyleSheet.create({
 
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginTop: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
+  // итог — тем же шрифтом, что и цены в плитках
+  ctaTotal: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: '#fff' },
   ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
 
   empty: { backgroundColor: colors.card, borderRadius: 26, padding: 20, gap: 8 },
