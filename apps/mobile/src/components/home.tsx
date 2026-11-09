@@ -31,6 +31,7 @@ import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, wit
 import { BlurView } from 'expo-blur';
 
 import { Glass, MaskedView, ProgressiveBlur } from '@/components/glass';
+import { Logo } from '@/components/logo';
 import { Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
 import { STAGES, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
 import { photos, type PhotoName } from '@/data/photos';
@@ -130,7 +131,9 @@ export function HeroPager({
             <Text style={s.avatarText}>И</Text>
           </Glass>
         </Tap>
-        <Text style={s.brand} accessibilityRole="header">PicPac</Text>
+        <View style={s.brand} pointerEvents="none" accessibilityRole="header">
+          <Logo width={92} color="#fff" />
+        </View>
         <Tap accessibilityRole="button" accessibilityLabel={`${points} пиков, пригласить друга`}>
           <Glass tone="dark" style={s.points} interactive>
             <AnimatedNumber value={points} format={String} style={s.pointsText} />
@@ -234,8 +237,12 @@ function SlideView({
         {slide.kind === 'welcome' ? (
           <>
             <Text style={[s.title, titleStyle]} accessibilityRole="header">
-              {slide.title}{'\n'}в <Text style={[s.titleLogo, { fontSize: titleSize }]}>PicPac</Text>
+              {slide.title}
             </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -4, marginBottom: 2 }}>
+              <Text style={[s.title, titleStyle]}>в</Text>
+              <Logo width={Math.round(titleSize * 3.4)} color="#fff" />
+            </View>
             <Text style={s.desc}>{slide.desc}</Text>
           </>
         ) : (
@@ -262,7 +269,9 @@ export function PlainTopBar({ points }: { points: number }) {
       <Tap onPress={() => router.push('/settings')} style={s.plainAvatar} accessibilityRole="button" accessibilityLabel="Профиль и настройки">
         <Text style={s.plainAvatarText}>И</Text>
       </Tap>
-      <Text style={[s.brand, { color: colors.coral, textShadowRadius: 0 }]} accessibilityRole="header">PicPac</Text>
+      <View style={s.brand} pointerEvents="none" accessibilityRole="header">
+        <Logo width={92} color={colors.coral} />
+      </View>
       <View style={s.plainPoints} accessibilityLabel={`${points} пиков`}>
         <AnimatedNumber value={points} format={String} style={[s.pointsText, { color: colors.fg }]} />
         <Pik />
@@ -394,17 +403,12 @@ const s = StyleSheet.create({
   top: { position: 'absolute', left: 18, right: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 16, fontFamily: fonts.bold, color: '#fff' },
-  brand: {
-    position: 'absolute', left: 0, right: 0, textAlign: 'center', zIndex: -1,
-    fontFamily: fonts.logo, fontSize: 28, color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.25)', textShadowRadius: 12, textShadowOffset: { width: 0, height: 2 },
-  },
+  brand: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: -1 },
   points: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16 },
   pointsText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff', fontVariant: ['tabular-nums'] },
 
   center: { position: 'absolute', left: 0, right: 0, bottom: 214, alignItems: 'center', paddingHorizontal: 26, gap: 12 },
   title: { fontSize: 44, lineHeight: 47, fontFamily: fonts.display, letterSpacing: -1.6, color: '#fff', textAlign: 'center' },
-  titleLogo: { fontFamily: fonts.logo, fontWeight: '400', letterSpacing: 0, fontSize: 44 },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.88)', textAlign: 'center', maxWidth: 320 },
   eyebrow: { flexDirection: 'row', alignItems: 'center', height: 30, paddingHorizontal: 13, borderRadius: 15 },
   eyebrowText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
