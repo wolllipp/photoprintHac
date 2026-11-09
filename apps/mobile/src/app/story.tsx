@@ -6,16 +6,16 @@
  */
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
+import { ArrowUpIcon, BookOpenTextIcon, CaretRightIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, TagIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory } from '@/ai/story';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { duration, enterItem } from '@/motion';
+import { duration, ease, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const CHIPS = ['Путешествие', 'Ребёнок', 'Свадьба', 'Выпускной', 'Новый год'];
@@ -27,11 +27,22 @@ export default function Story() {
   const insets = useSafeAreaInsets();
   const { voice } = useLocalSearchParams<{ voice?: string }>();
   const [text, setText] = useState(voice ? '' : DEMO);
-  const [chip, setChip] = useState('Путешествие');
+  // правки пользователя поверх того, что понял ИИ
+  const [themeO, setThemeO] = useState<string | null>(null);
+  const [pagesO, setPagesO] = useState<number | null>(null);
+  const [toneO, setToneO] = useState<string | null>(null);
+  const [open, setOpen] = useState<'pages' | 'tone' | null>(null);
   const [listening, setListening] = useState(Boolean(voice));
   const [typing, setTyping] = useState<string | null>(null);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const parsed = useMemo(() => (typing === null ? parseStory(text) : null), [text, typing]);
+  const theme = themeO ?? (parsed && parsed.themeLabel !== 'Своя тема' ? parsed.themeLabel : null);
+  const pages = pagesO ?? parsed?.pages ?? 24;
+  const tone = toneO ?? parsed?.tone ?? 'спокойный';
+  const toggle = (k: 'pages' | 'tone') => {
+    Haptics.selectionAsync().catch(() => {});
+    setOpen((o) => (o === k ? null : k));
+  };
 
   // распознанный текст «печатается» в поле по словам
   useEffect(() => {
@@ -73,13 +84,21 @@ export default function Story() {
   return (
     <KeyboardAvoidingView style={[s.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <NavBar title="" />
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={s.title}>Какую книгу соберём?</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.bleed} contentContainerStyle={s.chips}>
           {CHIPS.map((c) => (
-            <Tap key={c} style={[s.chip, c === chip && s.chipOn]} onPress={() => setChip(c)} accessibilityRole="button" accessibilityState={{ selected: c === chip }}>
-              <Text style={[s.chipText, c === chip && s.chipTextOn]}>{c}</Text>
+            <Tap
+              key={c}
+              style={[s.chip, c === theme && s.chipOn]}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                setThemeO(c === theme ? null : c);
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: c === theme }}>
+              <Text style={[s.chipText, c === theme && s.chipTextOn]}>{c}</Text>
             </Tap>
           ))}
         </ScrollView>
@@ -136,19 +155,23 @@ export default function Story() {
         {parsed ? (
           <Animated.View entering={enterItem(0)} style={s.parse} accessibilityLabel="Поняли так">
             <Text style={s.lbl}>Поняли так</Text>
-            <Row i={1} icon={<ImagesIcon size={18} color={colors.peachInk} weight="fill" />} title="Фото" sub={`альбом «${parsed.album}»`} value={String(parsed.photos)} />
-            <Row i={2} icon={<BookOpenTextIcon size={18} color={colors.peachInk} weight="fill" />} title="Объём" sub="Classic 20×20 — подходит под кадры" value={`${parsed.pages} стр.`} />
-            <Row i={3} icon={<SparkleIcon size={18} color={colors.peachInk} weight="fill" />} title="Тон и акцент" sub={[parsed.tone ?? 'спокойный', parsed.accent ?? 'лучшие кадры'].join(' · ')} />
-            <View style={s.btns}>
-              <Tap style={[s.btn, s.btnPlain]} onPress={() => input.current?.focus()} accessibilityRole="button">
-                <Text style={s.btnPlainText}>Изменить</Text>
-              </Tap>
-              <Tap style={[s.btn, s.btnPrimary]} onPress={submit} accessibilityRole="button">
-                <Text style={s.btnPrimaryText}>Собрать книгу</Text>
-              </Tap>
-            </View>
+            <Row i={1} icon={<TagIcon size={18} color={colors.peachInk} weight="fill" />} title="Тема" sub={theme ? 'шаблон и подписи под повод' : 'выберите повод выше'} value={theme ?? '—'} />
+            <Row i={2} icon={<ImagesIcon size={18} color={colors.peachInk} weight="fill" />} title="Фото" sub={`альбом «${parsed.album}»`} value={`${parsed.photos} фото`} onPress={() => router.push('/select')} />
+            <Row i={3} icon={<BookOpenTextIcon size={18} color={colors.peachInk} weight="fill" />} title="Объём" sub="Classic 20×20 — подходит под кадры" value={`${pages} стр.`} onPress={() => toggle('pages')} expanded={open === 'pages'}>
+              <Options items={PAGES.map(String)} value={String(pages)} suffix=" стр." onPick={(v) => setPagesO(Number(v))} />
+            </Row>
+            <Row i={4} icon={<SparkleIcon size={18} color={colors.peachInk} weight="fill" />} title="Настроение" sub={[tone, parsed.accent ?? 'лучшие кадры'].join(' · ')} onPress={() => toggle('tone')} expanded={open === 'tone'}>
+              <Options items={TONES} value={tone} onPick={setToneO} />
+            </Row>
+            <Tap style={[s.btn, s.btnPrimary]} onPress={submit} accessibilityRole="button">
+              <Text style={s.btnPrimaryText}>Собрать книгу</Text>
+            </Tap>
           </Animated.View>
-        ) : listening || typing !== null ? null : (
+        ) : listening ? (
+          <Animated.Text entering={FadeIn.duration(duration.slow)} style={s.empty}>
+            Говорите: о чём книга, какое настроение и сколько страниц.
+          </Animated.Text>
+        ) : typing !== null ? null : (
           <Text style={s.empty}>Например: «книга про первый год сына, светлая, 30 страниц». Мы подберём фото и шаблон.</Text>
         )}
       </ScrollView>
@@ -190,16 +213,72 @@ function Timer() {
   );
 }
 
-function Row({ i, icon, title, sub, value }: { i: number; icon: ReactNode; title: string; sub: string; value?: string }) {
+const PAGES = [16, 20, 24, 32, 40];
+const TONES = ['спокойный', 'тёплый', 'светлый', 'яркий'];
+
+/** Строка разбора: нажал — раскрываются варианты, выбрал — значение меняется на месте. */
+function Row({
+  i,
+  icon,
+  title,
+  sub,
+  value,
+  onPress,
+  expanded,
+  children,
+}: {
+  i: number;
+  icon: ReactNode;
+  title: string;
+  sub: string;
+  value?: string;
+  onPress?: () => void;
+  expanded?: boolean;
+  children?: ReactNode;
+}) {
   return (
-    <Animated.View entering={enterItem(i)} style={s.prow}>
-      <View style={s.pico}>{icon}</View>
-      <View style={{ flex: 1 }}>
-        <Text style={s.ptitle}>{title}</Text>
-        <Text style={s.psub}>{sub}</Text>
-      </View>
-      {value ? <Text style={s.pval}>{value}</Text> : null}
+    <Animated.View entering={enterItem(i)} layout={LinearTransition.duration(220).easing(ease.smoothOut)} style={s.prowWrap}>
+      <Tap style={s.prow} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : 'text'} accessibilityState={onPress ? { expanded } : undefined}>
+        <View style={s.pico}>{icon}</View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.ptitle}>{title}</Text>
+          <Text style={s.psub} numberOfLines={1}>{sub}</Text>
+        </View>
+        {value ? <Text style={s.pval}>{value}</Text> : null}
+        {onPress ? <CaretRightIcon size={14} color={colors.mut2} weight="bold" style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }} /> : null}
+      </Tap>
+      {expanded ? (
+        <Animated.View entering={FadeIn.duration(duration.fast)} style={s.opts}>
+          {children}
+        </Animated.View>
+      ) : null}
     </Animated.View>
+  );
+}
+
+function Options({ items, value, suffix = '', onPick }: { items: string[]; value: string; suffix?: string; onPick: (v: string) => void }) {
+  return (
+    <View style={s.optRow} accessibilityRole="radiogroup">
+      {items.map((it) => {
+        const on = it === value;
+        return (
+          <Tap
+            key={it}
+            style={[s.opt, on && s.optOn]}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              onPick(it);
+            }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}>
+            <Text style={[s.optText, on && { color: '#fff' }]}>
+              {it}
+              {on ? suffix : ''}
+            </Text>
+          </Tap>
+        );
+      })}
+    </View>
   );
 }
 
@@ -228,15 +307,18 @@ const s = StyleSheet.create({
 
   parse: { backgroundColor: colors.card, borderRadius: 26, padding: 14, gap: 8 },
   lbl: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut, paddingLeft: 4 },
-  prow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bg, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12 },
+  prowWrap: { backgroundColor: colors.bg, borderRadius: 18, overflow: 'hidden' },
+  prow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12 },
+  opts: { paddingHorizontal: 12, paddingBottom: 12 },
+  optRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  opt: { height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: colors.card, justifyContent: 'center' },
+  optOn: { backgroundColor: colors.fg },
+  optText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
   pico: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
   ptitle: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
   psub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
   pval: { fontSize: 15.5, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
-  btns: { flexDirection: 'row', gap: 8, paddingTop: 4 },
-  btn: { flex: 1, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
-  btnPlain: { backgroundColor: colors.card2 },
-  btnPlainText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
+  btn: { height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   btnPrimary: { backgroundColor: colors.coralAction },
   btnPrimaryText: { fontSize: 16, fontFamily: fonts.semibold, color: '#fff' },
   empty: { fontSize: 15, fontFamily: fonts.regular, lineHeight: 21, color: colors.mut, paddingHorizontal: 4 },
