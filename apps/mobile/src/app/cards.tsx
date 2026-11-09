@@ -23,12 +23,13 @@ export default function Cards() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { cards, cardId, setCardId, addCard } = useStore();
-  const W = Math.round(width * 0.7);
+  const W = Math.round(width * 0.8);
   const H = Math.round(W * 0.63);
   const STEP = W * 0.62; // карты заходят друг на друга — так дуга читается как колесо
   const start = Math.max(0, cards.findIndex((c) => c.id === cardId));
   const x = useSharedValue(start * STEP);
-  const [at, setAt] = useState(start); // какая карта по центру (cards.length — «Добавить»)
+  const [at, setAt] = useState(start); // какая карта по центру
+  const [adding, setAdding] = useState(false); // форма новой карты
   const [num, setNum] = useState('');
   const [exp, setExp] = useState('');
   const [cvc, setCvc] = useState('');
@@ -38,7 +39,7 @@ export default function Cards() {
     Haptics.selectionAsync().catch(() => {});
   };
   const idx = useSharedValue(start);
-  const last = cards.length; // индекс «Добавить карту»
+  const last = cards.length - 1;
   const onScroll = useAnimatedScrollHandler((e) => {
     x.value = e.contentOffset.x;
     // карта сменилась по центру — щелчок и подпись под колесом
@@ -49,7 +50,6 @@ export default function Cards() {
     }
   });
 
-  const adding = at >= cards.length;
   const digits = num.replace(/\D/g, '');
   const ready = digits.length >= 16 && /^\d{2}\/\d{2}$/.test(exp) && cvc.length === 3;
   const choose = () => {
@@ -73,6 +73,7 @@ export default function Cards() {
         </Tap>
       </View>
 
+      <View style={{ flex: adding ? 0 : 1, justifyContent: 'center' }}>
       <Animated.ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -83,21 +84,26 @@ export default function Cards() {
         contentOffset={{ x: start * STEP, y: 0 }}
         contentContainerStyle={{ paddingHorizontal: (width - STEP) / 2, height: H + 70, alignItems: 'center' }}
         style={{ flexGrow: 0 }}>
-        {[...cards, null].map((c, i) => (
-          <WheelCard key={c?.id ?? 'add'} i={i} x={x} step={STEP} w={W} h={H}>
-            {c ? <CardFace card={c} w={W} h={H} /> : <AddFace w={W} h={H} />}
+        {cards.map((c, i) => (
+          <WheelCard key={c.id} i={i} x={x} step={STEP} w={W} h={H}>
+            {/* при открытии карты веером выезжают снизу */}
+            <Animated.View entering={FadeInDown.delay(80 * Math.abs(i - start)).springify().damping(16)}>
+              <CardFace card={c} w={W} h={H} />
+            </Animated.View>
           </WheelCard>
         ))}
       </Animated.ScrollView>
 
       <View style={s.dots}>
-        {[...cards, null].map((c, i) => (
-          <View key={c?.id ?? 'add'} style={[s.dot, i === at && s.dotOn]} />
+        {cards.map((c, i) => (
+          <View key={c.id} style={[s.dot, i === at && s.dotOn]} />
         ))}
+      </View>
       </View>
 
       {adding ? (
         <Animated.View entering={FadeInDown.duration(320).easing(ease.smoothOut)} style={s.form}>
+          <Text style={s.formTitle}>Новая карта</Text>
           <TextInput
             value={num}
             onChangeText={(t) => setNum(t.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 '))}
@@ -133,17 +139,28 @@ export default function Cards() {
           </View>
         </Animated.View>
       ) : (
-        <Text style={s.cardInfo}>
-          {cards[at]?.brand} •• {cards[at]?.last4} · {cards[at]?.bank}
-          {cards[at]?.id === cardId ? ' · сейчас выбрана' : ''}
-        </Text>
+        <View style={{ alignItems: 'center', gap: 14, marginBottom: 12 }}>
+          <Text style={s.cardInfo}>
+            {cards[at]?.brand} •• {cards[at]?.last4} · {cards[at]?.bank}
+            {cards[at]?.id === cardId ? ' · сейчас выбрана' : ''}
+          </Text>
+          <Tap style={s.addBtn} onPress={() => setAdding(true)} accessibilityRole="button">
+            <PlusIcon size={16} color={colors.fg} weight="bold" />
+            <Text style={s.addBtnText}>Добавить карту</Text>
+          </Tap>
+        </View>
       )}
 
-      <View style={{ flex: 1 }} />
+      {adding ? <View style={{ flex: 1 }} /> : null}
       <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <Tap style={[s.cta, adding && !ready && { opacity: 0.4 }]} onPress={choose} disabled={adding && !ready} accessibilityRole="button">
           <Text style={s.ctaText}>{adding ? 'Сохранить и выбрать' : 'Оплатить этой картой'}</Text>
         </Tap>
+        {adding ? (
+          <Tap style={s.cancel} onPress={() => setAdding(false)} accessibilityRole="button">
+            <Text style={s.cancelText}>Отмена</Text>
+          </Tap>
+        ) : null}
       </View>
     </View>
   );
@@ -181,17 +198,6 @@ function CardFace({ card, w, h }: { card: Card; w: number; h: number }) {
   );
 }
 
-function AddFace({ w, h }: { w: number; h: number }) {
-  return (
-    <View style={[s.card, s.add, { width: w, height: h }]}>
-      <View style={s.addIco}>
-        <PlusIcon size={22} color={colors.coralAction} weight="bold" />
-      </View>
-      <Text style={s.addText}>Добавить карту</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 6 },
@@ -203,14 +209,16 @@ const s = StyleSheet.create({
   chip: { width: 38, height: 28, borderRadius: 6, backgroundColor: 'rgba(255,220,160,0.75)' },
   number: { fontSize: 17, fontFamily: fonts.semibold, letterSpacing: 1, color: '#fff' },
   brand: { position: 'absolute', right: 18, top: 16, fontSize: 16, fontFamily: fonts.display, color: '#fff' },
-  add: { backgroundColor: colors.card, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.mut2, alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: 'none' },
-  addIco: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  addText: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, paddingHorizontal: 20, borderRadius: 23, backgroundColor: colors.card },
+  addBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  formTitle: { fontSize: 20, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginBottom: 2 },
+  cancel: { height: 44, alignItems: 'center', justifyContent: 'center' },
+  cancelText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.mut },
 
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 4 },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.card2 },
   dotOn: { width: 18, backgroundColor: colors.fg },
-  cardInfo: { textAlign: 'center', fontSize: 15, fontFamily: fonts.medium, color: colors.mut, marginTop: 16 },
+  cardInfo: { textAlign: 'center', fontSize: 15, fontFamily: fonts.medium, color: colors.mut },
 
   form: { paddingHorizontal: 16, gap: 8, marginTop: 16 },
   input: { height: 52, borderRadius: 18, backgroundColor: colors.card, paddingHorizontal: 16, fontSize: 17, fontFamily: fonts.medium, color: colors.fg },

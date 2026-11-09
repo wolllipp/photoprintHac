@@ -7,10 +7,10 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { ChatCircleTextIcon, DeviceMobileIcon, XIcon } from 'phosphor-react-native';
+import { XIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
@@ -60,11 +60,9 @@ export default function Orders() {
 
             <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={s.actions}>
               <Tap style={[s.btn, s.btnMain]} onPress={() => setLock(true)} accessibilityRole="button">
-                <DeviceMobileIcon size={18} color="#fff" weight="bold" />
                 <Text style={[s.btnText, { color: '#fff' }]}>{onLock === order.id ? 'На экране блокировки' : 'На экран блокировки'}</Text>
               </Tap>
               <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
-                <ChatCircleTextIcon size={18} color={colors.fg} weight="bold" />
                 <Text style={s.btnText}>Помощь</Text>
               </Tap>
             </Animated.View>
@@ -126,7 +124,7 @@ function OrderCard({ order }: { order: PlacedOrder }) {
       <Track stage={order.stage} />
 
       <View style={s.live}>
-        <LiveDot />
+        <Text style={s.liveLabel}>Сейчас</Text>
         <Text style={s.liveText} numberOfLines={2}>{order.live}</Text>
       </View>
     </View>
@@ -135,14 +133,20 @@ function OrderCard({ order }: { order: PlacedOrder }) {
 
 /** Шкала: пять точек на одной линии; пройденное — коралловое, текущая точка пульсирует. */
 function Track({ stage }: { stage: number }) {
+  // при открытии коралловая линия один раз плавно дорастает до текущего этапа
+  const [w, setW] = useState(0);
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withTiming(1, { duration: 900, easing: ease.smoothOut });
+  }, [p]);
+  const fill = useAnimatedStyle(() => ({ width: (w - 14) * (stage / (STAGES.length - 1)) * p.value }));
   return (
     <View>
-      <View style={s.track}>
+      <View style={s.track} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
         <View style={s.line} />
-        <View style={[s.line, s.lineDone, { width: `${(stage / (STAGES.length - 1)) * 100}%` }]} />
+        <Animated.View style={[s.line, s.lineDone, fill]} />
         {STAGES.map((st, i) => (
           <View key={st} style={s.nodeWrap}>
-            {i === stage ? <Pulse /> : null}
             <View style={[s.node, i <= stage && s.nodeDone, i === stage && s.nodeNow]} />
           </View>
         ))}
@@ -156,24 +160,6 @@ function Track({ stage }: { stage: number }) {
       </View>
     </View>
   );
-}
-
-function Pulse() {
-  const v = useSharedValue(0);
-  useEffect(() => {
-    v.value = withRepeat(withTiming(1, { duration: 1400 }), -1, false);
-  }, [v]);
-  const a = useAnimatedStyle(() => ({ opacity: 0.45 * (1 - v.value), transform: [{ scale: 1 + v.value * 1.4 }] }));
-  return <Animated.View style={[s.pulse, a]} />;
-}
-
-function LiveDot() {
-  const v = useSharedValue(0);
-  useEffect(() => {
-    v.value = withRepeat(withTiming(1, { duration: 900 }), -1, true);
-  }, [v]);
-  const a = useAnimatedStyle(() => ({ opacity: 0.35 + 0.65 * v.value }));
-  return <Animated.View style={[s.liveDot, a]} />;
 }
 
 /** Как статус будет выглядеть на заблокированном iPhone. В продукте — Live Activity (нужна нативная сборка). */
@@ -237,22 +223,21 @@ const s = StyleSheet.create({
 
   track: { height: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   line: { position: 'absolute', left: 7, right: 7, height: 4, borderRadius: 2, backgroundColor: colors.card2 },
-  lineDone: { right: undefined, backgroundColor: colors.coralAction, maxWidth: '96%' },
+  lineDone: { right: undefined, backgroundColor: colors.coralAction },
   nodeWrap: { width: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
   node: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.card2, borderWidth: 3, borderColor: colors.card },
   nodeDone: { backgroundColor: colors.coralAction },
-  nodeNow: { width: 18, height: 18, borderRadius: 9, borderWidth: 4, borderColor: '#fff' },
-  pulse: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: colors.coralAction },
+  nodeNow: { width: 22, height: 22, borderRadius: 11, borderWidth: 5, borderColor: '#fff' },
   labels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   label: { width: 64, marginHorizontal: -25, textAlign: 'center', fontSize: 12, fontFamily: fonts.medium, color: colors.mut2 },
   labelNow: { color: colors.coralAction, fontFamily: fonts.bold },
 
   live: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.bg, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
+  liveLabel: { fontSize: 13, fontFamily: fonts.bold, color: colors.coralAction },
   liveText: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
 
   actions: { flexDirection: 'row', gap: 8 },
-  btn: { flex: 1, height: 50, borderRadius: 25, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  btn: { flex: 1, height: 52, borderRadius: 26, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   btnMain: { flex: 1.5, backgroundColor: colors.coralAction },
   btnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 

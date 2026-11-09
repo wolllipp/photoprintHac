@@ -8,8 +8,8 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Keyboard, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,9 +30,21 @@ export default function Checkout() {
   const [draftPhone, setDraftPhone] = useState('');
   const [code, setCode] = useState('');
   const [codeErr, setCodeErr] = useState(false);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  // правим номер — как только клавиатура поднялась, докручиваем к полю
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      if (phoneStep !== 'view') scroll.current?.scrollToEnd({ animated: true });
+    });
+    return () => sub.remove();
+  }, [phoneStep]);
   const [deliveryId, setDeliveryId] = useState<string>(delivery[0].id);
   const [payId, setPayId] = useState<string>(payments[0].id);
   const [usePiks, setUsePiks] = useState(false);
+  // согласия, как на сайте: без обеих галочек оплатить нельзя
+  const [agree, setAgree] = useState({ offer: false, print: false });
+  const [nudge, setNudge] = useState(false);
+  const agreed = agree.offer && agree.print;
 
   if (!cart.length) {
     return (
@@ -52,6 +64,12 @@ export default function Checkout() {
   const pieces = cart.reduce((a, it) => a + it.qty, 0);
 
   const onPay = () => {
+    if (!agreed) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setNudge(true);
+      scroll.current?.scrollToEnd({ animated: true });
+      return;
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     placeOrder(total, usePiks ? points : 0);
     router.dismissAll();
@@ -67,7 +85,14 @@ export default function Checkout() {
         </Tap>
       </View>
 
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scroll}
+        contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]}
+        showsVerticalScrollIndicator={false}
+        // iOS сам поднимает поле ввода над клавиатурой и плавно прокручивает к нему
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive">
         <Animated.Text entering={enter(0)} style={s.title}>
           Оформление
         </Animated.Text>
@@ -209,15 +234,30 @@ export default function Checkout() {
           <View style={[s.sum, { marginTop: 4 }]}><Text style={s.totalL}>Итого</Text><AnimatedNumber value={total} format={rub} style={s.totalR} /></View>
         </Animated.View>
 
-        {/* проверка качества — тихой строкой, как на экране книги */}
-        <View style={s.ok}>
-          <CheckIcon size={14} color={colors.tealInk} weight="bold" />
-          <Text style={s.okText}>Проверено: лица в кадре, резкость в норме. Отмена — до начала печати.</Text>
+        {/* согласия — как на сайте; без них «Оплатить» не сработает */}
+        <View style={s.agrees}>
+          <Agree
+            on={agree.offer}
+            warn={nudge && !agree.offer}
+            onToggle={() => setAgree((a) => ({ ...a, offer: !a.offer }))}
+            text={
+              <>
+                Принимаю условия <Text style={s.agreeLink}>публичной оферты</Text> и <Text style={s.agreeLink}>политики обработки персональных данных</Text>
+              </>
+            }
+          />
+          <Agree
+            on={agree.print}
+            warn={nudge && !agree.print}
+            onToggle={() => setAgree((a) => ({ ...a, print: !a.print }))}
+            text="Понимаю: после оплаты заказ уходит в печать, отменить можно только до её начала. За содержание заказа отвечаю я"
+          />
         </View>
+
       </ScrollView>
 
       <View style={[s.bottom, { paddingBottom: insets.bottom + 10 }]}>
-        <Tap style={s.cta} onPress={onPay} accessibilityRole="button" accessibilityLabel={`Оплатить ${rub(total)}`}>
+        <Tap style={[s.cta, !agreed && { opacity: 0.45 }]} onPress={onPay} accessibilityRole="button" accessibilityState={{ disabled: !agreed }} accessibilityLabel={agreed ? `Оплатить ${rub(total)}` : 'Оплатить — сначала отметьте согласия'}>
           <Text style={s.ctaText}>{payId === 'erip' ? 'Получить номер ЕРИП' : 'Оплатить'}</Text>
           <View style={s.ctaSum}>
             <AnimatedNumber value={total} format={rub} style={s.ctaPrice} />
@@ -225,6 +265,23 @@ export default function Checkout() {
         </Tap>
       </View>
     </View>
+  );
+}
+
+/** Галочка согласия: квадрат слева, текст справа; неотмеченная после попытки оплаты — коралловая рамка. */
+function Agree({ on, warn, text, onToggle }: { on: boolean; warn: boolean; text: React.ReactNode; onToggle: () => void }) {
+  return (
+    <Tap
+      style={s.agree}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onToggle();
+      }}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: on }}>
+      <View style={[s.box, on && s.boxOn, warn && s.boxWarn]}>{on ? <CheckIcon size={13} color="#fff" weight="bold" /> : null}</View>
+      <Text style={[s.agreeText, warn && { color: colors.coralAction }]}>{text}</Text>
+    </Tap>
   );
 }
 
@@ -274,8 +331,13 @@ const s = StyleSheet.create({
   totalL: { fontSize: 17, fontFamily: fonts.bold, color: colors.fg },
   totalR: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
 
-  ok: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 4 },
-  okText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.medium, color: colors.tealInk },
+  agrees: { gap: 10, paddingHorizontal: 2 },
+  agree: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  box: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: colors.mut2, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  boxOn: { backgroundColor: colors.coralAction, borderColor: colors.coralAction },
+  boxWarn: { borderColor: colors.coralAction },
+  agreeText: { flex: 1, fontSize: 13.5, lineHeight: 19, fontFamily: fonts.regular, color: colors.fg },
+  agreeLink: { fontFamily: fonts.semibold, color: colors.coralLink },
 
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: 'rgba(255,255,255,0.94)' },
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8 },
