@@ -34,7 +34,7 @@ import { Glass, MaskedView, ProgressiveBlur } from '@/components/glass';
 import { Logo } from '@/components/logo';
 import { Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
 import { STAGES, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
-import { photos, type PhotoName } from '@/data/photos';
+import { type PhotoName, photos, pic } from '@/data/photos';
 import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -289,7 +289,7 @@ function SlideView({
     <View style={{ width, height, overflow: 'hidden' }}>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: parallax }, { scale: stretch }] }]}>
         <Reanimated.View style={[StyleSheet.absoluteFill, zoomStyle]}>
-          <Photo source={photos[photo]} style={StyleSheet.absoluteFill} transition={300} />
+          <Photo source={pic(photo)} style={StyleSheet.absoluteFill} transition={300} />
         </Reanimated.View>
       </Animated.View>
       {/* ровное затемнение под текст по центру + сверху под шапку + снизу под кнопку */}
@@ -421,7 +421,7 @@ function SharedTile() {
       <TileBg kind="teal" />
       <View style={s.faces}>
         {FACES.map((k, i) => (
-          <Photo key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} />
+          <Photo key={k} source={pic(k)} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} />
         ))}
         <View style={[s.face, s.faceMore]}>
           <QrCodeIcon size={14} color={colors.peachInk} weight="bold" />
@@ -520,7 +520,7 @@ export function AlbumCards({ items }: { items: Album[] }) {
       <View style={{ gap: 8 }}>
         {items.map((a) => (
           <Tap key={a.id} style={s.album} onPress={() => router.push({ pathname: '/book/[id]', params: { id: a.id } })} accessibilityRole="button" accessibilityLabel={`${a.title}, ${a.subtitle}`}>
-            <Photo source={photos[a.photo]} style={StyleSheet.absoluteFill} transition={250} />
+            <Photo source={pic(a.photo)} style={StyleSheet.absoluteFill} transition={250} />
             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)' }]} />
             <View style={s.albumTop}>
               <Glass tone="dark" style={s.albumBadge}>

@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { photos, type PhotoName } from '@/data/photos';
+import { type PhotoName, pic } from '@/data/photos';
 import { AnimatedNumber, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -96,7 +96,7 @@ function Cell({ index, k, on, onToggle }: { index: number; k: PhotoName; on: boo
         accessibilityState={{ checked: on }}
         accessibilityLabel={`Фото ${index + 1}`}>
         <Animated.View style={[StyleSheet.absoluteFill, s.cellPhoto, a]}>
-          <Image source={photos[k]} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
         </Animated.View>
         {on ? (
           <Animated.View

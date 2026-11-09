@@ -27,7 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { photos, type PhotoName } from '@/data/photos';
+import { type PhotoName, pic } from '@/data/photos';
 import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -179,7 +179,7 @@ function Shot({ k, i, w, h, laid }: { k: PhotoName; i: number; w: number; h: num
   });
   return (
     <Animated.View style={[s.shot, a]}>
-      <Image source={photos[k]} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
     </Animated.View>
   );
 }

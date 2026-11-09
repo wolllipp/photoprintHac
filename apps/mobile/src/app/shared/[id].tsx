@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { sharedAlbums } from '@/data/demo';
-import { photos, type PhotoName } from '@/data/photos';
+import { pic, type PhotoName } from '@/data/photos';
 import { AnimatedNumber, enterItem, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -78,7 +78,7 @@ export default function Shared() {
           <View style={s.liveHead}>
             <View style={s.faces}>
               {FACES.slice(0, Math.min(3, guests)).map((k, i) => (
-                <Image key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} contentFit="cover" />
+                <Image key={k} source={pic(k)} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} contentFit="cover" />
               ))}
             </View>
             <View style={{ flex: 1 }}>
@@ -102,7 +102,7 @@ export default function Shared() {
                 entering={ZoomIn.springify().damping(15).reduceMotion(ReduceMotion.System)}
                 layout={LinearTransition.springify().damping(20).reduceMotion(ReduceMotion.System)}
                 style={s.thumb}>
-                <Image source={photos[k]} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
               </Animated.View>
             ))}
           </View>

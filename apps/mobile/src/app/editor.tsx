@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { drafts, spreads as aiSpreads, type PageLayout, type Spread } from '@/data/demo';
-import { photos, type PhotoName } from '@/data/photos';
+import { type PhotoName, photos, pic } from '@/data/photos';
 import { useStore } from '@/data/store';
 import { colors, fonts } from '@/theme';
 
@@ -228,7 +228,7 @@ export default function Editor() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.strip}>
           {LIBRARY.map((k) => (
             <Tap key={k} onPress={() => place(k)} accessibilityRole="button" accessibilityLabel={`Фото ${k}${used.has(k) ? ', уже в книге' : ''}`}>
-              <Image source={photos[k]} style={[s.thumb, used.has(k) && { opacity: 0.45 }]} contentFit="cover" />
+              <Image source={pic(k)} style={[s.thumb, used.has(k) && { opacity: 0.45 }]} contentFit="cover" />
               {used.has(k) ? <View style={s.usedDot}><CheckIcon size={9} color="#fff" weight="bold" /></View> : null}
               {LOW_RES.has(k) ? <View style={s.lowDot}><WarningIcon size={10} color="#fff" weight="fill" /></View> : null}
             </Tap>
@@ -252,7 +252,7 @@ function Frame({ k, flex, selected, onPress, onRemove }: { k: PhotoName | null; 
     <Tap style={[s.frame, { flex }, selected && s.frameOn]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={k ? 'Рамка с фото' : 'Пустая рамка'}>
       {k ? (
         <Animated.View key={k} entering={ZoomIn.springify().damping(16).reduceMotion(ReduceMotion.System)} style={StyleSheet.absoluteFill}>
-          <Image source={photos[k]} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
         </Animated.View>
       ) : (
         <PlusIcon size={16} color={colors.mut2} weight="bold" />

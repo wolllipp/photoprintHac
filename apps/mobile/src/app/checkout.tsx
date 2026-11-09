@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pik, Tap } from '@/components/ui';
 import { delivery, PIK_RATE, phoneMasked } from '@/data/demo';
-import { photos } from '@/data/photos';
+import { pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -57,7 +57,7 @@ export default function Checkout() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <View style={s.group}>
           <View style={s.row}>
-            <Image source={photos[item.cover]} style={s.thumb} contentFit="cover" />
+            <Image source={pic(item.cover)} style={s.thumb} contentFit="cover" />
             <View style={{ flex: 1 }}>
               <Text style={s.rowTitle}>{item.title}</Text>
               <Text style={s.rowSub}>{item.tariffName} {item.format} · {item.pages} {item.tariff === 'print' ? 'фото' : 'стр.'} · {item.finish.toLowerCase()}</Text>

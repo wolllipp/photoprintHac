@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { sharedAlbums } from '@/data/demo';
-import { photos } from '@/data/photos';
+import { pic } from '@/data/photos';
 import { enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -43,7 +43,7 @@ export default function SharedList() {
               onPress={() => router.push({ pathname: '/shared/[id]', params: { id: a.id } })}
               accessibilityRole="button"
               accessibilityLabel={`${a.name}, ${a.photos} фото от ${a.guests} гостей, ${a.status}`}>
-              <Image source={photos[a.photo]} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <Image source={pic(a.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
               <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']} locations={[0.35, 1]} style={StyleSheet.absoluteFill} />
               <View style={[s.status, a.open && s.statusOpen]}>
                 {a.open ? <View style={s.liveDot} /> : null}

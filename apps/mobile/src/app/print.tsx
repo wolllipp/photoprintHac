@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { photos, type PhotoName } from '@/data/photos';
+import { type PhotoName, photos, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -55,7 +55,7 @@ export default function Print() {
           <Text style={s.label}>{SHOTS.length} фото из галереи</Text>
           <View style={s.grid}>
             {SHOTS.map((k) => (
-              <Image key={k} source={photos[k]} style={s.cell} contentFit="cover" />
+              <Image key={k} source={pic(k)} style={s.cell} contentFit="cover" />
             ))}
           </View>
         </View>

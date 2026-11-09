@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { drafts, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
-import { photos, type PhotoName } from '@/data/photos';
+import { type PhotoName, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, flickSpring, sheetSpring } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -200,7 +200,7 @@ const count = (l: PageLayout) => (l === 'one' ? 1 : l === 'two' ? 2 : 3);
 
 function Leaf({ layout, shots, side }: { layout: PageLayout; shots: (PhotoName | null)[]; side: 'left' | 'right' }) {
   const img = (k: PhotoName | null | undefined, flex = 1) =>
-    k ? <Image key={k} source={photos[k]} style={{ flex, borderRadius: 3 }} contentFit="cover" /> : <View style={{ flex, borderRadius: 3, backgroundColor: colors.card2 }} />;
+    k ? <Image key={k} source={pic(k)} style={{ flex, borderRadius: 3 }} contentFit="cover" /> : <View style={{ flex, borderRadius: 3, backgroundColor: colors.card2 }} />;
   return (
     <View style={[s.leaf, side === 'left' ? s.leafLeft : s.leafRight]}>
       {layout === 'one' ? img(shots[0]) : null}

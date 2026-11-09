@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { photos } from '@/data/photos';
+import { pic } from '@/data/photos';
 import { enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -56,10 +56,10 @@ export default function Retouch() {
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]}>
         <GestureDetector gesture={pan}>
           <View style={[s.frame, { width: W, height: H }]} accessible accessibilityLabel="Сравнение до и после обработки, потяните шторку">
-            <Image source={photos['night-window']} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image source={pic('night-window')} style={StyleSheet.absoluteFill} contentFit="cover" />
             <Animated.View style={[s.before, before]}>
               <View style={{ width: W, height: H }}>
-                <Image source={photos['night-window']} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image source={pic('night-window')} style={StyleSheet.absoluteFill} contentFit="cover" />
                 {/* «до»: кадр тёмный и холодный */}
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(14,20,34,0.5)' }]} />
               </View>

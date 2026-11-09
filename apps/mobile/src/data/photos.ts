@@ -15,3 +15,7 @@ export const photos = {
 } as const;
 
 export type PhotoName = keyof typeof photos;
+
+/** Снимок: имя демо-фото или адрес фото, которое человек выбрал в галерее. */
+export type Pic = PhotoName | (string & {});
+export const pic = (k: Pic) => (k in photos ? photos[k as PhotoName] : { uri: k });

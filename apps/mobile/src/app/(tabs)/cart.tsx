@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { suggestions } from '@/data/demo';
-import { photos } from '@/data/photos';
+import { pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -36,7 +36,7 @@ export default function Cart() {
           <View style={s.group}>
             {cart.map((it, i) => (
               <Animated.View key={it.id} entering={enterItem(i)} style={s.row}>
-                <Image source={photos[it.cover]} style={s.thumb} contentFit="cover" />
+                <Image source={pic(it.cover)} style={s.thumb} contentFit="cover" />
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowTitle} numberOfLines={1}>{it.title}</Text>
                   <Text style={s.rowSub} numberOfLines={1}>{it.tariffName} {it.format} · {it.pages} {it.tariff === 'print' ? 'фото' : 'стр.'} · будет {it.readyBy}</Text>
@@ -66,7 +66,7 @@ export default function Cart() {
                   onPress={() => router.push({ pathname: '/book/[id]', params: { id: d.id } })}
                   accessibilityRole="button"
                   accessibilityLabel={`${d.title}, ${d.meta}, открыть черновик`}>
-                  <Image source={photos[d.photo]} style={s.thumb} contentFit="cover" />
+                  <Image source={pic(d.photo)} style={s.thumb} contentFit="cover" />
                   <View style={{ flex: 1 }}>
                     <Text style={s.rowTitle} numberOfLines={1}>{d.title}</Text>
                     <Text style={s.rowSub} numberOfLines={1}>{d.meta}</Text>
