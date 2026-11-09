@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -98,7 +98,10 @@ export default function Cart() {
             </View>
             {/* последний товар удалён — блок сразу уходит вниз */}
             {live.length ? (
-              <Animated.View exiting={SlideOutDown.duration(420).easing(Easing.in(Easing.cubic))} style={{ gap: 14 }}>
+              <Animated.View
+                entering={SlideInDown.duration(460).easing(ease.smoothOut)}
+                exiting={SlideOutDown.duration(420).easing(Easing.in(Easing.cubic))}
+                style={{ gap: 14 }}>
             <Animated.Text style={s.hint}>
               Потяните плитку влево, чтобы удалить
             </Animated.Text>
