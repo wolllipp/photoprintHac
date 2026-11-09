@@ -55,6 +55,11 @@ type Store = {
   /** вернуть удалённую позицию на её место (кнопка «Вернуть») */
   restoreToCart: (item: CartItem, index: number) => void;
   setQty: (id: string, qty: number) => void;
+  /** удалённые, но ещё отменяемые позиции (5 секунд на «Вернуть») — в счётчики не входят */
+  pending: string[];
+  setPending: (fn: (p: string[]) => string[]) => void;
+  /** сколько штук в корзине — одно число и для шапки корзины, и для значка на вкладке */
+  cartCount: number;
   extras: ExtraId[];
   toggleExtra: (id: ExtraId) => void;
   clearCart: () => void;
@@ -85,6 +90,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [showIntro, setShowIntroState] = useState(true);
   const [design, setDesign] = useState<Spread[] | null>(null);
   const [extras, setExtras] = useState<ExtraId[]>([]);
+  const [pending, setPending] = useState<string[]>([]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -116,6 +122,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromCart: (id) => setCart((c) => c.filter((x) => x.id !== id)),
       restoreToCart: (item, index) => setCart((c) => [...c.slice(0, index), item, ...c.slice(index)]),
       setQty: (id, qty) => setCart((c) => c.map((x) => (x.id === id ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x))),
+      pending,
+      setPending,
+      cartCount: cart.filter((x) => !pending.includes(x.id)).reduce((a, x) => a + x.qty, 0),
       extras,
       toggleExtra: (id) => setExtras((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id])),
       clearCart: () => setCart([]),
@@ -147,7 +156,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -25,12 +25,10 @@ import { colors, fonts } from '@/theme';
 
 export default function Cart() {
   const insets = useSafeAreaInsets();
-  const { cart, removeFromCart, setQty, extras, toggleExtra } = useStore();
-  // удалённые, но ещё отменяемые: на их месте серая строка с «Вернуть»
-  const [pending, setPending] = useState<string[]>([]);
+  const { cart, removeFromCart, setQty, extras, toggleExtra, pending, setPending, cartCount: pieces } = useStore();
+  // удалённые, но ещё отменяемые: на их месте серая «Удалено · Вернуть»
   const live = cart.filter((it) => !pending.includes(it.id));
   const total = cartTotal(live, extras);
-  const pieces = live.reduce((a, it) => a + it.qty, 0);
 
   const remove = (item: CartItem) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
@@ -46,7 +44,7 @@ export default function Cart() {
   };
   const checkout = () => {
     pending.forEach(removeFromCart);
-    setPending([]);
+    setPending(() => []);
     router.push('/checkout');
   };
   const edit = (item: CartItem) =>
