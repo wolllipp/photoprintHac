@@ -233,7 +233,7 @@ function CartRow({
   // удалить: плитка возвращается на место, поверх проявляется серое состояние
   const commit = () => {
     'worklet';
-    x.value = withTiming(0, { duration: 220, easing: ease.smoothOut });
+    x.value = withTiming(0, { duration: 260, easing: ease.smoothOut });
     scheduleOnRN(onDelete);
   };
   const pan = usePanGesture({
@@ -324,7 +324,7 @@ function CartRow({
         <Animated.View style={tile}>
           {children}
           {deleted ? (
-            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, s.ghost]} accessibilityLiveRegion="polite">
+            <Animated.View entering={FadeIn.delay(80).duration(380).easing(Easing.out(Easing.quad))} exiting={FadeOut.duration(220)} style={[StyleSheet.absoluteFill, s.ghost]} accessibilityLiveRegion="polite">
               <Pending title={item.title} cover={item.cover} onRestore={onRestore} />
             </Animated.View>
           ) : null}

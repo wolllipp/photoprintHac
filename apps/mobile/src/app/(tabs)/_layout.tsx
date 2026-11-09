@@ -10,7 +10,7 @@ import { colors } from '@/theme';
 export default function TabsLayout() {
   const { tabBarHidden, cartCount } = useStore();
   return (
-    <NativeTabs hidden={tabBarHidden} tintColor={colors.coralAction} badgeBackgroundColor={colors.coralAction} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
+    <NativeTabs hidden={tabBarHidden} tintColor={colors.coralAction} badgeBackgroundColor={colors.fg} selectedBadgeBackgroundColor={colors.coralAction} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Главная</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
