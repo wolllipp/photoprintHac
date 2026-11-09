@@ -25,12 +25,12 @@ import { colors, fonts } from '@/theme';
 export default function Preview() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const p = useLocalSearchParams<{ title?: string; pages?: string; photos?: string; about?: string }>();
+  const p = useLocalSearchParams<{ title?: string; pages?: string; photos?: string; about?: string; format?: string; lam?: string }>();
   const title = p.title ?? 'Карелия, июль';
   const pages = Number(p.pages ?? 24);
   const picked = Math.round(pages * 1.6); // сколько кадров встанет в книгу
   const price = tariffs[1].price;
-  const STAGE = Math.round(width * 0.98);
+  const STAGE = Math.round(width * 1.3);
 
   const build = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -52,7 +52,7 @@ export default function Preview() {
             <OverlapTitle text={title} size={64} maxWidth={width - 40} rgb="29,33,32" warm enter />
           </View>
           <Animated.Text entering={FadeInDown.delay(60).duration(420).easing(ease.smoothOut)} style={s.kind}>
-            Фотокнига Classic 20×20
+            Фотокнига Classic {p.format ?? '20×20'} · {p.lam ?? 'глянцевая'} ламинация
           </Animated.Text>
 
           <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={s.actions}>

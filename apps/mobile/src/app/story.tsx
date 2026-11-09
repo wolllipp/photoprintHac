@@ -44,12 +44,20 @@ const KIND: Record<string, string> = {
   'Новый год': 'новогоднюю книгу',
 };
 const pagesWord = (n: number) => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'страницы' : n % 10 === 1 && n % 100 !== 11 ? 'страницу' : 'страниц');
-function answerText(p: ParsedStory) {
+function answerText(p: ParsedStory, sp: Spec) {
   const mood = [p.tone ? `${p.tone.replace(/ый$/, 'ые').replace(/ий$/, 'ие')} тона` : null, p.accent].filter(Boolean).join(', ');
-  return `Соберём ${KIND[p.themeLabel] ?? 'книгу'} на ${p.pages} ${pagesWord(p.pages)}${mood ? `: ${mood}` : ''}. Из ${p.photos} фото оставим лучшие — без дублей и смазанных, лица в обрез не попадут.`;
+  const pages = sp.spreads * 2;
+  return `Соберём ${KIND[p.themeLabel] ?? 'книгу'} ${sp.format}: ${sp.spreads} разворотов, ${pages} ${pagesWord(pages)}, ${sp.lam} ламинация${mood ? `. Настроение — ${mood}` : ''}. Из ${p.photos} фото оставим лучшие — без дублей и смазанных, лица в обрез не попадут.`;
 }
 
-type Turn = { id: number; q: string; parsed: ParsedStory; step: number; text: string; done: boolean };
+/** Что спрашиваем перед сборкой: формат (у Classic — два), ламинация, сколько разворотов. */
+type Spec = { format: '20×20' | '21×30'; lam: 'глянцевая' | 'зернистая'; spreads: number };
+const FORMATS: Spec['format'][] = ['20×20', '21×30'];
+const LAMS: Spec['lam'][] = ['глянцевая', 'зернистая'];
+const SPREADS = [10, 12, 15, 20];
+const nearest = (n: number) => SPREADS.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+
+type Turn = { id: number; q: string; parsed: ParsedStory; step: number; spec: Spec | null; text: string; done: boolean };
 const STEP_MS = 380;
 
 export default function Story() {
@@ -111,32 +119,39 @@ export default function Story() {
   useEffect(() => {
     if (lastId === undefined || lastDone || !lastParsed) return;
     let step = 0;
-    let t: ReturnType<typeof setInterval> | undefined;
     const steps = setInterval(() => {
       step += 1;
       setTurns((ts) => ts.map((x) => (x.id === lastId ? { ...x, step } : x)));
       Haptics.selectionAsync().catch(() => {});
-      if (step >= 3) {
-        clearInterval(steps);
-        const words = answerText(lastParsed).split(' ');
-        let i = 0;
-        t = setInterval(() => {
-          i += 1;
-          setTurns((ts) => ts.map((x) => (x.id === lastId ? { ...x, text: words.slice(0, i).join(' '), done: i >= words.length } : x)));
-          if (i >= words.length) {
-            clearInterval(t);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          }
-        }, 22);
-      }
+      if (step >= 3) clearInterval(steps);
     }, STEP_MS);
-    return () => {
-      clearInterval(steps);
-      if (t) clearInterval(t);
-    };
+    return () => clearInterval(steps);
     // перезапуск только при новом запросе: lastDone меняется в конце хода и сам ход не трогает
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastId, lastParsed]);
+
+  // ответ — когда шаги прошли и параметры книги выбраны (на первый запрос ИИ их спрашивает)
+  const lastReady = (last?.step ?? 0) >= 3 && !!last?.spec;
+  const lastSpec = last?.spec;
+  useEffect(() => {
+    if (lastId === undefined || !lastReady || lastDone || !lastParsed || !lastSpec) return;
+    const words = answerText(lastParsed, lastSpec).split(' ');
+    let i = 0;
+    const t = setInterval(() => {
+      i += 1;
+      setTurns((ts) => ts.map((x) => (x.id === lastId ? { ...x, text: words.slice(0, i).join(' '), done: i >= words.length } : x)));
+      if (i >= words.length) {
+        clearInterval(t);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+    }, 22);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastId, lastReady, lastSpec]);
+  const confirm = (id: number, spec: Spec) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, spec } : x)));
+  };
 
   const send = (value: string) => {
     const v = value.trim();
@@ -144,7 +159,11 @@ export default function Story() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     // все запросы вместе: последние уточнения важнее (числа берутся из них первыми)
     const all = [v, ...turns.map((t) => t.q).reverse()].join('. ');
-    setTurns((ts) => [...ts, { id: nextId.current++, q: v, parsed: parseStory(all)!, step: 0, text: '', done: false }]);
+    const parsed = parseStory(all)!;
+    const prev = turns[turns.length - 1]?.spec ?? null;
+    // уточнение с числом страниц меняет развороты, остальное — как выбрали
+    const spec = prev ? { ...prev, spreads: /\d{2,3}\s*(стр|страниц)/i.test(v) ? nearest(parsed.pages / 2) : prev.spreads } : null;
+    setTurns((ts) => [...ts, { id: nextId.current++, q: v, parsed, step: 0, spec, text: '', done: false }]);
     setText('');
     input.current?.blur();
   };
@@ -192,12 +211,12 @@ export default function Story() {
             </Animated.Text>
           </Animated.View>
         ) : (
-          turns.map((t) => <TurnView key={t.id} turn={t} />)
+          turns.map((t) => <TurnView key={t.id} turn={t} onConfirm={(sp) => confirm(t.id, sp)} />)
         )}
       </ScrollView>
 
       {/* свет снизу: поднимается с голосом, пока ИИ думает — ходит лучом */}
-      <VoiceGlow active={listening} processing={busy && !listening} level={level} />
+      <VoiceGlow active={listening} processing={busy && !listening && !(last && last.step >= 3 && !last.spec)} level={level} />
 
       {/* поле ввода у большого пальца; над ним — короткие подсказки, пока пусто */}
       <View style={[s.composerWrap, { paddingBottom: kb ? 8 : insets.bottom + 8 }]}>
@@ -265,13 +284,54 @@ export default function Story() {
   );
 }
 
+/** ИИ уточняет параметры книги: формат, ламинация, развороты. По умолчанию — то, что понял из фразы. */
+function Ask({ initial, onDone }: { initial: Spec; onDone: (sp: Spec) => void }) {
+  const [sp, setSp] = useState(initial);
+  const pick = <K extends keyof Spec>(k: K, v: Spec[K]) => {
+    Haptics.selectionAsync().catch(() => {});
+    setSp((x) => ({ ...x, [k]: v }));
+  };
+  return (
+    <Animated.View entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.answer}>
+      <Text style={s.askTitle}>Пара вопросов перед сборкой</Text>
+      <AskRow label="Формат" items={FORMATS} value={sp.format} show={(v) => v} onPick={(v) => pick('format', v)} />
+      <AskRow label="Ламинация" items={LAMS} value={sp.lam} show={(v) => v} onPick={(v) => pick('lam', v)} />
+      <AskRow label="Разворотов" items={SPREADS} value={sp.spreads} show={(v) => `${v}`} hint={`${sp.spreads * 2} стр.`} onPick={(v) => pick('spreads', v)} />
+      <Tap style={[s.cta, { justifyContent: 'center', marginTop: 4 }]} onPress={() => onDone(sp)} accessibilityRole="button">
+        <Text style={s.ctaText}>Собрать вариант</Text>
+      </Tap>
+    </Animated.View>
+  );
+}
+function AskRow<T extends string | number>({ label, items, value, show, hint, onPick }: { label: string; items: T[]; value: T; show: (v: T) => string; hint?: string; onPick: (v: T) => void }) {
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={s.askHead}>
+        <Text style={s.askLabel}>{label}</Text>
+        {hint ? <Text style={s.askHint}>{hint}</Text> : null}
+      </View>
+      <View style={s.askRow} accessibilityRole="radiogroup">
+        {items.map((it) => {
+          const on = it === value;
+          return (
+            <Tap key={String(it)} style={[s.askChip, on && s.askChipOn]} onPress={() => onPick(it)} accessibilityRole="radio" accessibilityState={{ selected: on }}>
+              <Text style={[s.askChipText, on && { color: '#fff' }]}>{show(it)}</Text>
+            </Tap>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 /** Один запрос: крупный заголовок → шаги ИИ → плитка ответа. */
-function TurnView({ turn }: { turn: Turn }) {
+function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => void }) {
   const p = turn.parsed;
+  const sp = turn.spec;
   const steps: { icon: ReactNode; now: string; done: string }[] = [
     { icon: <ImagesIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Ищу фото по описанию', done: `${p.photos} фото · «${p.album}»` },
     { icon: <SparkleIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Отбираю лучшие кадры', done: 'без дублей и смазанных' },
-    { icon: <BookOpenTextIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Подбираю объём и шаблон', done: `${p.pages} стр. · Classic 20×20` },
+    { icon: <BookOpenTextIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Подбираю объём и шаблон', done: `шаблон «${p.themeLabel === 'Своя тема' ? 'Классика' : p.themeLabel}»` },
   ];
   const price = tariffs[1].price;
   return (
@@ -300,7 +360,9 @@ function TurnView({ turn }: { turn: Turn }) {
         )}
       </View>
 
-      {turn.step >= 3 ? (
+      {turn.step >= 3 && !sp ? <Ask initial={{ format: '20×20', lam: 'глянцевая', spreads: nearest(p.pages / 2) }} onDone={onConfirm} /> : null}
+
+      {turn.step >= 3 && sp ? (
         <Animated.View entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.answer}>
           <Text style={s.answerTitle}>{p.album}</Text>
           <Text style={s.answerText}>{turn.text}</Text>
@@ -315,7 +377,7 @@ function TurnView({ turn }: { turn: Turn }) {
                 <Text style={s.foundMore}>+{p.photos - FOUND.length} фото</Text>
               </View>
 
-              <Tap style={s.cta} onPress={() => router.push({ pathname: '/preview', params: { title: p.album, pages: String(p.pages), photos: String(p.photos) } })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
+              <Tap style={s.cta} onPress={() => router.push({ pathname: '/preview', params: { title: p.album, pages: String(sp.spreads * 2), photos: String(p.photos), format: sp.format, lam: sp.lam } })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
                 <Text style={s.ctaText}>Показать вариант</Text>
                 <View style={s.ctaSum}>
                   <Text style={s.ctaPrice}>от {rub(price)}</Text>
@@ -370,6 +432,14 @@ const s = StyleSheet.create({
   ok: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
 
   answer: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 8 },
+  askTitle: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginBottom: 2 },
+  askHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  askLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
+  askHint: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  askRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  askChip: { height: 38, paddingHorizontal: 16, borderRadius: 19, backgroundColor: '#fff', justifyContent: 'center' },
+  askChipOn: { backgroundColor: colors.coralAction },
+  askChipText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   answerTitle: { fontSize: 22, lineHeight: 28, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   answerText: { fontSize: 16, lineHeight: 23, fontFamily: fonts.regular, color: colors.fg, minHeight: 23 },
   found: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
