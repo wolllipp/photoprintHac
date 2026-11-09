@@ -89,14 +89,17 @@ export function Glass({ children, style, tone = 'light', interactive }: GlassPro
  * Плавное размытие: снимок к низу постепенно размывается (маска-градиент поверх размытия),
  * как в профиле Olivia. `from` — с какой доли высоты начинается размытие.
  */
-export function ProgressiveBlur({ from = 0.5, intensity = 45, tint = 'dark' }: { from?: number; intensity?: number; tint?: 'light' | 'dark' }) {
+export function ProgressiveBlur({ from = 0.5, intensity = 45, tint = 'dark', top = false }: { from?: number; intensity?: number; tint?: 'light' | 'dark'; top?: boolean }) {
+  // top: размытие у верхнего края, к `from` (доля высоты) сходит на нет
+  const colorsMask: [string, string] = top ? ['black', 'transparent'] : ['transparent', 'black'];
+  const loc: [number, number] = top ? [Math.max(0, from - 0.22), from] : [from, Math.min(1, from + 0.28)];
   // в браузере маска не поддерживается — даём мягкое затемнение вместо размытия (веб — только предпросмотр)
   if (Platform.OS === 'web') {
     return (
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(0,0,0,0)', tint === 'dark' ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.5)']}
-        locations={[from, Math.min(1, from + 0.3)]}
+        colors={top ? [tint === 'dark' ? 'rgba(0,0,0,0.38)' : 'rgba(255,255,255,0.5)', 'rgba(0,0,0,0)'] : ['rgba(0,0,0,0)', tint === 'dark' ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.5)']}
+        locations={loc}
         style={StyleSheet.absoluteFill}
       />
     );
@@ -105,7 +108,7 @@ export function ProgressiveBlur({ from = 0.5, intensity = 45, tint = 'dark' }: {
     <MaskedView
       pointerEvents="none"
       style={StyleSheet.absoluteFill}
-      maskElement={<LinearGradient colors={['transparent', 'black']} locations={[from, Math.min(1, from + 0.28)]} style={StyleSheet.absoluteFill} />}>
+      maskElement={<LinearGradient colors={colorsMask} locations={loc} style={StyleSheet.absoluteFill} />}>
       <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
     </MaskedView>
   );

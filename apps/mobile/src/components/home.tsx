@@ -131,9 +131,12 @@ export function HeroPager({
             <Text style={s.avatarText}>И</Text>
           </Glass>
         </Tap>
-        <View style={s.brand} pointerEvents="none" accessibilityRole="header">
-          <Logo width={92} color="#fff" />
-        </View>
+        {/* на приветствии большой логотип уже есть — маленький в шапке не дублируем */}
+        {current.kind === 'welcome' ? null : (
+          <View style={s.brand} pointerEvents="none" accessibilityRole="header">
+            <Logo width={92} color="#fff" />
+          </View>
+        )}
         <Tap accessibilityRole="button" accessibilityLabel={`${points} пиков, пригласить друга`}>
           <Glass tone="dark" style={s.points} interactive>
             <AnimatedNumber value={points} format={String} style={s.pointsText} />
@@ -230,20 +233,15 @@ function SlideView({
       {/* ровное затемнение под текст по центру + сверху под шапку + снизу под кнопку */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)' }]} />
       <LinearGradient colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0)']} locations={[0, 0.2]} style={StyleSheet.absoluteFill} />
-      <ProgressiveBlur from={0.7} intensity={35} tint="dark" />
-      <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)']} locations={[0.45, 1]} style={StyleSheet.absoluteFill} />
+      {/* верх кадра размыт под заголовком и плавно переходит в резкое фото (вариант B) */}
+      <ProgressiveBlur top from={0.42} intensity={32} tint="dark" />
+      <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.4)']} locations={[0.65, 1]} style={StyleSheet.absoluteFill} />
 
       <Animated.View style={[s.center, { opacity: uiOpacity }]} pointerEvents="none">
         {slide.kind === 'welcome' ? (
           <>
-            <Text style={[s.title, titleStyle]} accessibilityRole="header">
-              {slide.title}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -4, marginBottom: 2 }}>
-              <Text style={[s.title, titleStyle]}>в</Text>
-              <Logo width={Math.round(titleSize * 3.4)} color="#fff" />
-            </View>
-            <Text style={s.desc}>{slide.desc}</Text>
+            <Text style={s.kicker} accessibilityRole="header">Добро пожаловать!</Text>
+            <Logo width={Math.round(width * 0.64)} color="#fff" />
           </>
         ) : (
           <>
@@ -251,7 +249,6 @@ function SlideView({
               <Text style={s.eyebrowText}>Собрали для вас · {slide.item.meta}</Text>
             </Glass>
             <Text style={[s.title, titleStyle]} accessibilityRole="header">{slide.item.title}</Text>
-            <Text style={s.desc}>{slide.item.desc}</Text>
           </>
         )}
       </Animated.View>
@@ -407,8 +404,9 @@ const s = StyleSheet.create({
   points: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16 },
   pointsText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff', fontVariant: ['tabular-nums'] },
 
-  center: { position: 'absolute', left: 0, right: 0, bottom: 214, alignItems: 'center', paddingHorizontal: 26, gap: 12 },
-  title: { fontSize: 44, lineHeight: 47, fontFamily: fonts.display, letterSpacing: -1.6, color: '#fff', textAlign: 'center' },
+  center: { position: 'absolute', left: 0, right: 0, top: 112, alignItems: 'flex-start', paddingHorizontal: 22, gap: 8 },
+  kicker: { fontSize: 17, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.88)', letterSpacing: 0.1 },
+  title: { fontSize: 44, lineHeight: 47, fontFamily: fonts.display, letterSpacing: -1.6, color: '#fff' },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.88)', textAlign: 'center', maxWidth: 320 },
   eyebrow: { flexDirection: 'row', alignItems: 'center', height: 30, paddingHorizontal: 13, borderRadius: 15 },
   eyebrowText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
