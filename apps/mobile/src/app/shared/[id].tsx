@@ -6,7 +6,7 @@
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { PrinterIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -16,27 +16,32 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
+import { sharedAlbums } from '@/data/demo';
 import { photos, type PhotoName } from '@/data/photos';
-import { AnimatedNumber, enterItem } from '@/motion';
+import { AnimatedNumber, enterItem, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-const LINK = 'https://picpac.by/a/11b-2026';
 const INCOMING: PhotoName[] = ['friends-selfie', 'concert', 'birthday-cake', 'friends-night', 'bouquet', 'cafe-interior', 'night-window', 'roses'];
 const FACES: PhotoName[] = ['friends-selfie', 'friends-night', 'concert'];
 
 export default function Shared() {
   const insets = useSafeAreaInsets();
-  const [name, setName] = useState('Выпускной 11 «Б»');
-  const [got, setGot] = useState(3); // сколько новых фото уже пришло
-  const guests = 6 + Math.floor(got / 3);
-  const total = 41 + got;
+  const p = useLocalSearchParams<{ id: string; name?: string; fresh?: string }>();
+  const known = sharedAlbums.find((a) => a.id === p.id);
+  const fresh = p.fresh === '1'; // только что создан — альбом пустой, гости ещё не пришли
+  const LINK = `https://picpac.by/a/${p.id}`;
+  const [name, setName] = useState(p.name ?? known?.name ?? 'Общий альбом');
+  const [got, setGot] = useState(fresh ? 0 : 3); // сколько новых фото уже пришло
+  const base = fresh ? { photos: 0, guests: 0 } : { photos: (known?.photos ?? 41) - 3, guests: (known?.guests ?? 7) - 1 };
+  const guests = base.guests + Math.ceil(got / 3);
+  const total = base.photos + got;
 
-  // гости загружают фото — альбом наполняется на глазах
+  // гости загружают фото — альбом наполняется на глазах (у нового — после паузы, будто первый гость отсканировал код)
   useEffect(() => {
     if (got >= INCOMING.length) return;
-    const t = setTimeout(() => setGot((n) => n + 1), 2600);
+    const t = setTimeout(() => setGot((n) => n + 1), got === 0 && fresh ? 5000 : 2600);
     return () => clearTimeout(t);
-  }, [got]);
+  }, [got, fresh]);
 
   const share = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -47,7 +52,7 @@ export default function Shared() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title="Общий альбом" />
+      <NavBar title={fresh ? 'Альбом создан' : 'Общий альбом'} />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
         <Animated.View entering={enterItem(0)} style={{ gap: 4 }}>
           <TextInput value={name} onChangeText={setName} style={s.name} accessibilityLabel="Название альбома" />
@@ -59,7 +64,7 @@ export default function Shared() {
           <View style={s.qrBox} accessible accessibilityLabel={`QR-код альбома, ссылка ${LINK}`}>
             <QRCode value={LINK} size={196} color={colors.fg} backgroundColor="#fff" ecl="M" />
           </View>
-          <Text style={s.link} selectable>picpac.by/a/11b-2026</Text>
+          <Text style={s.link} selectable>picpac.by/a/{p.id}</Text>
           <View style={s.btns}>
             <Tap style={[s.btn, s.btnPrimary]} onPress={share} accessibilityRole="button">
               <ShareNetworkIcon size={18} color="#fff" weight="bold" />
@@ -76,7 +81,7 @@ export default function Shared() {
         <Animated.View entering={enterItem(2)} style={s.live}>
           <View style={s.liveHead}>
             <View style={s.faces}>
-              {FACES.map((k, i) => (
+              {FACES.slice(0, Math.min(3, guests)).map((k, i) => (
                 <Image key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} contentFit="cover" />
               ))}
             </View>
@@ -94,6 +99,7 @@ export default function Shared() {
             <View style={s.dot} />
           </View>
           <View style={s.strip}>
+            {recent.length === 0 ? <ThinkingLine text="Ждём первых гостей — покажите им код" style={s.small} /> : null}
             {recent.map((k) => (
               <Animated.View
                 key={k}
@@ -157,7 +163,7 @@ const s = StyleSheet.create({
   countOf: { fontSize: 15, fontFamily: fonts.medium, color: colors.mut, marginLeft: 6 },
   small: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.coralAction, alignSelf: 'flex-start', marginTop: 6 },
-  strip: { flexDirection: 'row', gap: 6, height: 56, overflow: 'hidden' },
+  strip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 56, overflow: 'hidden' },
   thumb: { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card2 },
   how: { backgroundColor: colors.peach, borderRadius: 26, padding: 16, gap: 12 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -1,6 +1,7 @@
 /**
  * «Оформление» — модальный шаг: телефон, доставка, списание пиков, итог, оплата чипом у кнопки.
  */
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { CaretRightIcon, CheckIcon, DeviceMobileIcon, XIcon } from 'phosphor-react-native';
 import { useState } from 'react';
@@ -8,8 +9,9 @@ import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Photo, Pik, Tap } from '@/components/ui';
+import { Pik, Tap } from '@/components/ui';
 import { delivery, PIK_RATE, phoneMasked } from '@/data/demo';
+import { photos } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -55,7 +57,7 @@ export default function Checkout() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <View style={s.group}>
           <View style={s.row}>
-            <Photo k={item.cover} style={s.thumb} />
+            <Image source={photos[item.cover]} style={s.thumb} contentFit="cover" />
             <View style={{ flex: 1 }}>
               <Text style={s.rowTitle}>{item.title}</Text>
               <Text style={s.rowSub}>{item.tariffName} {item.format} · {item.pages} страницы · {item.finish.toLowerCase()}</Text>
@@ -152,7 +154,7 @@ const s = StyleSheet.create({
   rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   value: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
   sec: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 },
-  secTitle: { fontSize: 21, fontFamily: fonts.bold, letterSpacing: -0.4, color: colors.fg },
+  secTitle: { fontSize: 21, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
   secAction: { fontSize: 15, fontFamily: fonts.medium, color: colors.coralLink },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.mut2 },
   radioOn: { borderWidth: 7, borderColor: colors.coralAction },

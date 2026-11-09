@@ -76,14 +76,44 @@ export const tariffs: Tariff[] = [
   { id: 'premium', name: 'Premium', price: 96.6, readyBy: '15 ноя', about: 'Premium — фотобумага 1 мм, без шва по центру', cover: ['#DF948A', '#A9443F'], tall: true },
 ];
 
-export const drafts: Record<string, { title: string; pages: number; format: string; photos: number }> = {
-  minsk: { title: 'Октябрь в Минске', pages: 24, format: '20×20', photos: 38 },
-  birthday: { title: 'День рождения', pages: 20, format: '20×20', photos: 30 },
-  friends: { title: 'Мы с друзьями', pages: 32, format: '21×30', photos: 52 },
-  karelia: { title: 'Карелия, июль', pages: 24, format: '20×20', photos: 38 },
-  'year-2026': { title: 'Книга года 2026', pages: 40, format: '21×30', photos: 96 },
-  dacha: { title: 'Дача, август', pages: 16, format: '20×20', photos: 24 },
+export type Draft = { title: string; pages: number; format: string; photos: number; cover: PhotoName };
+export const drafts: Record<string, Draft> = {
+  minsk: { title: 'Октябрь в Минске', pages: 24, format: '20×20', photos: 38, cover: 'city-sunset' },
+  birthday: { title: 'День рождения', pages: 20, format: '20×20', photos: 30, cover: 'birthday-cake' },
+  friends: { title: 'Мы с друзьями', pages: 32, format: '21×30', photos: 52, cover: 'friends-selfie' },
+  karelia: { title: 'Карелия, июль', pages: 24, format: '20×20', photos: 38, cover: 'night-window' },
+  'year-2026': { title: 'Книга года 2026', pages: 40, format: '21×30', photos: 96, cover: 'night-window' },
+  dacha: { title: 'Дача, август', pages: 16, format: '20×20', photos: 24, cover: 'bouquet' },
+  concerts: { title: 'Концерты', pages: 20, format: '20×20', photos: 34, cover: 'concert' },
+  cafes: { title: 'Кофейни', pages: 20, format: '20×20', photos: 41, cover: 'cafe-interior' },
+  flowers: { title: 'Цветы', pages: 16, format: '20×20', photos: 41, cover: 'roses' },
 };
+
+/** Развороты для листания книги: раскладка каждой страницы и кадры на ней. */
+export type PageLayout = 'one' | 'two' | 'three';
+export type Spread = { left: PageLayout; right: PageLayout; photos: PhotoName[] };
+export const spreads: Spread[] = [
+  { left: 'three', right: 'two', photos: ['city-sunset', 'friends-night', 'cafe-dessert', 'night-window', 'friends-selfie'] },
+  { left: 'one', right: 'two', photos: ['concert', 'roses', 'bouquet'] },
+  { left: 'two', right: 'one', photos: ['cafe-interior', 'birthday-cake', 'friends-night'] },
+  { left: 'two', right: 'three', photos: ['night-window', 'city-sunset', 'friends-selfie', 'cafe-dessert', 'concert'] },
+];
+
+/* ---------- общие альбомы ---------- */
+export type SharedAlbum = { id: string; name: string; photo: PhotoName; photos: number; guests: number; status: string; open: boolean };
+export const sharedAlbums: SharedAlbum[] = [
+  { id: '11b-2026', name: 'Выпускной 11 «Б»', photo: 'friends-night', photos: 44, guests: 7, status: 'сбор фото до 30 ноя', open: true },
+  { id: 'cafes', name: 'Кофейни с друзьями', photo: 'cafe-interior', photos: 23, guests: 6, status: 'сбор закрыт · книга заказана', open: false },
+];
+export const OCCASIONS = ['Выпускной', 'Свадьба', 'День рождения', 'Корпоратив', 'Поездка', 'Другое'];
+
+/* ---------- пики ---------- */
+export const pikHistory = [
+  { id: 'h1', title: 'Друг сделал первый заказ', sub: 'Аня К. · 3 ноя', amount: 100 },
+  { id: 'h2', title: 'Списано при оплате', sub: 'заказ №4792088 · 28 окт', amount: -150 },
+  { id: 'h3', title: 'Отзыв о книге', sub: '«Юбилей мамы» · 20 окт', amount: 50 },
+  { id: 'h4', title: 'Подарок на старте', sub: 'регистрация · 12 сен', amount: 350 },
+];
 
 /* ---------- оформление ---------- */
 export const delivery = [

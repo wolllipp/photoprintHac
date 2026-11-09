@@ -39,6 +39,10 @@ export default function Home() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
         showsVerticalScrollIndicator={false}
+        // приветствие не останавливается на полпути: отпустил — доезжает до плиток или обратно к фото
+        snapToOffsets={showIntro ? [0, height - insets.top - 8] : undefined}
+        snapToStart
+        snapToEnd={false}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
           useNativeDriver: true,

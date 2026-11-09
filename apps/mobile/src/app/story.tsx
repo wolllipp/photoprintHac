@@ -1,35 +1,81 @@
 /**
- * Путь Б, шаг 1 — «Опишите книгу»: текст или голос → карточка «Поняли так» с «Изменить / Собрать».
+ * Путь Б, шаг 1 — «Собрать книгу»: описание словами или голосом → карточка «Поняли так» → «Собрать».
+ * Поле ввода как в чате ИИ: «+» (добавить фото), микрофон (диктовка), чёрная круглая кнопка —
+ * отправить, когда есть текст. При диктовке поле превращается в живую волну с таймером, ✕ и ✓.
  * ИИ ничего не решает молча: пользователь видит разбор и подтверждает его.
  */
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { BookOpenTextIcon, ImagesIcon, MicrophoneIcon, SparkleIcon } from 'phosphor-react-native';
-import { useMemo, useRef, useState, type ComponentRef } from 'react';
-import Animated from 'react-native-reanimated';
+import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory } from '@/ai/story';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { enterItem } from '@/motion';
+import { duration, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const CHIPS = ['Путешествие', 'Ребёнок', 'Свадьба', 'Выпускной', 'Новый год'];
 const DEMO = 'Книга про поездку в Карелию, тёплая, на 24 страницы, больше пейзажей';
+/** Что «услышала» диктовка в демо (в продукте — распознавание речи в локальном контуре). */
+const HEARD = 'Книга про лето на даче с бабушкой, светлая, 20 страниц, больше людей';
 
 export default function Story() {
   const insets = useSafeAreaInsets();
   const { voice } = useLocalSearchParams<{ voice?: string }>();
-  const [text, setText] = useState(DEMO);
+  const [text, setText] = useState(voice ? '' : DEMO);
   const [chip, setChip] = useState('Путешествие');
+  const [listening, setListening] = useState(Boolean(voice));
+  const [typing, setTyping] = useState<string | null>(null);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-  const parsed = useMemo(() => parseStory(text), [text]);
+  const parsed = useMemo(() => (typing === null ? parseStory(text) : null), [text, typing]);
+
+  // распознанный текст «печатается» в поле по словам
+  useEffect(() => {
+    if (typing === null) return;
+    const words = typing.split(' ');
+    let i = 0;
+    const t = setInterval(() => {
+      i += 1;
+      setText(words.slice(0, i).join(' '));
+      if (i >= words.length) {
+        clearInterval(t);
+        setTyping(null);
+      }
+    }, 70);
+    return () => clearInterval(t);
+  }, [typing]);
+
+  const startVoice = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    input.current?.blur();
+    setListening(true);
+  };
+  const stopVoice = (keep: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setListening(false);
+    if (keep) {
+      setText('');
+      setTyping(HEARD);
+    }
+  };
+  const submit = () => {
+    if (!parsed) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    router.push('/build');
+  };
+
+  const hasText = text.trim().length > 0;
 
   return (
     <KeyboardAvoidingView style={[s.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <NavBar title="Новая книга" />
+      <NavBar title="" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+        <Text style={s.title}>Какую книгу соберём?</Text>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.bleed} contentContainerStyle={s.chips}>
           {CHIPS.map((c) => (
             <Tap key={c} style={[s.chip, c === chip && s.chipOn]} onPress={() => setChip(c)} accessibilityRole="button" accessibilityState={{ selected: c === chip }}>
@@ -38,58 +84,116 @@ export default function Story() {
           ))}
         </ScrollView>
 
-        <View style={s.inputCard}>
-          <TextInput
-            ref={input}
-            value={text}
-            onChangeText={setText}
-            multiline
-            placeholder="Например: книга про первый год сына, светлая, 30 страниц"
-            placeholderTextColor={colors.mut}
-            style={s.input}
-            accessibilityLabel="Описание книги"
-          />
-          <View style={s.inputFoot}>
-            <Text style={s.hint}>{voice ? 'Слушаю… говорите' : 'или скажите голосом'}</Text>
-            <Tap style={[s.mic, voice ? s.micOn : null]} accessibilityRole="button" accessibilityLabel="Сказать голосом">
-              <MicrophoneIcon size={18} color={voice ? '#fff' : colors.coralAction} weight="fill" />
-            </Tap>
-          </View>
+        {/* поле как в чате: текст сверху, кнопки снизу */}
+        <View style={s.composer}>
+          {listening ? (
+            <Animated.View key="wave" entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={{ gap: 14 }}>
+              <Listening />
+              <View style={s.bar}>
+                <Tap style={s.ghost} onPress={() => stopVoice(false)} accessibilityRole="button" accessibilityLabel="Отменить диктовку">
+                  <XIcon size={18} color={colors.fg} weight="bold" />
+                </Tap>
+                <Timer />
+                <Tap style={s.send} onPress={() => stopVoice(true)} accessibilityRole="button" accessibilityLabel="Готово, вставить текст">
+                  <CheckIcon size={18} color="#fff" weight="bold" />
+                </Tap>
+              </View>
+            </Animated.View>
+          ) : (
+            <Animated.View key="text" entering={FadeIn.duration(duration.fast)} style={{ gap: 10 }}>
+              <TextInput
+                ref={input}
+                value={text}
+                onChangeText={setText}
+                multiline
+                placeholder="Опишите тему, настроение и объём"
+                placeholderTextColor={colors.mut2}
+                style={s.input}
+                accessibilityLabel="Описание книги"
+              />
+              <View style={s.bar}>
+                <Tap style={s.ghost} accessibilityRole="button" accessibilityLabel="Добавить фото">
+                  <PlusIcon size={18} color={colors.fg} weight="bold" />
+                </Tap>
+                <View style={{ flex: 1 }} />
+                <Tap style={s.ghostFlat} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Надиктовать">
+                  <MicrophoneIcon size={20} color={colors.fg} weight="regular" />
+                </Tap>
+                {hasText ? (
+                  <Tap style={[s.send, !parsed && { opacity: 0.35 }]} onPress={submit} disabled={!parsed} accessibilityRole="button" accessibilityLabel="Собрать книгу">
+                    <ArrowUpIcon size={18} color="#fff" weight="bold" />
+                  </Tap>
+                ) : (
+                  <Tap style={s.send} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Голосовой режим">
+                    <WaveformIcon size={18} color="#fff" weight="bold" />
+                  </Tap>
+                )}
+              </View>
+            </Animated.View>
+          )}
         </View>
 
         {parsed ? (
           <Animated.View entering={enterItem(0)} style={s.parse} accessibilityLabel="Поняли так">
             <Text style={s.lbl}>Поняли так</Text>
-            <Row i={1} icon={<ImagesIcon size={18} color={colors.coralLink} weight="fill" />} tint={colors.coralTint} title="Фото" sub={`альбом «${parsed.album}»`} value={String(parsed.photos)} />
-            <Row i={2} icon={<BookOpenTextIcon size={18} color={colors.tealInk} weight="fill" />} tint={colors.tealTint} title="Объём" sub="Classic 20×20 — подходит под кадры" value={`${parsed.pages} стр.`} />
-            <Row
-              i={3}
-              icon={<SparkleIcon size={18} color={colors.warn} weight="fill" />}
-              tint={colors.warnTint}
-              title="Тон и акцент"
-              sub={[parsed.tone ?? 'спокойный', parsed.accent ?? 'лучшие кадры'].join(' · ')}
-            />
+            <Row i={1} icon={<ImagesIcon size={18} color={colors.peachInk} weight="fill" />} title="Фото" sub={`альбом «${parsed.album}»`} value={String(parsed.photos)} />
+            <Row i={2} icon={<BookOpenTextIcon size={18} color={colors.peachInk} weight="fill" />} title="Объём" sub="Classic 20×20 — подходит под кадры" value={`${parsed.pages} стр.`} />
+            <Row i={3} icon={<SparkleIcon size={18} color={colors.peachInk} weight="fill" />} title="Тон и акцент" sub={[parsed.tone ?? 'спокойный', parsed.accent ?? 'лучшие кадры'].join(' · ')} />
             <View style={s.btns}>
               <Tap style={[s.btn, s.btnPlain]} onPress={() => input.current?.focus()} accessibilityRole="button">
                 <Text style={s.btnPlainText}>Изменить</Text>
               </Tap>
-              <Tap style={[s.btn, s.btnPrimary]} onPress={() => router.push('/build')} accessibilityRole="button">
-                <Text style={s.btnPrimaryText}>Собрать</Text>
+              <Tap style={[s.btn, s.btnPrimary]} onPress={submit} accessibilityRole="button">
+                <Text style={s.btnPrimaryText}>Собрать книгу</Text>
               </Tap>
             </View>
           </Animated.View>
-        ) : (
-          <Text style={s.empty}>Опишите тему, настроение и объём — мы подберём фото и шаблон.</Text>
+        ) : listening || typing !== null ? null : (
+          <Text style={s.empty}>Например: «книга про первый год сына, светлая, 30 страниц». Мы подберём фото и шаблон.</Text>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-function Row({ i, icon, tint, title, sub, value }: { i: number; icon: React.ReactNode; tint: string; title: string; sub: string; value?: string }) {
+/** Волна диктовки: столбики дышат с разной скоростью, как голос. */
+const BARS = Array.from({ length: 34 }, (_, i) => 0.25 + (((i * 37) % 11) / 11) * 0.75);
+function Listening() {
+  return (
+    <View style={s.wave} accessibilityLabel="Слушаю" accessibilityLiveRegion="polite">
+      {BARS.map((h, i) => (
+        <Bar key={i} peak={h} speed={380 + ((i * 53) % 5) * 90} />
+      ))}
+    </View>
+  );
+}
+function Bar({ peak, speed }: { peak: number; speed: number }) {
+  const v = useSharedValue(0.2);
+  useEffect(() => {
+    v.value = withRepeat(withSequence(withTiming(peak, { duration: speed }), withTiming(0.15, { duration: speed })), -1, false, undefined, ReduceMotion.System);
+  }, [peak, speed, v]);
+  const a = useAnimatedStyle(() => ({ transform: [{ scaleY: v.value }] }));
+  return <Animated.View style={[s.waveBar, a]} />;
+}
+
+function Timer() {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSec((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <View style={s.timer}>
+      <View style={s.rec} />
+      <Text style={s.timerText}>{`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`}</Text>
+    </View>
+  );
+}
+
+function Row({ i, icon, title, sub, value }: { i: number; icon: ReactNode; title: string; sub: string; value?: string }) {
   return (
     <Animated.View entering={enterItem(i)} style={s.prow}>
-      <View style={[s.pico, { backgroundColor: tint }]}>{icon}</View>
+      <View style={s.pico}>{icon}</View>
       <View style={{ flex: 1 }}>
         <Text style={s.ptitle}>{title}</Text>
         <Text style={s.psub}>{sub}</Text>
@@ -101,28 +205,36 @@ function Row({ i, icon, tint, title, sub, value }: { i: number; icon: React.Reac
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: 18, gap: 16 },
-  bleed: { marginHorizontal: -18, flexGrow: 0 },
-  chips: { paddingHorizontal: 18, gap: 8 },
-  chip: { height: 34, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink2 },
+  content: { paddingHorizontal: 16, gap: 14 },
+  title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
+  bleed: { marginHorizontal: -16, flexGrow: 0 },
+  chips: { paddingHorizontal: 16, gap: 6 },
+  chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: colors.card, justifyContent: 'center' },
+  chipOn: { backgroundColor: colors.fg },
   chipText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
   chipTextOn: { color: '#fff' },
-  inputCard: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 10 },
-  input: { fontSize: 19, lineHeight: 26, fontFamily: fonts.medium, color: colors.fg, minHeight: 80, textAlignVertical: 'top' },
-  inputFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  hint: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
-  mic: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.coralTint, alignItems: 'center', justifyContent: 'center' },
-  micOn: { backgroundColor: colors.coralAction },
-  parse: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 10 },
-  lbl: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, paddingLeft: 4 },
-  prow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bg, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12 },
-  pico: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+
+  composer: { backgroundColor: colors.card, borderRadius: 28, padding: 14, paddingBottom: 12, minHeight: 150, justifyContent: 'space-between' },
+  input: { fontSize: 18, lineHeight: 25, fontFamily: fonts.medium, color: colors.fg, minHeight: 76, textAlignVertical: 'top', padding: 0 },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ghost: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  ghostFlat: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.fg, alignItems: 'center', justifyContent: 'center' },
+  wave: { height: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
+  waveBar: { width: 3, height: 56, borderRadius: 2, backgroundColor: colors.fg },
+  timer: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  rec: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
+  timerText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
+
+  parse: { backgroundColor: colors.card, borderRadius: 26, padding: 14, gap: 8 },
+  lbl: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut, paddingLeft: 4 },
+  prow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bg, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12 },
+  pico: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
   ptitle: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
   psub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
-  pval: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
-  btns: { flexDirection: 'row', gap: 10, paddingTop: 2 },
-  btn: { flex: 1, height: 48, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  pval: { fontSize: 15.5, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  btns: { flexDirection: 'row', gap: 8, paddingTop: 4 },
+  btn: { flex: 1, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   btnPlain: { backgroundColor: colors.card2 },
   btnPlainText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
   btnPrimary: { backgroundColor: colors.coralAction },

@@ -4,17 +4,15 @@
  * Все анимации учитывают системную настройку «Уменьшить движение» (ReduceMotion.System).
  */
 import { CheckIcon } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 import Animated, {
   Easing,
   FadeInDown,
-  FadeInUp,
-  FadeOutDown,
-  FadeOutUp,
   Keyframe,
   ReduceMotion,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withRepeat,
   withSequence,
@@ -39,22 +37,38 @@ export const enterItem = (index = 0) =>
   FadeInDown.duration(duration.slow).easing(ease.smoothOut).delay(index * duration.stagger * 2).reduceMotion(ReduceMotion.System);
 
 /**
- * Тихая смена числа (transitions.dev «number subtle change»): старое уходит, новое приходит
- * сверху или снизу — в сторону изменения значения.
+ * Пересчёт числа: значение «докручивается» от старого к новому за 450 мс с замедлением в конце —
+ * видно, что сумма именно пересчиталась. Целые остаются целыми, деньги считаются до копейки.
+ * При «Уменьшить движение» число меняется сразу.
  */
 export function AnimatedNumber({ value, format, style }: { value: number; format: (n: number) => string; style?: StyleProp<TextStyle> }) {
-  // направление изменения запоминаем в состоянии (паттерн «значение из прошлого рендера»)
-  const [shown, setShown] = useState({ value, up: true });
-  if (shown.value !== value) setShown({ value, up: value >= shown.value });
-  const up = shown.up;
-  const enter = (up ? FadeInDown : FadeInUp).duration(duration.fast).easing(ease.smoothOut).reduceMotion(ReduceMotion.System);
-  const exit = (up ? FadeOutUp : FadeOutDown).duration(duration.quick).reduceMotion(ReduceMotion.System);
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    const a = from.current;
+    const b = value;
+    if (a === b) return;
+    const dur = reduce ? 1 : 450;
+    const whole = Number.isInteger(a) && Number.isInteger(b);
+    const t0 = Date.now();
+    let raf = 0;
+    const tick = () => {
+      const k = Math.min(1, (Date.now() - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      const v = a + (b - a) * e;
+      const next = k === 1 ? b : whole ? Math.round(v) : Math.round(v * 100) / 100;
+      from.current = next;
+      setShown(next);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, reduce]);
   return (
-    <View style={{ overflow: 'hidden' }}>
-      <Animated.Text key={value} entering={enter} exiting={exit} style={style}>
-        {format(value)}
-      </Animated.Text>
-    </View>
+    <Text style={[{ fontVariant: ['tabular-nums'] }, style]} accessibilityLabel={format(value)}>
+      {format(shown)}
+    </Text>
   );
 }
 

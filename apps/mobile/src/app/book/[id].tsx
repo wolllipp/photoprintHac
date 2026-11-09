@@ -1,19 +1,21 @@
 /**
  * «Книга и цена» (путь А): книга на сцене, параметры и цена в шторке, тарифы — как в Яндекс Go.
  */
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CaretLeftIcon, CheckIcon } from 'phosphor-react-native';
 import { useState } from 'react';
-import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Photo, Tap } from '@/components/ui';
-import { drafts, tariffs, type Tariff } from '@/data/demo';
+import { Tap } from '@/components/ui';
+import { drafts, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
+import { photos, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { flickSpring, sheetSpring } from '@/motion';
+import { AnimatedNumber, flickSpring, sheetSpring } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function BookScreen() {
@@ -75,7 +77,7 @@ export default function BookScreen() {
       finish,
       price: tariff.price,
       readyBy: tariff.readyBy,
-      cover: 'g1',
+      cover: draft.cover,
     });
     router.push('/checkout');
   };
@@ -87,26 +89,14 @@ export default function BookScreen() {
           <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
         </Tap>
         <Text style={s.navTitle} numberOfLines={1}>{draft.title}</Text>
-        <Tap style={[s.round, s.edit]} accessibilityRole="button">
+        <Tap style={[s.round, s.edit]} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel="Править отбор фото">
           <Text style={s.editText}>Править</Text>
         </Tap>
       </View>
 
       {/* сцена: разворот книги */}
       <Animated.View style={[s.stage, stageStyle]}>
-        <View style={s.spread}>
-          <View style={[s.leaf, s.leafLeft]}>
-            <Photo k="g1" style={{ flex: 1.4, borderRadius: 4 }} />
-            <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
-              <Photo k="g3" style={{ flex: 1, borderRadius: 4 }} />
-              <Photo k="g5" style={{ flex: 1, borderRadius: 4 }} />
-            </View>
-          </View>
-          <View style={[s.leaf, s.leafRight]}>
-            <Photo k="g2" style={{ flex: 1.2, borderRadius: 4 }} />
-            <Photo k="g4" style={{ flex: 1, borderRadius: 4 }} />
-          </View>
-        </View>
+        <Pager pages={draft.pages} />
         <View style={s.okPill} accessibilityRole="text">
           <View style={s.okDot}><CheckIcon size={12} color="#fff" weight="bold" /></View>
           <Text style={s.okText}>Лица в кадре · резкость в норме</Text>
@@ -122,7 +112,11 @@ export default function BookScreen() {
             </Tap>
             <View style={s.sheetHead} onLayout={onHeadLayout}>
               <Text style={s.sheetTitle}>Фотокнига</Text>
-              <Text style={s.sheetMeta}>{tariff.name} · {rub(tariff.price)} · {draft.pages} стр.</Text>
+              <View style={{ flexDirection: 'row' }}>
+                <Text style={s.sheetMeta}>{tariff.name} · </Text>
+                <AnimatedNumber value={tariff.price} format={rub} style={s.sheetMeta} />
+                <Text style={s.sheetMeta}> · {draft.pages} стр.</Text>
+              </View>
             </View>
           </View>
         </GestureDetector>
@@ -159,9 +153,69 @@ export default function BookScreen() {
         </View>
 
         <Tap style={s.cta} onPress={onAdd} accessibilityRole="button">
-          <Text style={s.ctaText}>В корзину · {rub(tariff.price)}</Text>
+          <View style={{ flexDirection: 'row' }}>
+            <Text style={s.ctaText}>В корзину · </Text>
+            <AnimatedNumber value={tariff.price} format={rub} style={s.ctaText} />
+          </View>
         </Tap>
       </Animated.View>
+    </View>
+  );
+}
+
+/** Книгу можно листать: развороты по одному, свайпом вбок; снизу — какой разворот из скольких. */
+function Pager({ pages }: { pages: number }) {
+  const { width } = useWindowDimensions();
+  const [page, setPage] = useState(0);
+  const total = Math.round(pages / 2);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const p = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (p !== page) setPage(p);
+  };
+  return (
+    <View style={{ width, gap: 12 }}>
+      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={32}>
+        {Array.from({ length: total }, (_, i) => spreads[i % spreads.length]).map((sp, i) => (
+          <View key={i} style={{ width, paddingHorizontal: 20 }} accessible accessibilityLabel={`Разворот ${i + 1} из ${total}`}>
+            <View style={s.spread}>
+              <Leaf layout={sp.left} shots={sp.photos.slice(0, count(sp.left))} side="left" />
+              <Leaf layout={sp.right} shots={sp.photos.slice(count(sp.left))} side="right" />
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={s.dots}>
+        {Array.from({ length: total }, (_, i) => (
+          <View key={i} style={[s.dot, i === page && s.dotOn]} />
+        ))}
+        <Text style={s.pageNo}>{page + 1} из {total}</Text>
+      </View>
+    </View>
+  );
+}
+
+const count = (l: PageLayout) => (l === 'one' ? 1 : l === 'two' ? 2 : 3);
+
+function Leaf({ layout, shots, side }: { layout: PageLayout; shots: PhotoName[]; side: 'left' | 'right' }) {
+  const img = (k: PhotoName, flex = 1) => <Image key={k} source={photos[k]} style={{ flex, borderRadius: 3 }} contentFit="cover" />;
+  return (
+    <View style={[s.leaf, side === 'left' ? s.leafLeft : s.leafRight]}>
+      {layout === 'one' ? img(shots[0]) : null}
+      {layout === 'two' ? (
+        <>
+          {img(shots[0], 1.2)}
+          {img(shots[1])}
+        </>
+      ) : null}
+      {layout === 'three' ? (
+        <>
+          {img(shots[0], 1.4)}
+          <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
+            {img(shots[1])}
+            {img(shots[2])}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -174,16 +228,20 @@ const s = StyleSheet.create({
   edit: { width: 'auto', paddingHorizontal: 12 },
   editText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
 
-  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   spread: {
-    width: '100%', aspectRatio: 2 / 1.05, flexDirection: 'row', transform: [{ rotate: '-3deg' }],
-    shadowColor: '#232B2A', shadowOpacity: 0.22, shadowRadius: 26, shadowOffset: { width: 0, height: 22 }, elevation: 8,
+    width: '100%', aspectRatio: 2 / 1.05, flexDirection: 'row',
+    shadowColor: '#232B2A', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 0, height: 14 }, elevation: 8,
   },
+  dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.card2 },
+  dotOn: { width: 18, backgroundColor: colors.fg },
+  pageNo: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, marginLeft: 6, fontVariant: ['tabular-nums'] },
   leaf: { flex: 1, padding: 8, gap: 6, backgroundColor: '#FFFDF9' },
   leafLeft: { borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
   leafRight: { borderTopRightRadius: 10, borderBottomRightRadius: 10 },
   okPill: {
-    position: 'absolute', bottom: 14, flexDirection: 'row', alignItems: 'center', gap: 8,
+    position: 'absolute', top: 10, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 999, paddingVertical: 7, paddingLeft: 8, paddingRight: 12,
   },
   okDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },

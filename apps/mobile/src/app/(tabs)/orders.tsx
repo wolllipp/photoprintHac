@@ -110,7 +110,7 @@ function Step({ title, sub, done, now }: { title: string; sub: string; done?: bo
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 14 },
-  title: { fontSize: 30, fontFamily: fonts.display, letterSpacing: -0.75, color: colors.fg, paddingTop: 6 },
+  title: { fontSize: 36, lineHeight: 42, fontFamily: fonts.display, letterSpacing: -0.9, color: colors.fg, paddingTop: 6 },
   emptyText: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22, color: colors.mut },
   paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 26, padding: 14 },
   paidText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },

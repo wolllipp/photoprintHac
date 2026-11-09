@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { points as initialPoints } from '@/data/demo';
-import type { PhotoKey } from '@/theme';
+import type { PhotoName } from '@/data/photos';
 
 export type TariffId = 'lite' | 'classic' | 'premium';
 
@@ -21,7 +21,7 @@ export type CartItem = {
   finish: 'Глянец' | 'Зерно';
   price: number;
   readyBy: string;
-  cover: PhotoKey;
+  cover: PhotoName;
 };
 
 export type PlacedOrder = {

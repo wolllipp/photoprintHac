@@ -9,7 +9,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MicrophoneIcon, QrCodeIcon } from 'phosphor-react-native';
+import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MagicWandIcon, MicrophoneIcon, QrCodeIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   Animated,
@@ -156,7 +156,7 @@ export function HeroPager({
             )}
           </View>
         </View>
-        <Tap accessibilityRole="button" accessibilityLabel={`${points} пиков, пригласить друга`}>
+        <Tap onPress={() => router.push('/points')} accessibilityRole="button" accessibilityLabel={`${points} пиков, подробнее`}>
           <Glass tone="dark" style={s.points} interactive>
             <AnimatedNumber value={points} format={String} style={s.pointsText} />
             <Pik />
@@ -213,9 +213,9 @@ function splitLines(text: string): string[] {
 function OverlapTitle({ text, size }: { text: string; size: number }) {
   const lines = splitLines(text);
   const lh = Math.round(size * 0.8); // строки наезжают
-  const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000' } as const;
+  const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000', textAlign: 'center' } as const;
   return (
-    <View accessibilityRole="header" accessibilityLabel={text}>
+    <View accessibilityRole="header" accessibilityLabel={text} style={{ alignItems: 'center' }}>
       {lines.map((l, i) => {
         const last = i === lines.length - 1;
         const style = { height: Math.round(size * 1.08), marginTop: i === 0 ? 0 : lh - Math.round(size * 1.08) };
@@ -327,10 +327,10 @@ export function PlainTopBar({ points }: { points: number }) {
       <View style={s.brand} pointerEvents="none" accessibilityRole="header">
         <Logo width={92} color={colors.coral} />
       </View>
-      <View style={s.plainPoints} accessibilityLabel={`${points} пиков`}>
+      <Tap style={s.plainPoints} onPress={() => router.push('/points')} accessibilityRole="button" accessibilityLabel={`${points} пиков, подробнее`}>
         <AnimatedNumber value={points} format={String} style={[s.pointsText, { color: colors.fg }]} />
         <Pik />
-      </View>
+      </Tap>
     </View>
   );
 }
@@ -434,25 +434,6 @@ function SharedTile() {
   );
 }
 
-/** «Позвать друга»: главное — сам бонус, крупно; монетка рядом. */
-function InviteTile() {
-  return (
-    <Tap style={[s.tile, s.invite]} accessibilityRole="button" accessibilityLabel={`Позвать друга, ${tiles.inviteBonus}`}>
-      <TileBg kind="coral" />
-      <View style={s.inviteHead}>
-        <Text style={s.inviteTitle}>Позвать друга</Text>
-        <CaretRightIcon size={14} color={colors.mut} weight="bold" />
-      </View>
-      <View style={{ flex: 1 }} />
-      <View style={s.inviteRow}>
-        <Text style={s.inviteNum}>+100</Text>
-        <Pik size={26} />
-      </View>
-      <Text style={s.inviteSub}>пиков за друга</Text>
-    </Tap>
-  );
-}
-
 export function ActionTiles({
   order,
   onAsk,
@@ -500,7 +481,13 @@ export function ActionTiles({
         <View style={{ flex: 1, gap: TILE_GAP }}>
           {/* действия */}
           <SharedTile />
-          <InviteTile />
+          <Tile
+            surface="plain"
+            icon={<MagicWandIcon size={18} color={colors.peachInk} weight="fill" />}
+            title="Обработать фото"
+            sub="свет, цвет, ретушь"
+            onPress={() => router.push('/retouch')}
+          />
         </View>
       </View>
 
@@ -528,10 +515,10 @@ export function ActionTiles({
 export function AlbumCards({ items }: { items: Album[] }) {
   return (
     <View style={{ gap: 12 }}>
-      <SectionHeader title="Мои альбомы" action="Все" />
+      <SectionHeader title="Мои альбомы" />
       <View style={{ gap: 8 }}>
         {items.map((a) => (
-          <Tap key={a.id} style={s.album} accessibilityRole="button" accessibilityLabel={`${a.title}, ${a.subtitle}`}>
+          <Tap key={a.id} style={s.album} onPress={() => router.push({ pathname: '/book/[id]', params: { id: a.id } })} accessibilityRole="button" accessibilityLabel={`${a.title}, ${a.subtitle}`}>
             <Photo source={photos[a.photo]} style={StyleSheet.absoluteFill} transition={250} />
             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)' }]} />
             <View style={s.albumTop}>
@@ -582,7 +569,7 @@ const s = StyleSheet.create({
   points: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16 },
   pointsText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff', fontVariant: ['tabular-nums'] },
 
-  center: { position: 'absolute', left: 0, right: 0, top: 136, alignItems: 'flex-start', paddingHorizontal: 22, gap: 8 },
+  center: { position: 'absolute', left: 0, right: 0, top: 136, alignItems: 'center', paddingHorizontal: 22, gap: 8 },
   kicker: { fontSize: 17, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.88)', letterSpacing: 0.1 },
   title: { fontSize: 44, lineHeight: 50, fontFamily: fonts.display, letterSpacing: -1.2, color: '#fff' },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.88)', textAlign: 'center', maxWidth: 320 },
@@ -613,12 +600,6 @@ const s = StyleSheet.create({
   faces: { flexDirection: 'row', alignItems: 'center' },
   face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
   faceMore: { marginLeft: -10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  invite: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
-  inviteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  inviteTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
-  inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  inviteNum: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.coralAction },
-  inviteSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   tTitleS: { fontSize: 16, lineHeight: 19, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
   tTitleL: { fontSize: 21, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
   tSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 3 },
