@@ -176,7 +176,7 @@ function Countdown({ seconds }: { seconds: number }) {
 
 /**
  * Строка корзины. Удаление как в Telegram: плитка едет за пальцем, красная подложка растёт следом.
- * Короткий свайп оставляет кнопку «Удалить», длинный (за половину ширины) — щелчок вибрацией.
+ * Короткий свайп оставляет кнопку «Удалить», дотянул почти до края экрана — щелчок вибрацией.
  * Отпустил — плитка возвращается на место и прямо на месте становится серой «Удалено · Вернуть»
  * с отсчётом 5 секунд; ничего не пропадает и не появляется заново. По истечении строка плавно
  * схлопывается по высоте (соседи подтягиваются следом) и товар уходит из корзины.
@@ -198,7 +198,8 @@ function CartRow({
 }) {
   const { width } = useWindowDimensions();
   const OPEN = -96;
-  const FULL = -(width - 32) * 0.5;
+  // удаление — только если дотянуть почти до края экрана
+  const FULL = -(width - 32) * 0.85;
   const x = useSharedValue(0);
   const start = useSharedValue(0);
   const armed = useSharedValue(false);
@@ -232,7 +233,7 @@ function CartRow({
     },
     onDeactivate: (e) => {
       'worklet';
-      if (x.value < FULL || (e.velocityX < -1400 && x.value < OPEN / 2)) commit();
+      if (x.value < FULL) commit();
       else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 30, stiffness: 300 });
       else x.value = withSpring(0, { damping: 30, stiffness: 300 });
       armed.value = false;
