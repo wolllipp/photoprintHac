@@ -13,3 +13,9 @@ services/api/.venv/
 services/api/.env
 services/api/storage/
 .pytest_cache/
+
+# Записи экрана для базовой линии (тяжёлые, не коммитим)
+*.MP4
+*.mp4
+*.MOV
+*.mov
