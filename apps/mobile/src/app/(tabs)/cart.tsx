@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { BookOpenTextIcon, CheckIcon, ImagesIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
+import { BookOpenTextIcon, CheckIcon, GiftIcon, ImagesIcon, LightningIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -92,31 +92,36 @@ export default function Cart() {
 
             <Animated.View layout={layout} style={{ gap: 10 }}>
               <Text style={s.h2}>Добавить к заказу</Text>
-              <View style={s.group}>
+              <View style={s.extras}>
                 {EXTRAS.map((e) => {
                   const on = extras.includes(e.id);
+                  const Icon = e.id === 'gift' ? GiftIcon : LightningIcon;
                   return (
                     <Tap
                       key={e.id}
-                      style={s.extra}
+                      style={[s.extra, on && s.extraOn]}
                       onPress={() => {
                         Haptics.selectionAsync().catch(() => {});
                         toggleExtra(e.id);
                       }}
                       accessibilityRole="checkbox"
-                      accessibilityState={{ checked: on }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.extraTitle}>{e.title}</Text>
-                        <Text style={s.extraSub}>{e.sub}</Text>
+                      accessibilityState={{ checked: on }}
+                      accessibilityLabel={`${e.title}, ${e.sub}, плюс ${rub(e.price)}`}>
+                      <View style={s.extraHead}>
+                        <View style={[s.extraIco, on && { backgroundColor: colors.coralAction }]}>
+                          <Icon size={20} color={on ? '#fff' : colors.peachInk} weight="fill" />
+                        </View>
+                        <View style={[s.box, on && s.boxOn]}>
+                          {on ? (
+                            <Animated.View entering={FadeIn.duration(duration.quick)}>
+                              <CheckIcon size={13} color="#fff" weight="bold" />
+                            </Animated.View>
+                          ) : null}
+                        </View>
                       </View>
+                      <Text style={s.extraTitle}>{e.title}</Text>
+                      <Text style={s.extraSub}>{e.sub}</Text>
                       <Text style={s.extraPrice}>+{rub(e.price)}</Text>
-                      <View style={[s.box, on && s.boxOn]}>
-                        {on ? (
-                          <Animated.View entering={FadeIn.duration(duration.quick)}>
-                            <CheckIcon size={13} color="#fff" weight="bold" />
-                          </Animated.View>
-                        ) : null}
-                      </View>
                     </Tap>
                   );
                 })}
@@ -290,9 +295,12 @@ function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void;
       <View style={s.info} pointerEvents="box-none">
         <View style={s.infoTop} pointerEvents="none">
           <View style={{ flex: 1 }}>
-            <Text style={s.itemTitle} numberOfLines={1}>{item.title}</Text>
+            <Text style={s.kind}>{item.tariff === 'print' ? 'Фотопечать' : 'Фотокнига'}</Text>
+            <Text style={s.itemTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              {item.tariff === 'print' ? `${item.pages} фото ${item.format}` : item.title}
+            </Text>
             <Text style={s.itemSub} numberOfLines={1}>
-              {item.tariff === 'print' ? `${item.pages} фото · ${item.finish.toLowerCase()}` : `${item.tariffName} ${item.format} · ${item.pages} стр.`}
+              {item.tariff === 'print' ? `${item.finish.toLowerCase()} · будет ${item.readyBy}` : `${item.tariffName} ${item.format} · ${item.pages} стр.`}
             </Text>
           </View>
           <PencilSimpleIcon size={16} color={colors.mut} weight="bold" />
@@ -329,14 +337,15 @@ const s = StyleSheet.create({
   count: { fontSize: 15, fontFamily: fonts.semibold, color: colors.mut },
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
 
-  tile: { height: 124, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.card },
+  tile: { height: 136, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.card },
   ambientWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, overflow: 'hidden' },
   ambient: { position: 'absolute', left: -30, top: -30, bottom: -30, right: -30 },
   glassEdge: { borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)' },
   cover: { position: 'absolute', left: 12, top: 12, bottom: 12, width: 84, borderRadius: 14, overflow: 'hidden', boxShadow: '0 6px 14px -6px rgba(0,0,0,0.35)' },
   info: { position: 'absolute', left: 110, right: 0, top: 0, bottom: 0, padding: 14, paddingLeft: 4, justifyContent: 'space-between' },
   infoTop: { flexDirection: 'row', gap: 8 },
-  itemTitle: { fontSize: 17, lineHeight: 21, fontFamily: fonts.bold, color: colors.fg },
+  kind: { fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.peachInk },
+  itemTitle: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg, marginTop: 1 },
   itemSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.medium, color: colors.mut, marginTop: 2 },
   infoBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 16, padding: 2 },
@@ -349,11 +358,14 @@ const s = StyleSheet.create({
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
 
-  group: { backgroundColor: colors.card, borderRadius: 26, paddingVertical: 4 },
-  extra: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
-  extraTitle: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
-  extraSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
-  extraPrice: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  extras: { flexDirection: 'row', gap: 10 },
+  extra: { flex: 1, backgroundColor: colors.card, borderRadius: 26, padding: 14, gap: 2, borderWidth: 2, borderColor: 'transparent' },
+  extraOn: { backgroundColor: colors.peach, borderColor: colors.coralAction },
+  extraHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  extraIco: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  extraTitle: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg },
+  extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut },
+  extraPrice: { fontSize: 17, fontFamily: fonts.display, color: colors.coralAction, marginTop: 8 },
   box: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.mut2, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: colors.coralAction, borderColor: colors.coralAction },
 
