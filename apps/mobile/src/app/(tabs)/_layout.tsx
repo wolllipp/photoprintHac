@@ -1,4 +1,3 @@
-import { usePathname } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
 
 import { useStore } from '@/data/store';
@@ -10,10 +9,8 @@ import { colors } from '@/theme';
  */
 export default function TabsLayout() {
   const { tabBarHidden, cartCount } = useStore();
-  // iOS 26 не применяет отдельный цвет значка у выбранной вкладки — красим сами по открытому экрану
-  const onCart = usePathname() === '/cart';
   return (
-    <NativeTabs hidden={tabBarHidden} tintColor={colors.coralAction} badgeBackgroundColor={onCart ? colors.coralAction : colors.fg} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
+    <NativeTabs hidden={tabBarHidden} tintColor={colors.coralAction} badgeBackgroundColor={colors.coralAction} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Главная</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
@@ -21,7 +18,7 @@ export default function TabsLayout() {
       <NativeTabs.Trigger name="cart">
         <NativeTabs.Trigger.Label>Корзина</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="bag.fill" md="shopping_bag" />
-        {/* то же число, что в шапке корзины; чёрный, пока вкладка не открыта, коралловый — когда открыта */}
+        {/* то же число, что в шапке корзины; всегда коралловый — линза iOS 26 значок не перекрашивает */}
         {cartCount ? <NativeTabs.Trigger.Badge>{String(cartCount)}</NativeTabs.Trigger.Badge> : null}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="orders">
