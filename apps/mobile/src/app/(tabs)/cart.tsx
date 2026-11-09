@@ -87,6 +87,7 @@ export default function Cart() {
                   <CartRow
                     item={it}
                     deleted={pending.includes(it.id)}
+                    onEdit={() => edit(it)}
                     onDelete={() => remove(it)}
                     onRestore={() => restore(it.id)}
                     onExpire={() => finalize(it.id)}>
@@ -102,7 +103,7 @@ export default function Cart() {
                 exiting={SlideOutDown.duration(420).easing(Easing.in(Easing.cubic))}
                 style={{ gap: 14 }}>
             <Animated.Text style={s.hint}>
-              Потяните плитку влево, чтобы удалить
+              Влево — удалить, вправо — изменить
             </Animated.Text>
 
             <Animated.View style={{ gap: 10 }}>
@@ -198,6 +199,7 @@ function Pending({ title, cover, onRestore }: { title: string; cover: CartItem['
 function CartRow({
   item,
   deleted,
+  onEdit,
   onDelete,
   onRestore,
   onExpire,
@@ -205,6 +207,7 @@ function CartRow({
 }: {
   item: CartItem;
   deleted: boolean;
+  onEdit: () => void;
   onDelete: () => void;
   onRestore: () => void;
   onExpire: () => void;
@@ -212,6 +215,7 @@ function CartRow({
 }) {
   const { width } = useWindowDimensions();
   const OPEN = -96;
+  const OPEN_R = 96; // вправо — кнопка «Изменить»
   // удаление: палец проходит чуть больше половины экрана
   const PULL = -width * 0.55;
   // где при этом окажется плитка (после кнопки «Удалить» она слегка сопротивляется — едет на 80% от пальца)
@@ -242,8 +246,8 @@ function CartRow({
       'worklet';
       const next = start.value + e.translationX;
       drag.value = next;
-      // вправо — резина, влево до кнопки — за пальцем, дальше — с сопротивлением
-      x.value = next > 0 ? next * 0.15 : next > OPEN ? next : OPEN + (next - OPEN) * 0.8;
+      // вправо до «Изменить» — за пальцем, дальше резина; влево до «Удалить» — за пальцем, дальше с сопротивлением
+      x.value = next > OPEN_R ? OPEN_R + (next - OPEN_R) * 0.2 : next > OPEN ? next : OPEN + (next - OPEN) * 0.8;
       const a = next < PULL;
       if (a !== armed.value) {
         armed.value = a;
@@ -252,10 +256,12 @@ function CartRow({
     },
     onDeactivate: (e) => {
       'worklet';
-      // лёгкий бросок влево открывает кнопку, вправо — закрывает; без броска решает положение
-      const open = e.velocityX < -250 ? true : e.velocityX > 250 ? false : x.value < OPEN / 2;
+      // бросок открывает кнопку с той стороны, куда бросили, или закрывает открытую; без броска решает положение
+      let to = x.value < OPEN / 2 ? OPEN : x.value > OPEN_R / 2 ? OPEN_R : 0;
+      if (e.velocityX < -250) to = x.value > 0 ? 0 : OPEN;
+      if (e.velocityX > 250) to = x.value < 0 ? 0 : OPEN_R;
       if (drag.value < PULL) commit();
-      else x.value = withSpring(open ? OPEN : 0, { damping: 26, stiffness: 260, velocity: e.velocityX });
+      else x.value = withSpring(to, { damping: 26, stiffness: 260, velocity: e.velocityX });
       armed.value = false;
     },
   });
@@ -278,6 +284,11 @@ function CartRow({
 
   const tile = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
+  const backL = useAnimatedStyle(() => ({ width: Math.max(0, x.value - 8), opacity: x.value > 4 ? 1 : 0 }));
+  const edit = () => {
+    x.set(withSpring(0, { damping: 26, stiffness: 260 }));
+    onEdit();
+  };
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
   const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, opacity: shrink.value, overflow: 'hidden' } : {}));
 
@@ -293,6 +304,12 @@ function CartRow({
             <TrashIcon size={22} color="#fff" weight="fill" />
             <Text style={s.deleteText} numberOfLines={1}>Удалить</Text>
           </Animated.View>
+        </Pressable>
+      </Animated.View>
+      <Animated.View style={[s.editBack, backL]}>
+        <Pressable style={s.deleteHit} onPress={edit} accessibilityRole="button" accessibilityLabel={`Изменить ${item.title}`}>
+          <PencilSimpleIcon size={22} color="#fff" weight="fill" />
+          <Text style={s.deleteText} numberOfLines={1}>Изменить</Text>
         </Pressable>
       </Animated.View>
       <GestureDetector gesture={pan}>
@@ -403,6 +420,7 @@ const s = StyleSheet.create({
   price: { fontSize: 18, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
   delete: { position: 'absolute', right: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: '#D9483B', overflow: 'hidden' },
+  editBack: { position: 'absolute', left: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: colors.ink2, overflow: 'hidden' },
   deleteHit: { flex: 1, minWidth: 88, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
