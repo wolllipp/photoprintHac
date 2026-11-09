@@ -417,7 +417,7 @@ function TileBg(_: { kind: 'peach' | 'teal' | 'plain' | 'coral' }) {
 const FACES = ['friends-selfie', 'friends-night', 'birthday-cake'] as const;
 function SharedTile() {
   return (
-    <Tap style={[s.tile, s.shared]} accessibilityRole="button" accessibilityLabel="Общий альбом, гости добавляют фото по QR-коду">
+    <Tap style={[s.tile, s.shared]} onPress={() => router.push('/shared')} accessibilityRole="button" accessibilityLabel="Общий альбом, гости добавляют фото по QR-коду">
       <TileBg kind="teal" />
       <View style={s.faces}>
         {FACES.map((k, i) => (

@@ -2,11 +2,13 @@
  * Корзина: что лежит и кнопка «Оформить». Пустое состояние ведёт к сборке книги.
  */
 import { router } from 'expo-router';
+import Animated from 'react-native-reanimated';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Photo, Tap } from '@/components/ui';
 import { rub, useStore } from '@/data/store';
+import { enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function Cart() {
@@ -28,15 +30,15 @@ export default function Cart() {
       ) : (
         <>
           <View style={s.group}>
-            {cart.map((it) => (
-              <View key={it.id} style={s.row}>
+            {cart.map((it, i) => (
+              <Animated.View key={it.id} entering={enterItem(i)} style={s.row}>
                 <Photo k={it.cover} style={s.thumb} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowTitle}>{it.title}</Text>
                   <Text style={s.rowSub}>{it.tariffName} {it.format} · {it.pages} страницы · будет {it.readyBy}</Text>
                 </View>
                 <Text style={s.value}>{rub(it.price)}</Text>
-              </View>
+              </Animated.View>
             ))}
           </View>
           <Tap style={s.btn} onPress={() => router.push('/checkout')} accessibilityRole="button">

@@ -5,12 +5,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { BookOpenTextIcon, ImagesIcon, MicrophoneIcon, SparkleIcon } from 'phosphor-react-native';
 import { useMemo, useRef, useState, type ComponentRef } from 'react';
+import Animated from 'react-native-reanimated';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory } from '@/ai/story';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
+import { enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const CHIPS = ['Путешествие', 'Ребёнок', 'Свадьба', 'Выпускной', 'Новый год'];
@@ -56,11 +58,12 @@ export default function Story() {
         </View>
 
         {parsed ? (
-          <View style={s.parse} accessibilityLabel="Поняли так">
+          <Animated.View entering={enterItem(0)} style={s.parse} accessibilityLabel="Поняли так">
             <Text style={s.lbl}>Поняли так</Text>
-            <Row icon={<ImagesIcon size={18} color={colors.coralLink} weight="fill" />} tint={colors.coralTint} title="Фото" sub={`альбом «${parsed.album}»`} value={String(parsed.photos)} />
-            <Row icon={<BookOpenTextIcon size={18} color={colors.tealInk} weight="fill" />} tint={colors.tealTint} title="Объём" sub="Classic 20×20 — подходит под кадры" value={`${parsed.pages} стр.`} />
+            <Row i={1} icon={<ImagesIcon size={18} color={colors.coralLink} weight="fill" />} tint={colors.coralTint} title="Фото" sub={`альбом «${parsed.album}»`} value={String(parsed.photos)} />
+            <Row i={2} icon={<BookOpenTextIcon size={18} color={colors.tealInk} weight="fill" />} tint={colors.tealTint} title="Объём" sub="Classic 20×20 — подходит под кадры" value={`${parsed.pages} стр.`} />
             <Row
+              i={3}
               icon={<SparkleIcon size={18} color={colors.warn} weight="fill" />}
               tint={colors.warnTint}
               title="Тон и акцент"
@@ -74,7 +77,7 @@ export default function Story() {
                 <Text style={s.btnPrimaryText}>Собрать</Text>
               </Tap>
             </View>
-          </View>
+          </Animated.View>
         ) : (
           <Text style={s.empty}>Опишите тему, настроение и объём — мы подберём фото и шаблон.</Text>
         )}
@@ -83,16 +86,16 @@ export default function Story() {
   );
 }
 
-function Row({ icon, tint, title, sub, value }: { icon: React.ReactNode; tint: string; title: string; sub: string; value?: string }) {
+function Row({ i, icon, tint, title, sub, value }: { i: number; icon: React.ReactNode; tint: string; title: string; sub: string; value?: string }) {
   return (
-    <View style={s.prow}>
+    <Animated.View entering={enterItem(i)} style={s.prow}>
       <View style={[s.pico, { backgroundColor: tint }]}>{icon}</View>
       <View style={{ flex: 1 }}>
         <Text style={s.ptitle}>{title}</Text>
         <Text style={s.psub}>{sub}</Text>
       </View>
       {value ? <Text style={s.pval}>{value}</Text> : null}
-    </View>
+    </Animated.View>
   );
 }
 

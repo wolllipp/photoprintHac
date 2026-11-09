@@ -34,6 +34,7 @@ export default function RootLayout() {
         <Stack.Screen name="book/[id]" />
         <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
         <Stack.Screen name="assistant" />
+        <Stack.Screen name="shared" />
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       </Stack>
     </StoreProvider>
