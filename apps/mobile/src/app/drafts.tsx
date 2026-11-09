@@ -12,18 +12,22 @@ import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { suggestions } from '@/data/demo';
 import { pic } from '@/data/photos';
+import { useStore } from '@/data/store';
 import { enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function Drafts() {
   const insets = useSafeAreaInsets();
+  const { cart } = useStore();
+  const list = suggestions.filter((d) => !cart.some((c) => c.projectId === d.id));
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
       <NavBar title="" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
         <Text style={s.title}>Черновики</Text>
         <Text style={s.lead}>Собрали из ваших фото. Откройте, поправьте, если нужно, и закажите.</Text>
-        {suggestions.map((d, i) => (
+        {list.length === 0 ? <Text style={s.lead}>Все черновики уже в корзине.</Text> : null}
+        {list.map((d, i) => (
           <Animated.View key={d.id} entering={enterItem(i)}>
             <Tap
               style={s.card}

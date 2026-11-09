@@ -24,7 +24,7 @@ import { cartTotal, EXTRAS, rub, useStore, type CartItem } from '@/data/store';
 import { AnimatedNumber, duration, ease, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-const layout = LinearTransition.springify().damping(22).stiffness(220).reduceMotion(ReduceMotion.System);
+const layout = LinearTransition.duration(260).easing(ease.smoothOut).reduceMotion(ReduceMotion.System);
 
 export default function Cart() {
   const insets = useSafeAreaInsets();
@@ -226,14 +226,14 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
     onDeactivate: (e) => {
       'worklet';
       if (x.value < FULL || (e.velocityX < -1400 && x.value < OPEN / 2)) fly();
-      else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 22, stiffness: 240 });
-      else x.value = withSpring(0, { damping: 22, stiffness: 240 });
+      else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 30, stiffness: 300 });
+      else x.value = withSpring(0, { damping: 30, stiffness: 300 });
       armed.value = false;
     },
   });
   const tile = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
-  const icon = useAnimatedStyle(() => ({ transform: [{ scale: withSpring(x.value < FULL ? 1.25 : 1, { damping: 14 }) }] }));
+  const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
   return (
     <View>
       <Animated.View style={[s.delete, back]}>
@@ -311,7 +311,7 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
 
   tile: { height: 124, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.card },
-  ambient: { position: 'absolute', left: -20, top: -20, bottom: -20, width: '75%' },
+  ambient: { position: 'absolute', left: -30, top: -30, bottom: -30, right: -30 },
   cover: { position: 'absolute', left: 12, top: 12, bottom: 12, width: 84, borderRadius: 14, boxShadow: '0 6px 14px -6px rgba(0,0,0,0.35)' },
   info: { position: 'absolute', left: 110, right: 0, top: 0, bottom: 0, padding: 14, paddingLeft: 4, justifyContent: 'space-between' },
   infoTop: { flexDirection: 'row', gap: 8 },

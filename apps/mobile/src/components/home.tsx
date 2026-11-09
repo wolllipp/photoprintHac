@@ -33,6 +33,7 @@ import { BlurView } from 'expo-blur';
 import { Glass, MaskedView, ProgressiveBlur } from '@/components/glass';
 import { Logo } from '@/components/logo';
 import { Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
+import { useStore } from '@/data/store';
 import { STAGES, suggestions, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
 import { type PhotoName, photos, pic } from '@/data/photos';
 import { AnimatedNumber } from '@/motion';
@@ -446,6 +447,8 @@ export function ActionTiles({
   onOrder: () => void;
 }) {
   const iconPeach = colors.peachInk;
+  const { cart } = useStore();
+  const drafts = suggestions.filter((d) => !cart.some((c) => c.projectId === d.id));
   return (
     <View style={{ gap: TILE_GAP }}>
       {/* действие: собрать книгу */}
@@ -506,19 +509,21 @@ export function ActionTiles({
         </View>
       </Tile>
 
-      {/* черновики: книги уже собраны — одной строкой со стопкой обложек */}
-      <Tap style={[s.tile, s.drafts]} onPress={() => router.push('/drafts')} accessibilityRole="button" accessibilityLabel={`Черновики, ${suggestions.length} книги готовы`}>
+      {/* черновики: книги уже собраны — одной строкой со стопкой обложек; то, что в корзине, не считаем */}
+      {drafts.length ? (
+      <Tap style={[s.tile, s.drafts]} onPress={() => router.push('/drafts')} accessibilityRole="button" accessibilityLabel={`Черновики, ${drafts.length} готово`}>
         <View style={{ flex: 1 }}>
           <Text style={s.tTitleS}>Черновики</Text>
-          <Text style={s.tSub}>{suggestions.length} книги уже собраны</Text>
+          <Text style={s.tSub}>{drafts.length} {drafts.length === 1 ? 'книга уже собрана' : drafts.length < 5 ? 'книги уже собраны' : 'книг уже собрано'}</Text>
         </View>
         <View style={s.covers}>
-          {suggestions.slice(0, 3).map((d, i) => (
+          {drafts.slice(0, 3).map((d, i) => (
             <Photo key={d.id} source={photos[d.photo]} style={[s.coverMini, { marginLeft: i ? -14 : 0, transform: [{ rotate: `${(i - 1) * 6}deg` }], zIndex: 3 - i }]} />
           ))}
         </View>
         <CaretRightIcon size={16} color={colors.mut} weight="bold" />
       </Tap>
+      ) : null}
     </View>
   );
 }
