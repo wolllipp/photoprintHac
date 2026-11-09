@@ -227,7 +227,7 @@ function SlideView({
     }
   }, [active, zoom]);
   const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
-  const titleSize = Math.max(28, Math.min(38, Math.round(width * 0.088)));
+  const titleSize = Math.max(36, Math.min(50, Math.round(width * 0.118)));
   const titleStyle = { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.07) };
   const photo = slide.kind === 'welcome' ? slide.photo : slide.item.photo;
   return (
@@ -412,7 +412,7 @@ const s = StyleSheet.create({
 
   center: { position: 'absolute', left: 0, right: 0, top: 112, alignItems: 'flex-start', paddingHorizontal: 22, gap: 8 },
   kicker: { fontSize: 17, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.88)', letterSpacing: 0.1 },
-  title: { fontSize: 44, lineHeight: 50, fontFamily: fonts.display, letterSpacing: -1, color: '#fff' },
+  title: { fontSize: 44, lineHeight: 50, fontFamily: fonts.display, letterSpacing: -1.2, color: '#fff' },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.88)', textAlign: 'center', maxWidth: 320 },
   eyebrow: { flexDirection: 'row', alignItems: 'center', height: 30, paddingHorizontal: 13, borderRadius: 15 },
   eyebrowText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
@@ -433,12 +433,12 @@ const s = StyleSheet.create({
   tileTall: { flex: 1, height: 238, justifyContent: 'flex-end' },
   tileShort: { height: 114, justifyContent: 'space-between' },
   tilePhoto: { padding: 14 },
-  tileTitle: { fontSize: 19, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
+  tileTitle: { fontSize: 23, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
   tileTitleSm: { fontSize: 16, fontFamily: fonts.bold, letterSpacing: -0.2, color: colors.fg },
   tileSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
   tileIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
   tileTag: { position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 5, height: 28, paddingHorizontal: 10, borderRadius: 14 },
-  tilePhotoTitle: { fontSize: 26, lineHeight: 27, fontFamily: fonts.display, letterSpacing: -0.8, color: '#fff' },
+  tilePhotoTitle: { fontSize: 30, lineHeight: 32, fontFamily: fonts.display, letterSpacing: -0.8, color: '#fff' },
   field: { height: 54, borderRadius: 18, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingRight: 6 },
   fieldTap: { flex: 1, height: '100%', justifyContent: 'center', paddingLeft: 16 },
   fieldText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.mut },
@@ -455,5 +455,5 @@ const s = StyleSheet.create({
   albumBadge: { height: 28, paddingHorizontal: 11, borderRadius: 14, justifyContent: 'center' },
   more: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   albumTitleWrap: { position: 'absolute', left: 12, right: 0, bottom: -10, height: 76 },
-  albumTitle: { fontSize: 50, lineHeight: 76, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000' },
+  albumTitle: { fontSize: 62, lineHeight: 76, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000' },
 });
