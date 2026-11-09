@@ -430,7 +430,7 @@ const s = StyleSheet.create({
   editBack: { position: 'absolute', left: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: 'rgba(120,120,128,0.24)', overflow: 'hidden' },
   deleteHit: { flex: 1, minWidth: 88, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
-  hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
+  hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -18 },
 
   extras: { gap: 8 },
   // выбранная — только рамкой, без значков и галочек
