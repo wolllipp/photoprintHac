@@ -13,7 +13,7 @@ import { ArrowCounterClockwiseIcon, BookOpenTextIcon, ImagesIcon, MinusIcon, Pen
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -106,24 +106,7 @@ export default function Cart() {
               <View style={s.extras}>
                 {EXTRAS.map((e) => {
                   const on = extras.includes(e.id);
-                  return (
-                    <Tap
-                      key={e.id}
-                      style={[s.extra, on && s.extraOn]}
-                      onPress={() => {
-                        Haptics.selectionAsync().catch(() => {});
-                        toggleExtra(e.id);
-                      }}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: on }}
-                      accessibilityLabel={`${e.title}, ${e.sub}, плюс ${rub(e.price)}`}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.extraTitle} numberOfLines={1}>{e.title}</Text>
-                        <Text style={s.extraSub} numberOfLines={1}>{e.sub}</Text>
-                      </View>
-                      <Text style={[s.extraPrice, on && { color: colors.coralAction }]}>+{rub(e.price)}</Text>
-                    </Tap>
-                  );
+                  return <ExtraTile key={e.id} title={e.title} sub={e.sub} price={e.price} on={on} onToggle={() => toggleExtra(e.id)} />;
                 })}
               </View>
             </Animated.View>
@@ -331,6 +314,43 @@ function CartRow({
   );
 }
 
+/** Допуслуга: при выборе обводка плавно проявляется с лёгким коралловым свечением, плитка чуть «вздыхает». */
+function ExtraTile({ title, sub, price, on, onToggle }: { title: string; sub: string; price: number; on: boolean; onToggle: () => void }) {
+  const v = useSharedValue(on ? 1 : 0);
+  const pop = useSharedValue(1);
+  useEffect(() => {
+    v.value = withTiming(on ? 1 : 0, { duration: 260, easing: ease.smoothOut });
+  }, [on, v]);
+  const frame = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(v.value, [0, 1], ['rgba(184,79,75,0)', colors.coralAction]),
+    shadowColor: colors.coralAction,
+    shadowOpacity: 0.28 * v.value,
+    shadowRadius: 10 * v.value,
+    shadowOffset: { width: 0, height: 0 },
+    transform: [{ scale: pop.value }],
+  }));
+  const priceStyle = useAnimatedStyle(() => ({ color: interpolateColor(v.value, [0, 1], [colors.fg, colors.coralAction]) }));
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        pop.set(withSequence(withTiming(1.02, { duration: 110 }), withTiming(1, { duration: 180, easing: ease.smoothOut })));
+        onToggle();
+      }}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: on }}
+      accessibilityLabel={`${title}, ${sub}, плюс ${rub(price)}`}>
+      <Animated.View style={[s.extra, frame]}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.extraTitle} numberOfLines={1}>{title}</Text>
+          <Text style={s.extraSub} numberOfLines={1}>{sub}</Text>
+        </View>
+        <Animated.Text style={[s.extraPrice, priceStyle]}>+{rub(price)}</Animated.Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 /** Позиция: обложка слева, к правому краю уходит в размытие и в цвет плитки — на нём текст и цена. */
 function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void; onQty: (q: number) => void }) {
   return (
@@ -431,7 +451,6 @@ const s = StyleSheet.create({
   extras: { gap: 8 },
   // выбранная — только рамкой, без значков и галочек
   extra: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 2, borderColor: 'transparent' },
-  extraOn: { borderColor: colors.coralAction },
   extraTitle: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg },
   extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut },
   extraPrice: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
