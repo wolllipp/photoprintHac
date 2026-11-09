@@ -13,7 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory, type ParsedStory } from '@/ai/story';
@@ -21,6 +21,7 @@ import { Tap } from '@/components/ui';
 import { tariffs } from '@/data/demo';
 import { pic, type PhotoName } from '@/data/photos';
 import { rub } from '@/data/store';
+import { VoiceGlow } from '@/components/voiceGlow';
 import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -77,9 +78,13 @@ export default function Story() {
   }, [voice]);
   const last = turns[turns.length - 1];
 
-  // диктовка: слова появляются по ходу речи
+  // диктовка: слова появляются по ходу речи, свет внизу поднимается с каждым словом
+  const level = useSharedValue(0);
   useEffect(() => {
-    if (!listening) return;
+    if (!listening) {
+      level.value = withTiming(0, { duration: 300 });
+      return;
+    }
     const words = HEARD.split(' ');
     let i = 0;
     const t = setInterval(() => {
@@ -87,8 +92,16 @@ export default function Story() {
       setHeard(words.slice(0, i).join(' '));
       if (i >= words.length) clearInterval(t);
     }, 260);
-    return () => clearInterval(t);
-  }, [listening]);
+    // shortcut: громкость имитируется; в продукте — уровень с микрофона (expo-audio, metering)
+    const m = setInterval(() => {
+      const speaking = i < words.length;
+      level.value = withTiming(speaking ? 0.35 + Math.random() * 0.65 : 0.06 + Math.random() * 0.06, { duration: 110 });
+    }, 110);
+    return () => {
+      clearInterval(t);
+      clearInterval(m);
+    };
+  }, [listening, level]);
 
   // ход ответа на последний запрос: шаги по очереди, потом текст по словам
   const lastId = last?.id;
@@ -175,6 +188,9 @@ export default function Story() {
         {empty ? null : turns.map((t) => <TurnView key={t.id} turn={t} />)}
       </ScrollView>
 
+      {/* свет снизу: поднимается с голосом, пока ИИ думает — ходит лучом */}
+      <VoiceGlow active={listening} processing={busy && !listening} level={level} />
+
       {/* поле ввода у большого пальца; над ним — короткие подсказки, пока пусто */}
       <View style={[s.composerWrap, { paddingBottom: kb ? 8 : insets.bottom + 8 }]}>
         {empty && !listening ? (
@@ -186,13 +202,12 @@ export default function Story() {
             ))}
           </ScrollView>
         ) : null}
-        <View style={s.composer}>
+        <View style={[s.composer, listening && s.composerVoice]}>
           {listening ? (
-            <Animated.View key="wave" entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={{ gap: 10 }}>
+            <Animated.View key="wave" entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={{ gap: 18 }}>
               <Text style={[s.heard, !heard && { color: colors.mut2 }]} accessibilityLiveRegion="polite">
                 {heard || 'Слушаю…'}
               </Text>
-              <Listening />
               <View style={s.bar}>
                 <Tap style={s.ghost} onPress={() => stopVoice(false)} accessibilityRole="button" accessibilityLabel="Отменить запись">
                   <XIcon size={18} color={colors.fg} weight="bold" />
@@ -306,26 +321,6 @@ function TurnView({ turn }: { turn: Turn }) {
   );
 }
 
-/** Волна диктовки: столбики дышат с разной скоростью, как голос. */
-const BARS = Array.from({ length: 34 }, (_, i) => 0.25 + (((i * 37) % 11) / 11) * 0.75);
-function Listening() {
-  return (
-    <View style={s.wave} accessibilityElementsHidden>
-      {BARS.map((h, i) => (
-        <Bar key={i} peak={h} speed={380 + ((i * 53) % 5) * 90} />
-      ))}
-    </View>
-  );
-}
-function Bar({ peak, speed }: { peak: number; speed: number }) {
-  const v = useSharedValue(0.2);
-  useEffect(() => {
-    v.value = withRepeat(withSequence(withTiming(peak, { duration: speed }), withTiming(0.15, { duration: speed })), -1, false, undefined, ReduceMotion.System);
-  }, [peak, speed, v]);
-  const a = useAnimatedStyle(() => ({ transform: [{ scaleY: v.value }] }));
-  return <Animated.View style={[s.waveBar, a]} />;
-}
-
 function Timer() {
   const [sec, setSec] = useState(0);
   useEffect(() => {
@@ -375,16 +370,15 @@ const s = StyleSheet.create({
   ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
   ctaPrice: { fontSize: 16, fontFamily: fonts.display, letterSpacing: -0.3, color: '#fff' },
 
-  composerWrap: { paddingHorizontal: 12, paddingTop: 6, backgroundColor: colors.bg },
+  composerWrap: { paddingHorizontal: 12, paddingTop: 6 },
+  composerVoice: { backgroundColor: 'transparent', paddingTop: 24 },
   composer: { backgroundColor: colors.card, borderRadius: 26, padding: 12, paddingBottom: 10 },
   input: { fontSize: 17, lineHeight: 23, fontFamily: fonts.medium, color: colors.fg, minHeight: 28, maxHeight: 120, padding: 0, paddingHorizontal: 4 },
-  heard: { fontSize: 17, lineHeight: 23, fontFamily: fonts.medium, color: colors.fg, paddingHorizontal: 4, minHeight: 23 },
+  heard: { fontSize: 22, lineHeight: 29, fontFamily: fonts.medium, letterSpacing: -0.3, color: colors.fg, textAlign: 'center', paddingHorizontal: 12, minHeight: 58 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ghost: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   ghostFlat: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   send: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.fg, alignItems: 'center', justifyContent: 'center' },
-  wave: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
-  waveBar: { width: 3, height: 36, borderRadius: 2, backgroundColor: colors.fg },
   timer: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   rec: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
   timerText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
