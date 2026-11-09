@@ -117,9 +117,17 @@ export const pikHistory = [
 ];
 
 /* ---------- оформление ---------- */
+/** Цены доставки — с сайта (notes/06): Европочта ПВЗ и курьер, Белпочта, EMS. */
 export const delivery = [
-  { id: 'evropochta', title: 'Мой пункт · Европочта', sub: 'ПВЗ №112, Притыцкого, 29 · от 2 дней', price: 5.9 },
-  { id: 'courier', title: 'Курьер по Минску', sub: 'в выбранный день', price: 14.9 },
+  { id: 'evropochta', title: 'Европочта · пункт выдачи', sub: 'ПВЗ №112, Притыцкого, 29 · от 2 дней', price: 5.9 },
+  { id: 'courier', title: 'Курьер по Минску', sub: 'в выбранный день, до 22:00', price: 14.9 },
+  { id: 'belpochta', title: 'Белпочта', sub: 'в отделение · 3–5 дней', price: 6.9 },
+  { id: 'ems', title: 'EMS', sub: 'до двери по Беларуси · 1–2 дня', price: 20.9 },
+] as const;
+
+export const payments = [
+  { id: 'card', title: 'Карта •• 4242', sub: 'Visa, сохранена' },
+  { id: 'erip', title: 'ЕРИП', sub: 'номер для оплаты придёт в SMS' },
 ] as const;
 
 export const phoneMasked = '+375 29 •••-••-67';
