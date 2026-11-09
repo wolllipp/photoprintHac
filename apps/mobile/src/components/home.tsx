@@ -392,6 +392,7 @@ function Tile({
       <Text style={[size === 'S' ? s.tTitleS : s.tTitleL, onPhoto && { color: '#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{title}</Text>
       {sub ? <Text style={[s.tSub, onPhoto && { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>{sub}</Text> : null}
       {children}
+      <Sheen />
     </Tap>
   );
 }
@@ -413,6 +414,22 @@ function Frost({ color, tint = 'light' }: { color: string; tint?: 'light' | 'def
   );
 }
 
+/**
+ * Мыльная кромка: свет падает на край стекла сверху слева и расходится радужной плёнкой
+ * (розовый → голубой → мятный → тёплый), к низу справа гаснет. Градиент вырезан маской-рамкой.
+ */
+const SHEEN = ['rgba(255,255,255,1)', 'rgba(255,196,224,0.9)', 'rgba(178,220,255,0.85)', 'rgba(196,246,222,0.75)', 'rgba(255,232,190,0.55)', 'rgba(255,255,255,0.12)'] as const;
+function Sheen() {
+  if (Platform.OS === 'web') {
+    return <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.sheenRing, { borderColor: 'rgba(255,255,255,0.75)' }]} />;
+  }
+  return (
+    <MaskedView pointerEvents="none" style={StyleSheet.absoluteFill} maskElement={<View style={[StyleSheet.absoluteFill, s.sheenRing]} />}>
+      <LinearGradient colors={SHEEN} locations={[0, 0.18, 0.38, 0.58, 0.78, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+    </MaskedView>
+  );
+}
+
 /** «Общий альбом»: стопка лиц — сразу видно, что альбом на компанию. */
 const FACES = ['friends-selfie', 'friends-night', 'birthday-cake'] as const;
 function SharedTile() {
@@ -430,6 +447,7 @@ function SharedTile() {
       <View style={{ flex: 1 }} />
       <Text style={s.tTitleS} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Общий альбом</Text>
       <Text style={s.tSub} numberOfLines={1}>гости по QR-коду</Text>
+      <Sheen />
     </Tap>
   );
 }
@@ -449,6 +467,7 @@ function InviteTile() {
         <Pik size={26} />
       </View>
       <Text style={s.inviteSub}>пиков за друга</Text>
+      <Sheen />
     </Tap>
   );
 }
@@ -467,10 +486,6 @@ export function ActionTiles({
   const iconPeach = colors.peachInk;
   return (
     <View style={{ gap: TILE_GAP }}>
-      <View style={s.backdrop} pointerEvents="none">
-        <Image source={photos['city-sunset']} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={60} />
-        <LinearGradient colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.55)', '#fff']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
-      </View>
       {/* действие: собрать книгу */}
       <View style={[s.tile, s.clear, { gap: 12 }]}>
         <Frost color={TINT.peach} />
@@ -489,6 +504,7 @@ export function ActionTiles({
             <MicrophoneIcon size={17} color="#fff" weight="fill" />
           </Tap>
         </View>
+        <Sheen />
       </View>
 
       <View style={{ flexDirection: 'row', gap: TILE_GAP }}>
@@ -614,8 +630,8 @@ const s = StyleSheet.create({
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
   clear: { backgroundColor: 'transparent' },
+  sheenRing: { borderRadius: 26, borderWidth: 1.5, borderColor: '#000' },
   shared: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
-  backdrop: { position: 'absolute', top: -20, left: -16, right: -16, height: 640, opacity: 0.9 },
   faces: { flexDirection: 'row', alignItems: 'center' },
   face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
   faceMore: { marginLeft: -10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
