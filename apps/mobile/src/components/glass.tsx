@@ -13,7 +13,7 @@ import type { ComponentType, ReactElement, ReactNode } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 import { useEffect, useState } from 'react';
 
-const NATIVE_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
+export const NATIVE_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 /** Типы библиотеки отстают от React Native 0.88 — сама библиотека рабочая, уточняем тип здесь один раз. */
 export const MaskedView = MaskedViewBase as unknown as ComponentType<ViewProps & { maskElement: ReactElement; children?: ReactNode }>;

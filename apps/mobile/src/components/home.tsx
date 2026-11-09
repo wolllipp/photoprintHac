@@ -30,7 +30,8 @@ import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, wit
 
 import { BlurView } from 'expo-blur';
 
-import { Glass, MaskedView, ProgressiveBlur } from '@/components/glass';
+import { Glass, MaskedView, NATIVE_GLASS, ProgressiveBlur } from '@/components/glass';
+import { GlassView } from 'expo-glass-effect';
 import { Logo } from '@/components/logo';
 import { Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
 import { STAGES, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
@@ -386,48 +387,32 @@ function Tile({
           <Photo source={photo} style={StyleSheet.absoluteFill} />
           <LinearGradient colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.6)']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
         </>
-      ) : <Frost color={surface === 'peach' ? TINT.peach : TINT.plain} />}
+      ) : <TileBg kind={surface === 'peach' ? 'peach' : 'plain'} />}
       <TileIcon surface={surface}>{icon}</TileIcon>
       <View style={{ flex: 1, minHeight: 8 }} />
       <Text style={[size === 'S' ? s.tTitleS : s.tTitleL, onPhoto && { color: '#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{title}</Text>
       {sub ? <Text style={[s.tSub, onPhoto && { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>{sub}</Text> : null}
       {children}
-      <Sheen />
     </Tap>
   );
 }
 
-/** Полупрозрачные плитки: цвет с прозрачностью поверх матового стекла. */
-const TINT = {
-  peach: 'rgba(252,233,222,0.62)',
-  teal: 'rgba(227,246,243,0.62)',
-  plain: 'rgba(248,244,240,0.62)',
-  coral: 'rgba(184,79,75,0.84)',
-};
-/** Стекло под содержимым плитки: размытие того, что за ней, и сверху цвет плитки. Сама плитка прозрачная. */
-function Frost({ color, tint = 'light' }: { color: string; tint?: 'light' | 'default' }) {
-  return (
-    <>
-      <BlurView intensity={30} tint={tint} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: color }]} />
-    </>
-  );
-}
-
 /**
- * Мыльная кромка: свет падает на край стекла сверху слева и расходится радужной плёнкой
- * (розовый → голубой → мятный → тёплый), к низу справа гаснет. Градиент вырезан маской-рамкой.
+ * Поверхность плитки. На iOS 26 — системное «жидкое стекло» с цветным оттенком:
+ * свет на кромке, преломление и блик система рисует сама (как у вкладок внизу).
+ * Где его нет — ровная заливка тем же цветом, без имитаций.
  */
-const SHEEN = ['rgba(255,255,255,1)', 'rgba(255,196,224,0.9)', 'rgba(178,220,255,0.85)', 'rgba(196,246,222,0.75)', 'rgba(255,232,190,0.55)', 'rgba(255,255,255,0.12)'] as const;
-function Sheen() {
-  if (Platform.OS === 'web') {
-    return <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.sheenRing, { borderColor: 'rgba(255,255,255,0.75)' }]} />;
+const SURFACE = {
+  peach: { glass: 'rgba(247,205,184,0.55)', flat: colors.peach },
+  teal: { glass: 'rgba(170,228,219,0.55)', flat: colors.tealTint },
+  plain: { glass: 'rgba(236,228,220,0.5)', flat: colors.card },
+  coral: { glass: 'rgba(184,79,75,0.85)', flat: colors.coralAction },
+} as const;
+function TileBg({ kind }: { kind: keyof typeof SURFACE }) {
+  if (NATIVE_GLASS) {
+    return <GlassView pointerEvents="none" glassEffectStyle="regular" tintColor={SURFACE[kind].glass} style={[StyleSheet.absoluteFill, { borderRadius: 26 }]} />;
   }
-  return (
-    <MaskedView pointerEvents="none" style={StyleSheet.absoluteFill} maskElement={<View style={[StyleSheet.absoluteFill, s.sheenRing]} />}>
-      <LinearGradient colors={SHEEN} locations={[0, 0.18, 0.38, 0.58, 0.78, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-    </MaskedView>
-  );
+  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: SURFACE[kind].flat }]} />;
 }
 
 /** «Общий альбом»: стопка лиц — сразу видно, что альбом на компанию. */
@@ -435,7 +420,7 @@ const FACES = ['friends-selfie', 'friends-night', 'birthday-cake'] as const;
 function SharedTile() {
   return (
     <Tap style={[s.tile, s.shared]} accessibilityRole="button" accessibilityLabel="Общий альбом, гости добавляют фото по QR-коду">
-      <Frost color={TINT.teal} />
+      <TileBg kind="teal" />
       <View style={s.faces}>
         {FACES.map((k, i) => (
           <Photo key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} />
@@ -447,7 +432,6 @@ function SharedTile() {
       <View style={{ flex: 1 }} />
       <Text style={s.tTitleS} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Общий альбом</Text>
       <Text style={s.tSub} numberOfLines={1}>гости по QR-коду</Text>
-      <Sheen />
     </Tap>
   );
 }
@@ -456,7 +440,7 @@ function SharedTile() {
 function InviteTile() {
   return (
     <Tap style={[s.tile, s.invite]} accessibilityRole="button" accessibilityLabel={`Позвать друга, ${tiles.inviteBonus}`}>
-      <Frost color={TINT.coral} tint="default" />
+      <TileBg kind="coral" />
       <View style={s.inviteHead}>
         <Text style={s.inviteTitle}>Позвать друга</Text>
         <CaretRightIcon size={14} color="rgba(255,255,255,0.85)" weight="bold" />
@@ -467,7 +451,6 @@ function InviteTile() {
         <Pik size={26} />
       </View>
       <Text style={s.inviteSub}>пиков за друга</Text>
-      <Sheen />
     </Tap>
   );
 }
@@ -488,7 +471,7 @@ export function ActionTiles({
     <View style={{ gap: TILE_GAP }}>
       {/* действие: собрать книгу */}
       <View style={[s.tile, s.clear, { gap: 12 }]}>
-        <Frost color={TINT.peach} />
+        <TileBg kind="peach" />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TileIcon surface="peach"><BookOpenTextIcon size={19} color={iconPeach} weight="fill" /></TileIcon>
           <View style={{ flex: 1 }}>
@@ -504,7 +487,6 @@ export function ActionTiles({
             <MicrophoneIcon size={17} color="#fff" weight="fill" />
           </Tap>
         </View>
-        <Sheen />
       </View>
 
       <View style={{ flexDirection: 'row', gap: TILE_GAP }}>
@@ -624,13 +606,10 @@ const s = StyleSheet.create({
     backgroundColor: colors.card,
     padding: 16,
     overflow: 'hidden',
-    // объём без тени под плиткой: свет изнутри сверху, лёгкая тень изнутри снизу, тонкая кромка
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75), inset 0 14px 18px -14px rgba(255,255,255,0.55), inset 0 -14px 20px -14px rgba(90,40,20,0.1), inset 0 0 0 0.5px rgba(90,40,20,0.07)',
   },
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
   clear: { backgroundColor: 'transparent' },
-  sheenRing: { borderRadius: 26, borderWidth: 1.5, borderColor: '#000' },
   shared: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
   faces: { flexDirection: 'row', alignItems: 'center' },
   face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
