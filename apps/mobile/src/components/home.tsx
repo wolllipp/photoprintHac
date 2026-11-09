@@ -97,6 +97,7 @@ export function HeroPager({
   // при прокрутке вниз весь кадр уходит в размытие, а текст с кнопкой гаснут вместе — ничего не наезжает
   const blurOpacity = scrollY.interpolate({ inputRange: [0, height * 0.45], outputRange: [0, 1], extrapolate: 'clamp' });
   const uiOpacity = scrollY.interpolate({ inputRange: [0, height * 0.28], outputRange: [1, 0], extrapolate: 'clamp' });
+  const edgeOpacity = scrollY.interpolate({ inputRange: [0, height * 0.18], outputRange: [0, 1], extrapolate: 'clamp' });
 
   const onButton = () => (current.kind === 'album' ? onOpenBook(current.item.id) : onContinue());
 
@@ -123,6 +124,11 @@ export function HeroPager({
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}>
         <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.35)' }]} />
+      </Animated.View>
+      {/* нижний край кадра не обрывается: размывается и тает в белый фон плиток */}
+      <Animated.View pointerEvents="none" style={[s.edge, { opacity: edgeOpacity }]}>
+        <ProgressiveBlur from={0.15} intensity={40} tint="light" />
+        <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.75)', '#fff']} locations={[0.1, 0.65, 1]} style={StyleSheet.absoluteFill} />
       </Animated.View>
 
       {/* шапка на снимке: аватар · логотип · пики */}
@@ -402,12 +408,9 @@ function Tile({
  * свет на кромке, преломление и блик система рисует сама (как у вкладок внизу).
  * Где его нет — ровная заливка тем же цветом, без имитаций.
  */
-const SURFACE = {
-  peach: { glass: 'rgba(247,205,184,0.55)', flat: colors.peach },
-  teal: { glass: 'rgba(170,228,219,0.55)', flat: colors.tealTint },
-  plain: { glass: 'rgba(236,228,220,0.5)', flat: colors.card },
-  coral: { glass: 'rgba(184,79,75,0.85)', flat: colors.coralAction },
-} as const;
+// один спокойный тёплый оттенок на все плитки; цвет — только в акцентах (иконки, +100, микрофон)
+const CALM = { glass: 'rgba(240,233,226,0.5)', flat: colors.card };
+const SURFACE = { peach: CALM, teal: CALM, plain: CALM, coral: CALM } as const;
 function TileBg({ kind }: { kind: keyof typeof SURFACE }) {
   if (NATIVE_GLASS) {
     return <GlassView pointerEvents="none" glassEffectStyle="regular" tintColor={SURFACE[kind].glass} style={[StyleSheet.absoluteFill, { borderRadius: 26 }]} />;
@@ -426,7 +429,7 @@ function SharedTile() {
           <Photo key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} />
         ))}
         <View style={[s.face, s.faceMore]}>
-          <QrCodeIcon size={14} color={colors.tealInk} weight="bold" />
+          <QrCodeIcon size={14} color={colors.peachInk} weight="bold" />
         </View>
       </View>
       <View style={{ flex: 1 }} />
@@ -443,7 +446,7 @@ function InviteTile() {
       <TileBg kind="coral" />
       <View style={s.inviteHead}>
         <Text style={s.inviteTitle}>Позвать друга</Text>
-        <CaretRightIcon size={14} color="rgba(255,255,255,0.85)" weight="bold" />
+        <CaretRightIcon size={14} color={colors.mut} weight="bold" />
       </View>
       <View style={{ flex: 1 }} />
       <View style={s.inviteRow}>
@@ -572,6 +575,7 @@ const s = StyleSheet.create({
   plainAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
   plainAvatarText: { fontSize: 16, fontFamily: fonts.bold, color: colors.peachInk },
   plainPoints: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(35,43,42,0.12)' },
+  edge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220 },
   /* слайды */
   top: { position: 'absolute', left: 18, right: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   who: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, marginRight: 12 },
@@ -616,10 +620,10 @@ const s = StyleSheet.create({
   faceMore: { marginLeft: -10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   invite: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
   inviteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  inviteTitle: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
+  inviteTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
   inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  inviteNum: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.8, color: '#fff' },
-  inviteSub: { fontSize: 13, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.85)' },
+  inviteNum: { fontSize: 30, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.coralAction },
+  inviteSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   tTitleS: { fontSize: 16, lineHeight: 19, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
   tTitleL: { fontSize: 21, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
   tSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 3 },
