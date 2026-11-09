@@ -12,8 +12,8 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowUpIcon, CheckIcon, MicrophoneIcon, PlusIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, useWindowDimensions, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useWindowDimensions, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory, type ParsedStory } from '@/ai/story';
@@ -72,16 +72,15 @@ export default function Story() {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const nextId = useRef(1);
   const busy = turns.some((t) => !t.done);
-  const [kb, setKb] = useState(false);
   const root = useRef<ComponentRef<typeof View>>(null);
+  // поле едет за клавиатурой кадр за кадром, в её же темпе (стандартный подъём на новой архитектуре дёргается)
+  const keyboard = useAnimatedKeyboard();
+  const bottomInset = insets.bottom;
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(keyboard.height.value, bottomInset) + 8 }));
   useEffect(() => {
-    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKb(true));
-    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKb(false));
     // клавиатура поднимается вместе с окном — одно движение снизу
     const t = voice ? undefined : setTimeout(() => input.current?.focus(), 60);
     return () => {
-      a.remove();
-      b.remove();
       if (t) clearTimeout(t);
     };
   }, [voice]);
@@ -182,7 +181,7 @@ export default function Story() {
 
   return (
     <View ref={root} style={s.screen}>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={{ flex: 1 }}>
       {/* шапка окна: ручка, закрыть; в диалоге — заголовок мелко по центру */}
       <View style={[s.head, { paddingTop: insets.top + 6 }]}>
         <View style={s.headRow}>
@@ -219,7 +218,7 @@ export default function Story() {
       <VoiceGlow active={listening} processing={busy && !listening && !(last && last.step >= 3 && !last.spec)} level={level} />
 
       {/* поле ввода у большого пальца; над ним — короткие подсказки, пока пусто */}
-      <View style={[s.composerWrap, { paddingBottom: kb ? 8 : insets.bottom + 8 }]}>
+      <Animated.View style={[s.composerWrap, lift]}>
         {empty && !listening ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.hintsRow} contentContainerStyle={s.hints}>
             {EXAMPLES.map((e) => (
@@ -278,8 +277,8 @@ export default function Story() {
             </Animated.View>
           )}
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </Animated.View>
+    </View>
     </View>
   );
 }
