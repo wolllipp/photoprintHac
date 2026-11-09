@@ -106,9 +106,11 @@ export default function Cart() {
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: on }}
                       accessibilityLabel={`${e.title}, ${e.sub}, плюс ${rub(e.price)}`}>
-                      <Text style={s.extraTitle}>{e.title}</Text>
-                      <Text style={s.extraSub}>{e.sub}</Text>
-                      <Text style={s.extraPrice}>+{rub(e.price)}</Text>
+                      <Text style={s.extraTitle} numberOfLines={2}>{e.title}</Text>
+                      <Text style={s.extraSub} numberOfLines={2}>{e.sub}</Text>
+                      <View style={[s.pricePill, on && s.pricePillOn]}>
+                        <Text style={[s.extraPrice, on && { color: '#fff' }]}>+{rub(e.price)}</Text>
+                      </View>
                     </Tap>
                   );
                 })}
@@ -347,11 +349,13 @@ const s = StyleSheet.create({
 
   extras: { flexDirection: 'row', gap: 10 },
   // выбранная — только рамкой, без значков и галочек
-  extra: { flex: 1, backgroundColor: colors.card, borderRadius: 26, paddingVertical: 18, paddingHorizontal: 12, gap: 2, alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
+  extra: { flex: 1, minHeight: 150, backgroundColor: colors.card, borderRadius: 26, paddingVertical: 16, paddingHorizontal: 14, gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   extraOn: { borderColor: colors.coralAction },
-  extraTitle: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
+  extraTitle: { fontSize: 17, lineHeight: 21, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
   extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
-  extraPrice: { fontSize: 17, fontFamily: fonts.display, color: colors.coralAction, marginTop: 8 },
+  pricePill: { marginTop: 6, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: '#fff', justifyContent: 'center' },
+  pricePillOn: { backgroundColor: colors.coralAction },
+  extraPrice: { fontSize: 14, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
 
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginTop: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
