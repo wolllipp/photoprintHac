@@ -12,7 +12,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, LayoutAnimation, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -62,12 +62,22 @@ export default function Story() {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const nextId = useRef(1);
   const busy = turns.some((t) => !t.done);
-  const [top, setTop] = useState(0); // где окно начинается на экране — для правильного отступа под клавиатуру
-  const [kb, setKb] = useState(false);
+  const [kbPad, setKbPad] = useState(0); // насколько клавиатура перекрывает окно
+  const kb = kbPad > 0;
   const root = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
-    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKb(true));
-    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKb(false));
+    // окно-шторка на iOS сдвинуто от верха экрана, и стандартный подъём под клавиатуру ошибается —
+    // меряем, где у окна низ, в момент появления клавиатуры и поднимаемся ровно на перекрытие
+    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+      root.current?.measureInWindow((_x, y, _w, h) => {
+        LayoutAnimation.configureNext({ duration: e.duration || 250, update: { type: Platform.OS === 'ios' ? 'keyboard' : 'easeInEaseOut' } });
+        setKbPad(Math.max(0, y + h - e.endCoordinates.screenY));
+      });
+    });
+    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', (e) => {
+      LayoutAnimation.configureNext({ duration: e.duration || 250, update: { type: Platform.OS === 'ios' ? 'keyboard' : 'easeInEaseOut' } });
+      setKbPad(0);
+    });
     // клавиатура — после того, как окно доехало, иначе анимации спорят и всё дёргается
     const t = voice ? undefined : setTimeout(() => input.current?.focus(), 420);
     return () => {
@@ -161,31 +171,36 @@ export default function Story() {
   const empty = turns.length === 0;
 
   return (
-    <View
-      ref={root}
-      style={s.screen}
-      onLayout={() => root.current?.measureInWindow((_x, y) => setTop(y))}>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={top}>
-      {/* шапка окна: ручка, крупный заголовок, закрыть */}
+    <View ref={root} style={s.screen}>
+    <View style={{ flex: 1, paddingBottom: kbPad }}>
+      {/* шапка окна: ручка, закрыть; в диалоге — заголовок мелко по центру */}
       <View style={[s.head, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }]}>
         <View style={s.grab} />
         <View style={s.headRow}>
-          <Text style={s.title}>Собрать книгу</Text>
+          <View style={{ width: 36 }} />
+          {empty ? <View /> : <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.headTitle}>Собрать книгу</Animated.Text>}
           <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
             <XIcon size={16} color={colors.fg} weight="bold" />
           </Tap>
         </View>
-        {empty ? <Text style={s.sub}>Опишите книгу словами или голосом — соберём её из ваших фото.</Text> : null}
       </View>
 
       <ScrollView
         ref={scroll}
         style={{ flex: 1 }}
-        contentContainerStyle={s.content}
+        contentContainerStyle={[s.content, empty && { flexGrow: 1, justifyContent: 'center' }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         onContentSizeChange={() => !empty && scroll.current?.scrollToEnd({ animated: true })}>
-        {empty ? null : turns.map((t) => <TurnView key={t.id} turn={t} />)}
+        {empty ? (
+          // пустой экран: крупный заголовок по центру — экран не пустует
+          <Animated.View exiting={FadeOut.duration(duration.quick)} style={s.hero}>
+            <Text style={s.title}>{'Собрать\nкнигу'}</Text>
+            <Text style={s.sub}>Опишите книгу словами или голосом — соберём её из ваших фото.</Text>
+          </Animated.View>
+        ) : (
+          turns.map((t) => <TurnView key={t.id} turn={t} />)
+        )}
       </ScrollView>
 
       {/* свет снизу: поднимается с голосом, пока ИИ думает — ходит лучом */}
@@ -252,7 +267,7 @@ export default function Story() {
           )}
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
     </View>
   );
 }
@@ -340,8 +355,10 @@ const s = StyleSheet.create({
   head: { paddingHorizontal: 16, paddingBottom: 6, alignItems: 'center', gap: 6 },
   grab: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
-  title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
-  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut },
+  headTitle: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
+  hero: { alignItems: 'center', gap: 12, paddingHorizontal: 12 },
+  title: { fontSize: 46, lineHeight: 50, fontFamily: fonts.display, letterSpacing: -1.4, color: colors.fg, textAlign: 'center' },
+  sub: { fontSize: 16, lineHeight: 22, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center', maxWidth: 300 },
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 28 },
 
@@ -378,7 +395,7 @@ const s = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ghost: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   ghostFlat: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  send: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.fg, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   timer: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   rec: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
   timerText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
