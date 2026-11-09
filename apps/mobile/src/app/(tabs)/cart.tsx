@@ -5,19 +5,19 @@
  * apple-design: прямое управление (свайп за пальцем), прощение ошибок (вернуть удалённое),
  * отклик сразу (вибрация, пересчёт суммы), пространственная связность (соседи сдвигаются, а не прыгают).
  */
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { BookOpenTextIcon, CheckIcon, ImagesIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, LinearTransition, ReduceMotion } from 'react-native-reanimated';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Svg, { Circle } from 'react-native-svg';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, FadeOutDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MaskedView } from '@/components/glass';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore, type CartItem } from '@/data/store';
@@ -80,23 +80,14 @@ export default function Cart() {
             <View style={{ gap: 10 }}>
               {cart.map((it, i) => (
                 <Animated.View key={it.id} entering={enterItem(i)} exiting={FadeOut.duration(duration.fast)} layout={layout}>
-                  <ReanimatedSwipeable
-                    friction={1.6}
-                    rightThreshold={60}
-                    overshootRight={false}
-                    renderRightActions={() => (
-                      <Tap style={s.delete} onPress={() => remove(it)} accessibilityRole="button" accessibilityLabel={`Удалить ${it.title}`}>
-                        <TrashIcon size={22} color="#fff" weight="fill" />
-                        <Text style={s.deleteText}>Удалить</Text>
-                      </Tap>
-                    )}>
+                  <SwipeToDelete label={it.title} onDelete={() => remove(it)}>
                     <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
-                  </ReanimatedSwipeable>
+                  </SwipeToDelete>
                 </Animated.View>
               ))}
             </View>
             <Animated.Text layout={layout} style={s.hint}>
-              Смахните влево, чтобы удалить
+              Потяните плитку влево, чтобы удалить
             </Animated.Text>
 
             <Animated.View layout={layout} style={{ gap: 10 }}>
@@ -146,12 +137,16 @@ export default function Cart() {
 
       {undo ? (
         <Animated.View
+          key={undo.item.id}
           entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)}
           exiting={FadeOutDown.duration(duration.quick)}
-          style={[s.toast, { bottom: insets.bottom + 96 }]}>
-          <Text style={s.toastText} numberOfLines={1}>
-            «{undo.item.title}» удалена
-          </Text>
+          style={[s.toast, { bottom: insets.bottom + 72 }]}
+          accessibilityLiveRegion="polite">
+          <Countdown seconds={5} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.toastText}>Удалено из корзины</Text>
+            <Text style={s.toastSub} numberOfLines={1}>{undo.item.title}</Text>
+          </View>
           <Tap
             onPress={() => {
               restoreToCart(undo.item, undo.index);
@@ -168,27 +163,110 @@ export default function Cart() {
   );
 }
 
+/** Круговой отсчёт до исчезновения «Вернуть»: кольцо тает, внутри — секунды. */
+const ACircle = Animated.createAnimatedComponent(Circle);
+function Countdown({ seconds }: { seconds: number }) {
+  const R = 11;
+  const L = 2 * Math.PI * R;
+  const p = useSharedValue(0);
+  const [left, setLeft] = useState(seconds);
+  useEffect(() => {
+    p.value = withTiming(1, { duration: seconds * 1000, easing: Easing.linear });
+    const t = setInterval(() => setLeft((n) => Math.max(1, n - 1)), 1000);
+    return () => clearInterval(t);
+  }, [p, seconds]);
+  const ring = useAnimatedProps(() => ({ strokeDashoffset: L * p.value }));
+  return (
+    <View style={s.cd}>
+      <Svg width={28} height={28} style={StyleSheet.absoluteFill}>
+        <ACircle cx={14} cy={14} r={R} stroke="#fff" strokeWidth={2} fill="none" strokeDasharray={L} animatedProps={ring} strokeLinecap="round" rotation={-90} origin="14,14" />
+      </Svg>
+      <Text style={s.cdText}>{left}</Text>
+    </View>
+  );
+}
+
+/**
+ * Удаление как в Telegram: плитка едет за пальцем, красная подложка растёт следом.
+ * Короткий свайп оставляет кнопку «Удалить», длинный (за половину ширины) — щелчок вибрацией
+ * и при отпускании плитка улетает и удаляется. Быстрый бросок тоже удаляет.
+ */
+function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete: () => void; children: React.ReactNode }) {
+  const { width } = useWindowDimensions();
+  const OPEN = -96;
+  const FULL = -(width - 32) * 0.5;
+  const x = useSharedValue(0);
+  const start = useSharedValue(0);
+  const armed = useSharedValue(false);
+  const tick = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+  const fly = () => {
+    'worklet';
+    x.value = withTiming(-width, { duration: 200, easing: ease.smoothOut }, (done) => {
+      if (done) scheduleOnRN(onDelete);
+    });
+  };
+  const pan = usePanGesture({
+    activeOffsetX: [-12, 12],
+    failOffsetY: [-10, 10],
+    onBegin: () => {
+      'worklet';
+      start.value = x.value;
+    },
+    onUpdate: (e) => {
+      'worklet';
+      const next = start.value + e.translationX;
+      // вправо — с резиновым сопротивлением, влево — за пальцем
+      x.value = next > 0 ? next * 0.15 : next;
+      const a = x.value < FULL;
+      if (a !== armed.value) {
+        armed.value = a;
+        scheduleOnRN(tick);
+      }
+    },
+    onDeactivate: (e) => {
+      'worklet';
+      if (x.value < FULL || (e.velocityX < -1400 && x.value < OPEN / 2)) fly();
+      else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 22, stiffness: 240 });
+      else x.value = withSpring(0, { damping: 22, stiffness: 240 });
+      armed.value = false;
+    },
+  });
+  const tile = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
+  const icon = useAnimatedStyle(() => ({ transform: [{ scale: withSpring(x.value < FULL ? 1.25 : 1, { damping: 14 }) }] }));
+  return (
+    <View>
+      <Animated.View style={[s.delete, back]}>
+        <Pressable style={s.deleteHit} onPress={() => x.set(withTiming(-width, { duration: 200 }, (d) => d && scheduleOnRN(onDelete)))} accessibilityRole="button" accessibilityLabel={`Удалить ${label}`}>
+          <Animated.View style={[{ alignItems: 'center', gap: 4 }, icon]}>
+            <TrashIcon size={22} color="#fff" weight="fill" />
+            <Text style={s.deleteText} numberOfLines={1}>Удалить</Text>
+          </Animated.View>
+        </Pressable>
+      </Animated.View>
+      <GestureDetector gesture={pan}>
+        <Animated.View style={tile}>{children}</Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
+
 /** Позиция: обложка слева, к правому краю уходит в размытие и в цвет плитки — на нём текст и цена. */
 function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void; onQty: (q: number) => void }) {
   return (
     <View style={s.tile}>
-      <Image source={pic(item.cover)} style={s.cover} contentFit="cover" />
-      {Platform.OS !== 'web' ? (
-        <MaskedView
-          pointerEvents="none"
-          style={StyleSheet.absoluteFill}
-          maskElement={<LinearGradient colors={['transparent', 'black']} locations={[0.12, 0.5]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />}>
-          <BlurView intensity={40} tint="light" style={StyleSheet.absoluteFill} />
-        </MaskedView>
-      ) : null}
+      {/* фон: та же фотография, сильно размытая, к правому краю тает в цвет плитки */}
+      <Image source={pic(item.cover)} style={s.ambient} contentFit="cover" blurRadius={28} />
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(241,234,227,0)', 'rgba(241,234,227,0.55)', colors.card]}
-        locations={[0.18, 0.42, 0.62]}
+        colors={['rgba(241,234,227,0.1)', 'rgba(241,234,227,0.7)', colors.card]}
+        locations={[0, 0.45, 0.75]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={StyleSheet.absoluteFill}
       />
+      {/* обложка — чёткая, как книга на полке */}
+      <Image source={pic(item.cover)} style={s.cover} contentFit="cover" />
       <Pressable style={StyleSheet.absoluteFill} onPress={onEdit} accessibilityRole="button" accessibilityLabel={`${item.title}, ${rub(item.price * item.qty)}, изменить`} />
       <View style={s.info} pointerEvents="box-none">
         <View style={s.infoTop} pointerEvents="none">
@@ -233,8 +311,9 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
 
   tile: { height: 124, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.card },
-  cover: { position: 'absolute', left: 0, top: 0, bottom: 0, width: '62%' },
-  info: { position: 'absolute', left: '38%', right: 0, top: 0, bottom: 0, padding: 14, paddingLeft: 10, justifyContent: 'space-between' },
+  ambient: { position: 'absolute', left: -20, top: -20, bottom: -20, width: '75%' },
+  cover: { position: 'absolute', left: 12, top: 12, bottom: 12, width: 84, borderRadius: 14, boxShadow: '0 6px 14px -6px rgba(0,0,0,0.35)' },
+  info: { position: 'absolute', left: 110, right: 0, top: 0, bottom: 0, padding: 14, paddingLeft: 4, justifyContent: 'space-between' },
   infoTop: { flexDirection: 'row', gap: 8 },
   itemTitle: { fontSize: 17, lineHeight: 21, fontFamily: fonts.bold, color: colors.fg },
   itemSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.medium, color: colors.mut, marginTop: 2 },
@@ -244,7 +323,8 @@ const s = StyleSheet.create({
   qty: { minWidth: 18, textAlign: 'center', fontSize: 14, fontFamily: fonts.bold, color: colors.fg },
   price: { fontSize: 18, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
-  delete: { width: 96, marginLeft: 8, borderRadius: 26, backgroundColor: '#D9483B', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  delete: { position: 'absolute', right: 0, top: 0, bottom: 0, borderRadius: 26, backgroundColor: '#D9483B', overflow: 'hidden' },
+  deleteHit: { flex: 1, minWidth: 88, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
 
@@ -268,7 +348,14 @@ const s = StyleSheet.create({
   emptyPrimary: { backgroundColor: colors.coralAction },
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  toast: { position: 'absolute', left: 16, right: 16, height: 52, borderRadius: 26, backgroundColor: colors.fg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, gap: 12 },
-  toastText: { flex: 1, fontSize: 15, fontFamily: fonts.medium, color: '#fff' },
+  toast: {
+    position: 'absolute', left: 12, right: 12, minHeight: 54, borderRadius: 18, backgroundColor: 'rgba(29,33,32,0.94)',
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 12, paddingRight: 16, paddingVertical: 8,
+    boxShadow: '0 10px 30px -10px rgba(0,0,0,0.35)',
+  },
+  toastText: { fontSize: 14.5, fontFamily: fonts.semibold, color: '#fff' },
+  toastSub: { fontSize: 12.5, fontFamily: fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 1 },
   toastAction: { fontSize: 15, fontFamily: fonts.bold, color: colors.peachStrong },
+  cd: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  cdText: { fontSize: 12, fontFamily: fonts.bold, color: '#fff', fontVariant: ['tabular-nums'] },
 });
