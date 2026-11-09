@@ -6,6 +6,7 @@
  * отклик сразу (вибрация, пересчёт суммы), пространственная связность (соседи сдвигаются, а не прыгают).
  */
 import * as Haptics from 'expo-haptics';
+import { GlassView } from 'expo-glass-effect';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -18,6 +19,7 @@ import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, FadeOu
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NATIVE_GLASS } from '@/components/glass';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore, type CartItem } from '@/data/store';
@@ -256,7 +258,11 @@ function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void;
   return (
     <View style={s.tile}>
       {/* фон: та же фотография, сильно размытая, к правому краю тает в цвет плитки */}
-      <Image source={pic(item.cover)} style={s.ambient} contentFit="cover" blurRadius={28} />
+      <View style={s.ambientWrap} pointerEvents="none">
+        <Image source={pic(item.cover)} style={s.ambient} contentFit="cover" blurRadius={28} />
+        {/* серый слой в режиме «насыщенность» снимает цвет с фото под ним — фон чёрно-белый */}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#808080', mixBlendMode: 'saturation' }]} />
+      </View>
       <LinearGradient
         pointerEvents="none"
         colors={['rgba(241,234,227,0.1)', 'rgba(241,234,227,0.7)', colors.card]}
@@ -266,7 +272,22 @@ function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void;
         style={StyleSheet.absoluteFill}
       />
       {/* обложка — чёткая, как книга на полке */}
-      <Image source={pic(item.cover)} style={s.cover} contentFit="cover" />
+      <View style={s.cover}>
+        <Image source={pic(item.cover)} style={StyleSheet.absoluteFill} contentFit="cover" />
+        {/* стекло поверх обложки: на iOS 26 системное, иначе блик и светлая кромка */}
+        {NATIVE_GLASS ? (
+          <GlassView pointerEvents="none" glassEffectStyle="clear" style={[StyleSheet.absoluteFill, { borderRadius: 14 }]} />
+        ) : (
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.42)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
+            locations={[0, 0.45, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, s.glassEdge]}
+          />
+        )}
+      </View>
       <Pressable style={StyleSheet.absoluteFill} onPress={onEdit} accessibilityRole="button" accessibilityLabel={`${item.title}, ${rub(item.price * item.qty)}, изменить`} />
       <View style={s.info} pointerEvents="box-none">
         <View style={s.infoTop} pointerEvents="none">
@@ -311,8 +332,10 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
 
   tile: { height: 124, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.card },
+  ambientWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, isolation: 'isolate', overflow: 'hidden' },
   ambient: { position: 'absolute', left: -30, top: -30, bottom: -30, right: -30 },
-  cover: { position: 'absolute', left: 12, top: 12, bottom: 12, width: 84, borderRadius: 14, boxShadow: '0 6px 14px -6px rgba(0,0,0,0.35)' },
+  glassEdge: { borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)' },
+  cover: { position: 'absolute', left: 12, top: 12, bottom: 12, width: 84, borderRadius: 14, overflow: 'hidden', boxShadow: '0 6px 14px -6px rgba(0,0,0,0.35)' },
   info: { position: 'absolute', left: 110, right: 0, top: 0, bottom: 0, padding: 14, paddingLeft: 4, justifyContent: 'space-between' },
   infoTop: { flexDirection: 'row', gap: 8 },
   itemTitle: { fontSize: 17, lineHeight: 21, fontFamily: fonts.bold, color: colors.fg },
