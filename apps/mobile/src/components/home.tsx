@@ -9,7 +9,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MagicWandIcon, MicrophoneIcon, QrCodeIcon } from 'phosphor-react-native';
+import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MicrophoneIcon, QrCodeIcon, SlidersHorizontalIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   Animated,
@@ -33,7 +33,7 @@ import { BlurView } from 'expo-blur';
 import { Glass, MaskedView, ProgressiveBlur } from '@/components/glass';
 import { Logo } from '@/components/logo';
 import { Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
-import { STAGES, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
+import { STAGES, suggestions, tiles, welcome, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
 import { type PhotoName, photos, pic } from '@/data/photos';
 import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -484,7 +484,7 @@ export function ActionTiles({
           <SharedTile />
           <Tile
             surface="plain"
-            icon={<MagicWandIcon size={18} color={colors.peachInk} weight="fill" />}
+            icon={<SlidersHorizontalIcon size={18} color={colors.peachInk} weight="bold" />}
             title="Обработать фото"
             sub="свет, цвет, ретушь"
             onPress={() => router.push('/retouch')}
@@ -505,6 +505,20 @@ export function ActionTiles({
           <SegmentBar total={STAGES.length} done={STAGES.indexOf(order.stage)} />
         </View>
       </Tile>
+
+      {/* черновики: книги уже собраны — одной строкой со стопкой обложек */}
+      <Tap style={[s.tile, s.drafts]} onPress={() => router.push('/drafts')} accessibilityRole="button" accessibilityLabel={`Черновики, ${suggestions.length} книги готовы`}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.tTitleS}>Черновики</Text>
+          <Text style={s.tSub}>{suggestions.length} книги уже собраны</Text>
+        </View>
+        <View style={s.covers}>
+          {suggestions.slice(0, 3).map((d, i) => (
+            <Photo key={d.id} source={photos[d.photo]} style={[s.coverMini, { marginLeft: i ? -14 : 0, transform: [{ rotate: `${(i - 1) * 6}deg` }], zIndex: 3 - i }]} />
+          ))}
+        </View>
+        <CaretRightIcon size={16} color={colors.mut} weight="bold" />
+      </Tap>
     </View>
   );
 }
@@ -597,6 +611,9 @@ const s = StyleSheet.create({
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
   clear: { backgroundColor: 'transparent' },
+  drafts: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  covers: { flexDirection: 'row', alignItems: 'center', paddingRight: 4 },
+  coverMini: { width: 40, height: 52, borderRadius: 8, borderWidth: 2, borderColor: '#fff' },
   shared: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
   faces: { flexDirection: 'row', alignItems: 'center' },
   face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden' },

@@ -12,13 +12,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pik, Tap } from '@/components/ui';
 import { delivery, PIK_RATE, phoneMasked } from '@/data/demo';
 import { pic } from '@/data/photos';
-import { rub, useStore } from '@/data/store';
+import { cartTotal, rub, useStore } from '@/data/store';
 import { AnimatedNumber, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
-  const { cart, placeOrder, points } = useStore();
+  const { cart, placeOrder, points, extras } = useStore();
   const [deliveryId, setDeliveryId] = useState<string>(delivery[0].id);
   const [usePiks, setUsePiks] = useState(false);
   const item = cart[0];
@@ -36,7 +36,8 @@ export default function Checkout() {
 
   const d = delivery.find((x) => x.id === deliveryId) ?? delivery[0];
   const piksOff = usePiks ? Math.round(points * PIK_RATE * 100) / 100 : 0;
-  const total = Math.round((item.price + d.price - piksOff) * 100) / 100;
+  const goods = cartTotal(cart, extras);
+  const total = Math.round((goods + d.price - piksOff) * 100) / 100;
 
   const onPay = () => {
     placeOrder(total, usePiks ? points : 0);
@@ -56,14 +57,20 @@ export default function Checkout() {
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <View style={s.group}>
-          <View style={s.row}>
-            <Image source={pic(item.cover)} style={s.thumb} contentFit="cover" />
-            <View style={{ flex: 1 }}>
-              <Text style={s.rowTitle}>{item.title}</Text>
-              <Text style={s.rowSub}>{item.tariffName} {item.format} · {item.pages} {item.tariff === 'print' ? 'фото' : 'стр.'} · {item.finish.toLowerCase()}</Text>
+          {cart.map((it, i) => (
+            <View key={it.id} style={s.row}>
+              {i > 0 ? <View style={s.divider} /> : null}
+              <Image source={pic(it.cover)} style={s.thumb} contentFit="cover" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowTitle}>{it.title}</Text>
+                <Text style={s.rowSub}>
+                  {it.tariffName} {it.format} · {it.pages} {it.tariff === 'print' ? 'фото' : 'стр.'}
+                  {it.qty > 1 ? ` · ${it.qty} шт.` : ''}
+                </Text>
+              </View>
+              <Text style={s.value}>{rub(it.price * it.qty)}</Text>
             </View>
-            <Text style={s.value}>{rub(item.price)}</Text>
-          </View>
+          ))}
           <View style={s.row}>
             <View style={s.divider} />
             <View style={{ width: 52, alignItems: 'center' }}><DeviceMobileIcon size={22} color={colors.ink2} /></View>
@@ -113,7 +120,7 @@ export default function Checkout() {
         </View>
 
         <View style={{ gap: 2, paddingHorizontal: 4 }}>
-          <View style={s.sum}><Text style={s.sumL}>Книга</Text><Text style={s.sumR}>{rub(item.price)}</Text></View>
+          <View style={s.sum}><Text style={s.sumL}>Товары{extras.length ? ' и услуги' : ''}</Text><Text style={s.sumR}>{rub(goods)}</Text></View>
           <View style={s.sum}><Text style={s.sumL}>Доставка</Text><Text style={s.sumR}>{rub(d.price)}</Text></View>
           {usePiks ? <Animated.View entering={enterItem()} style={s.sum}><Text style={s.sumL}>Пики</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(piksOff)}</Text></Animated.View> : null}
           <View style={[s.sum, { paddingTop: 4 }]}><Text style={s.total}>Итого</Text><AnimatedNumber value={total} format={rub} style={s.total} /></View>

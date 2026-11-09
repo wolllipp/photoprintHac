@@ -7,7 +7,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { points as initialPoints } from '@/data/demo';
 import type { Spread } from '@/data/demo';
-import type { PhotoName } from '@/data/photos';
+import type { Pic } from '@/data/photos';
 
 export type TariffId = 'lite' | 'classic' | 'premium' | 'print';
 
@@ -22,8 +22,20 @@ export type CartItem = {
   finish: 'Глянец' | 'Зерно';
   price: number;
   readyBy: string;
-  cover: PhotoName;
+  cover: Pic;
+  /** сколько экземпляров */
+  qty: number;
 };
+
+/** Допуслуги к заказу: цена фиксированная, добавляется к итогу. */
+export const EXTRAS = [
+  { id: 'gift', title: 'Подарочная упаковка', sub: 'крафт-коробка и открытка', price: 4.9 },
+  { id: 'express', title: 'Сделать быстрее', sub: 'изготовим за 1 день', price: 12 },
+] as const;
+export type ExtraId = (typeof EXTRAS)[number]['id'];
+
+export const cartTotal = (cart: CartItem[], extras: ExtraId[]) =>
+  Math.round((cart.reduce((a, it) => a + it.price * it.qty, 0) + EXTRAS.filter((e) => extras.includes(e.id)).reduce((a, e) => a + e.price, 0)) * 100) / 100;
 
 export type PlacedOrder = {
   id: string;
@@ -38,7 +50,13 @@ export type PlacedOrder = {
 
 type Store = {
   cart: CartItem[];
-  addToCart: (item: Omit<CartItem, 'id'>) => void;
+  addToCart: (item: Omit<CartItem, 'id' | 'qty'>) => void;
+  removeFromCart: (id: string) => void;
+  /** вернуть удалённую позицию на её место (кнопка «Вернуть») */
+  restoreToCart: (item: CartItem, index: number) => void;
+  setQty: (id: string, qty: number) => void;
+  extras: ExtraId[];
+  toggleExtra: (id: ExtraId) => void;
   clearCart: () => void;
   orders: PlacedOrder[];
   placeOrder: (total: number, spentPoints?: number) => PlacedOrder | null;
@@ -66,6 +84,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [tabBarHidden, setTabBarHidden] = useState(true);
   const [showIntro, setShowIntroState] = useState(true);
   const [design, setDesign] = useState<Spread[] | null>(null);
+  const [extras, setExtras] = useState<ExtraId[]>([]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -86,8 +105,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(
     () => ({
       cart,
-      // в демо одна книга в корзине: повторное добавление заменяет её
-      addToCart: (item) => setCart([{ ...item, id: `${item.projectId}-${item.tariff}` }]),
+      // та же книга с тем же тарифом обновляется на месте, остальное добавляется
+      addToCart: (item) =>
+        setCart((c) => {
+          const id = `${item.projectId}-${item.tariff}`;
+          const at = c.findIndex((x) => x.projectId === item.projectId);
+          const next = { ...item, id, qty: at >= 0 ? c[at].qty : 1 };
+          return at >= 0 ? c.map((x, i) => (i === at ? next : x)) : [...c, next];
+        }),
+      removeFromCart: (id) => setCart((c) => c.filter((x) => x.id !== id)),
+      restoreToCart: (item, index) => setCart((c) => [...c.slice(0, index), item, ...c.slice(index)]),
+      setQty: (id, qty) => setCart((c) => c.map((x) => (x.id === id ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x))),
+      extras,
+      toggleExtra: (id) => setExtras((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id])),
       clearCart: () => setCart([]),
       orders,
       points,
@@ -102,8 +132,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const item = cart[0];
         if (!item) return null;
         const order: PlacedOrder = {
-          id: '4792100',
-          title: item.title,
+          id: String(4792100 + orders.length),
+          title: cart.length > 1 ? `${item.title} и ещё ${cart.length - 1}` : item.title,
           tariffName: item.tariffName,
           total,
           readyBy: item.readyBy,
@@ -112,11 +142,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
         setOrders((o) => [order, ...o]);
         setCart([]);
+        setExtras([]);
         if (spentPoints) setPoints((p) => Math.max(0, p - spentPoints));
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
