@@ -336,7 +336,7 @@ function ExtraTile({ title, sub, price, on, onToggle }: { title: string; sub: st
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         pop.set(withSequence(withTiming(1.02, { duration: 110 }), withTiming(1, { duration: 180, easing: ease.smoothOut })));
-        if (!on) glow.set(withSequence(withTiming(1, { duration: 140 }), withTiming(0, { duration: 520, easing: ease.smoothOut })));
+        if (!on) glow.set(withSequence(withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 1100, easing: Easing.inOut(Easing.quad) })));
         onToggle();
       }}
       accessibilityRole="checkbox"
