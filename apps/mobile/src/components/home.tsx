@@ -213,40 +213,70 @@ function splitLines(text: string): string[] {
 
 /**
  * rgb — цвет букв «r,g,b»: белый на фото, тёмный на светлом фоне.
- * warm — в наплыв подмешан коралловый: верхняя строка тает через него, нижняя к низу чуть теплеет.
+ * warm — двухцветный наплыв: верхняя строка коралловая и книзу растворяется в персиковый, нижняя — сплошная поверх.
  * enter — строки мягко поднимаются по очереди при появлении.
+ * maxWidth — если строка на этом телефоне шире, заголовок сам уменьшается (замер после отрисовки).
  */
-export function OverlapTitle({ text, size, rgb = '255,255,255', warm, enter }: { text: string; size: number; rgb?: string; warm?: boolean; enter?: boolean }) {
+export function OverlapTitle({
+  text,
+  size: wanted,
+  rgb = '255,255,255',
+  warm,
+  enter,
+  maxWidth,
+}: {
+  text: string;
+  size: number;
+  rgb?: string;
+  warm?: boolean;
+  enter?: boolean;
+  maxWidth?: number;
+}) {
+  const [fit, setFit] = useState<number | null>(null);
+  const size = fit ?? wanted;
   const lines = splitLines(text);
   const lh = Math.round(size * 0.8); // строки наезжают
   const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000', textAlign: 'center' } as const;
+  // ширина строки на самом деле: если не влезает — уменьшаем кегль пропорционально (один раз)
+  const measure = (w: number) => {
+    if (!maxWidth || fit !== null) return;
+    setFit(w <= maxWidth ? wanted : Math.floor((wanted * maxWidth) / w));
+  };
+  const top = warm ? (['rgba(204,96,91,1)', 'rgba(247,213,194,0.55)', 'rgba(247,213,194,0)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
+  const topAt = warm ? ([0.1, 0.6, 1] as const) : ([0.25, 0.9] as const);
+  const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), '');
   return (
     <View accessibilityRole="header" accessibilityLabel={text} style={{ alignItems: 'center' }}>
-      {lines.map((l, i) => {
+      {/* невидимый замер: строка в своей естественной ширине, без переноса */}
+      {maxWidth && fit === null ? (
+        <View style={{ position: 'absolute', top: 0, left: 0, width: 4000, opacity: 0 }} pointerEvents="none">
+          <Text style={[line, { alignSelf: 'flex-start' }]} onLayout={(e) => measure(e.nativeEvent.layout.width)}>
+            {longest}
+          </Text>
+        </View>
+      ) : null}
+      {/* пока не замерили — не рисуем, чтобы не мелькнул слишком крупный заголовок */}
+      {maxWidth && fit === null ? null : lines.map((l, i) => {
         const last = i === lines.length - 1;
         const style = { height: Math.round(size * 1.08), marginTop: i === 0 ? 0 : lh - Math.round(size * 1.08) };
-        if (Platform.OS === 'web') {
+        const entering = enter ? FadeInDown.delay(i * 110).duration(520).easing(Easing.out(Easing.cubic)) : undefined;
+        if (Platform.OS === 'web' || last) {
+          // нижняя строка — сплошная (поверх верхней); в браузере маски нет — верхняя просто полупрозрачная
           return (
-            <Reanimated.View key={i} entering={enter ? FadeInDown.delay(i * 110).duration(520).easing(Easing.out(Easing.cubic)) : undefined}>
-              <Text style={[line, style, { color: last ? `rgb(${rgb})` : warm ? 'rgba(184,79,75,0.7)' : `rgba(${rgb},0.6)` }]}>{l}</Text>
+            <Reanimated.View key={i} entering={entering} style={{ zIndex: last ? 2 : 1 }}>
+              <Text style={[line, style, { color: last ? `rgb(${rgb})` : warm ? 'rgba(204,96,91,0.85)' : `rgba(${rgb},0.6)` }]}>
+                {l}
+              </Text>
             </Reanimated.View>
           );
         }
-        const fade: [string, string, ...string[]] = last
-          ? warm
-            ? [`rgb(${rgb})`, `rgb(${rgb})`, 'rgba(150,62,48,0.95)']
-            : [`rgb(${rgb})`, `rgba(${rgb},0.86)`]
-          : warm
-            ? [`rgb(${rgb})`, 'rgba(184,79,75,0.6)', 'rgba(184,79,75,0.06)']
-            : [`rgb(${rgb})`, `rgba(${rgb},0.12)`];
-        const at: [number, number, ...number[]] = last ? (warm ? [0, 0.55, 1] : [0.4, 1]) : warm ? [0.15, 0.55, 0.95] : [0.25, 0.9];
         return (
-          <Reanimated.View key={i} entering={enter ? FadeInDown.delay(i * 110).duration(520).easing(Easing.out(Easing.cubic)) : undefined}>
-          <MaskedView style={style} maskElement={<Text style={line}>{l}</Text>}>
-            {/* невидимая копия задаёт маске ширину, иначе она схлопывается в ноль */}
-            <Text style={[line, { opacity: 0 }]}>{l}</Text>
-            <LinearGradient colors={fade} locations={at} style={StyleSheet.absoluteFill} />
-          </MaskedView>
+          <Reanimated.View key={i} entering={entering} style={{ zIndex: 1 }}>
+            <MaskedView style={style} maskElement={<Text style={line}>{l}</Text>}>
+              {/* невидимая копия задаёт маске ширину, иначе она схлопывается в ноль */}
+              <Text style={[line, { opacity: 0 }]}>{l}</Text>
+              <LinearGradient colors={top} locations={topAt} style={StyleSheet.absoluteFill} />
+            </MaskedView>
           </Reanimated.View>
         );
       })}
