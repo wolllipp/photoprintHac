@@ -375,7 +375,7 @@ function Tile({
       accessibilityLabel={label ?? [title, sub].filter(Boolean).join(', ')}
       style={[
         s.tile,
-        surface === 'peach' && { backgroundColor: colors.peach },
+        s.clear,
         size === 'S' && { height: TILE_S },
         size === 'L' && { height: TILE_L },
         size === 'W' && { minHeight: TILE_S },
@@ -386,7 +386,7 @@ function Tile({
           <Photo source={photo} style={StyleSheet.absoluteFill} />
           <LinearGradient colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.6)']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
         </>
-      ) : null}
+      ) : <Frost color={surface === 'peach' ? TINT.peach : TINT.plain} />}
       <TileIcon surface={surface}>{icon}</TileIcon>
       <View style={{ flex: 1, minHeight: 8 }} />
       <Text style={[size === 'S' ? s.tTitleS : s.tTitleL, onPhoto && { color: '#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{title}</Text>
@@ -396,11 +396,29 @@ function Tile({
   );
 }
 
+/** Полупрозрачные плитки: цвет с прозрачностью поверх матового стекла. */
+const TINT = {
+  peach: 'rgba(252,233,222,0.62)',
+  teal: 'rgba(227,246,243,0.62)',
+  plain: 'rgba(248,244,240,0.62)',
+  coral: 'rgba(184,79,75,0.84)',
+};
+/** Стекло под содержимым плитки: размытие того, что за ней, и сверху цвет плитки. Сама плитка прозрачная. */
+function Frost({ color, tint = 'light' }: { color: string; tint?: 'light' | 'default' }) {
+  return (
+    <>
+      <BlurView intensity={30} tint={tint} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: color }]} />
+    </>
+  );
+}
+
 /** «Общий альбом»: стопка лиц — сразу видно, что альбом на компанию. */
 const FACES = ['friends-selfie', 'friends-night', 'birthday-cake'] as const;
 function SharedTile() {
   return (
     <Tap style={[s.tile, s.shared]} accessibilityRole="button" accessibilityLabel="Общий альбом, гости добавляют фото по QR-коду">
+      <Frost color={TINT.teal} />
       <View style={s.faces}>
         {FACES.map((k, i) => (
           <Photo key={k} source={photos[k]} style={[s.face, { marginLeft: i === 0 ? 0 : -10, zIndex: FACES.length - i }]} />
@@ -420,6 +438,7 @@ function SharedTile() {
 function InviteTile() {
   return (
     <Tap style={[s.tile, s.invite]} accessibilityRole="button" accessibilityLabel={`Позвать друга, ${tiles.inviteBonus}`}>
+      <Frost color={TINT.coral} tint="default" />
       <View style={s.inviteHead}>
         <Text style={s.inviteTitle}>Позвать друга</Text>
         <CaretRightIcon size={14} color="rgba(255,255,255,0.85)" weight="bold" />
@@ -448,8 +467,13 @@ export function ActionTiles({
   const iconPeach = colors.peachInk;
   return (
     <View style={{ gap: TILE_GAP }}>
+      <View style={s.backdrop} pointerEvents="none">
+        <Image source={photos['city-sunset']} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={60} />
+        <LinearGradient colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.55)', '#fff']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+      </View>
       {/* действие: собрать книгу */}
-      <View style={[s.tile, { backgroundColor: colors.peach, gap: 12 }]}>
+      <View style={[s.tile, s.clear, { gap: 12 }]}>
+        <Frost color={TINT.peach} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TileIcon surface="peach"><BookOpenTextIcon size={19} color={iconPeach} weight="fill" /></TileIcon>
           <View style={{ flex: 1 }}>
@@ -589,11 +613,13 @@ const s = StyleSheet.create({
   },
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
-  shared: { flex: 1, height: TILE_S, backgroundColor: colors.tealTint },
+  clear: { backgroundColor: 'transparent' },
+  shared: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
+  backdrop: { position: 'absolute', top: -20, left: -16, right: -16, height: 640, opacity: 0.9 },
   faces: { flexDirection: 'row', alignItems: 'center' },
-  face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: colors.tealTint, overflow: 'hidden' },
+  face: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
   faceMore: { marginLeft: -10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  invite: { flex: 1, height: TILE_S, backgroundColor: colors.coralAction },
+  invite: { flex: 1, height: TILE_S, backgroundColor: 'transparent' },
   inviteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   inviteTitle: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
   inviteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
