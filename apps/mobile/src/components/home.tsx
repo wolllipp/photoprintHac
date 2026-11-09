@@ -200,7 +200,7 @@ function splitLines(text: string): string[] {
 
 function OverlapTitle({ text, size }: { text: string; size: number }) {
   const lines = splitLines(text);
-  const lh = Math.round(size * 0.86); // строки наезжают
+  const lh = Math.round(size * 0.8); // строки наезжают
   const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000' } as const;
   return (
     <View accessibilityRole="header" accessibilityLabel={text}>
@@ -212,9 +212,11 @@ function OverlapTitle({ text, size }: { text: string; size: number }) {
         }
         return (
           <MaskedView key={i} style={style} maskElement={<Text style={line}>{l}</Text>}>
+            {/* невидимая копия задаёт маске ширину, иначе она схлопывается в ноль */}
+            <Text style={[line, { opacity: 0 }]}>{l}</Text>
             <LinearGradient
-              colors={last ? ['#fff', '#fff'] : ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.95)']}
-              locations={[0.05, 0.8]}
+              colors={last ? ['#fff', '#fff'] : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.95)']}
+              locations={[0.05, 0.85]}
               style={StyleSheet.absoluteFill}
             />
           </MaskedView>
@@ -387,7 +389,7 @@ function Tile({
       ) : null}
       <TileIcon surface={surface}>{icon}</TileIcon>
       <View style={{ flex: 1, minHeight: 8 }} />
-      <Text style={[size === 'S' ? s.tTitleS : s.tTitleL, onPhoto && { color: '#fff' }]} numberOfLines={2}>{title}</Text>
+      <Text style={[size === 'S' ? s.tTitleS : s.tTitleL, onPhoto && { color: '#fff' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{title}</Text>
       {sub ? <Text style={[s.tSub, onPhoto && { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>{sub}</Text> : null}
       {children}
     </Tap>
@@ -484,9 +486,9 @@ export function AlbumCards({ items }: { items: Album[] }) {
             </View>
             {/* серебристое название: заливка градиентом по маске текста (в браузере маски нет — просто белое) */}
             {Platform.OS === 'web' ? (
-              <View style={s.albumTitleWrap}><Text style={[s.albumTitle, { color: 'rgba(255,255,255,0.9)' }]} numberOfLines={1}>{a.title}</Text></View>
+              <View style={s.albumTitleWrap}><Text style={[s.albumTitle, { color: 'rgba(255,255,255,0.9)' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{a.title}</Text></View>
             ) : (
-              <MaskedView style={s.albumTitleWrap} maskElement={<Text style={s.albumTitle} numberOfLines={1}>{a.title}</Text>}>
+              <MaskedView style={s.albumTitleWrap} maskElement={<Text style={s.albumTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{a.title}</Text>}>
                 <LinearGradient colors={['rgba(255,255,255,1)', 'rgba(255,255,255,0.55)']} style={StyleSheet.absoluteFill} />
               </MaskedView>
             )}
@@ -548,6 +550,6 @@ const s = StyleSheet.create({
   albumTop: { position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between' },
   albumBadge: { height: 28, paddingHorizontal: 11, borderRadius: 14, justifyContent: 'center' },
   more: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  albumTitleWrap: { position: 'absolute', left: 12, right: 0, bottom: -10, height: 76 },
+  albumTitleWrap: { position: 'absolute', left: 12, right: 12, bottom: -10, height: 76, justifyContent: 'flex-end' },
   albumTitle: { fontSize: 62, lineHeight: 76, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000' },
 });
