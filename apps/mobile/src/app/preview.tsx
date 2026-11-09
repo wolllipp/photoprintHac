@@ -25,13 +25,14 @@ import { colors, fonts } from '@/theme';
 
 export default function Preview() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const p = useLocalSearchParams<{ title?: string; pages?: string; photos?: string; about?: string; format?: string; lam?: string }>();
   const title = p.title ?? 'Карелия, июль';
   const pages = Number(p.pages ?? 24);
   const picked = Math.round(pages * 1.6); // сколько кадров встанет в книгу
   const price = tariffs[1].price;
-  const STAGE = Math.round(width * 1.45);
+  // сцена почти на весь экран: сначала видно снимки, название и кнопки, описание — уже при прокрутке
+  const STAGE = Math.round(Math.max(width * 1.3, height - 240));
   const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
   const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
 
