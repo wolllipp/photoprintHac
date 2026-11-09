@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -66,7 +66,7 @@ export default function Cart() {
         </View>
 
         {cart.length === 0 ? (
-          <Animated.View entering={FadeInDown.duration(duration.slow).easing(ease.smoothOut)} style={s.empty}>
+          <Animated.View entering={FadeInDown.delay(220).duration(duration.slow).easing(ease.smoothOut)} style={s.empty}>
             <Text style={s.emptyTitle}>Пока пусто</Text>
             <Text style={s.emptyText}>Соберите книгу из своих фото или закажите печать — всё окажется здесь.</Text>
             <View style={s.emptyBtns}>
@@ -95,8 +95,9 @@ export default function Cart() {
                 </Animated.View>
               ))}
             </View>
+            {/* последний товар удалён — блок сразу уходит вниз */}
             {live.length ? (
-              <Animated.View exiting={FadeOut.duration(duration.fast)} style={{ gap: 14 }}>
+              <Animated.View exiting={FadeOutDown.duration(320).easing(ease.smoothOut)} style={{ gap: 14 }}>
             <Animated.Text style={s.hint}>
               Потяните плитку влево, чтобы удалить
             </Animated.Text>
