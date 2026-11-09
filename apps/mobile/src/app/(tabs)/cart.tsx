@@ -212,10 +212,10 @@ function CartRow({
 }) {
   const { width } = useWindowDimensions();
   const OPEN = -96;
-  // удаление — только сильным движением: палец должен пройти три четверти экрана
-  const PULL = -width * 0.75;
-  // где при этом окажется плитка (после кнопки «Удалить» она сопротивляется — едет на 60% от пальца)
-  const FULL = OPEN + (PULL - OPEN) * 0.6;
+  // удаление: палец проходит чуть больше половины экрана
+  const PULL = -width * 0.55;
+  // где при этом окажется плитка (после кнопки «Удалить» она слегка сопротивляется — едет на 80% от пальца)
+  const FULL = OPEN + (PULL - OPEN) * 0.8;
   const drag = useSharedValue(0);
   const x = useSharedValue(0);
   const start = useSharedValue(0);
@@ -243,7 +243,7 @@ function CartRow({
       const next = start.value + e.translationX;
       drag.value = next;
       // вправо — резина, влево до кнопки — за пальцем, дальше — с сопротивлением
-      x.value = next > 0 ? next * 0.15 : next > OPEN ? next : OPEN + (next - OPEN) * 0.6;
+      x.value = next > 0 ? next * 0.15 : next > OPEN ? next : OPEN + (next - OPEN) * 0.8;
       const a = next < PULL;
       if (a !== armed.value) {
         armed.value = a;
@@ -436,6 +436,6 @@ const s = StyleSheet.create({
   ghostLeft: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut, fontVariant: ['tabular-nums'] },
   ghostBtn: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', gap: 6 },
   ghostBtnText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
-  ghostTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(0,0,0,0.05)' },
-  ghostBar: { height: 4, backgroundColor: colors.coralAction },
+  ghostTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
+  ghostBar: { height: 3, backgroundColor: 'rgba(184,79,75,0.35)' },
 });
