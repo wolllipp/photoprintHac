@@ -1,3 +1,4 @@
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { Pacifico_400Regular, useFonts } from '@expo-google-fonts/pacifico';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -11,7 +12,8 @@ import { colors } from '@/theme';
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({ Pacifico_400Regular });
+  // Batica и Onehart: положить .ttf/.otf в assets/fonts и добавить сюда, затем сменить fonts.display/accent в theme.ts
+  const [loaded, error] = useFonts({ Pacifico_400Regular, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
 
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync();
@@ -31,6 +33,7 @@ export default function RootLayout() {
         <Stack.Screen name="book/[id]" />
         <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
         <Stack.Screen name="assistant" />
+        <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       </Stack>
     </StoreProvider>
     </GestureHandlerRootView>

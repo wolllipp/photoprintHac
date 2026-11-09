@@ -1,30 +1,72 @@
-import { router } from 'expo-router';
-import { ScrollView, StyleSheet } from 'react-native';
+import { router, useIsFocused } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AskField, MiniServices, MyAlbums, OrderStrip, Suggestions, TopBar } from '@/components/home';
+import { ActionTiles, AlbumCards, HeroPager, PlainTopBar } from '@/components/home';
 import { albums, currentOrder, suggestions } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { colors } from '@/theme';
 
+const openBook = (id: string) => router.push({ pathname: '/book/[id]', params: { id } });
+
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const { points } = useStore();
+  const { height } = useWindowDimensions();
+  const { points, showIntro, setTabBarHidden } = useStore();
+  const focused = useIsFocused();
+  const [scrollY] = useState(() => new Animated.Value(0));
+  const scroller = useRef<ComponentRef<typeof Animated.ScrollView>>(null);
+  // статус-бар светлый, пока над ним фото; тёмный, когда кадр уехал
+  const [overPhoto, setOverPhoto] = useState(true);
+  // автолистание слайдов — только пока главная прокручена в самый верх
+  const [atTop, setAtTop] = useState(true);
+
+  // меню скрыто, пока виден полноэкранный кадр; на других вкладках — всегда видно
+  useEffect(() => {
+    setTabBarHidden(focused && showIntro && overPhoto);
+  }, [focused, showIntro, overPhoto, setTabBarHidden]);
+
+  // «Продолжить» на приветствии — плавно к плиткам
+  const toTiles = () => scroller.current?.scrollTo({ y: height - insets.top - 8, animated: true });
+
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 110 }]}
-      showsVerticalScrollIndicator={false}>
-      <TopBar initial="И" points={points} />
-      <AskField onPress={() => router.push('/story')} onMic={() => router.push({ pathname: '/story', params: { voice: '1' } })} />
-      <Suggestions items={suggestions} onOpen={(id) => router.push({ pathname: '/book/[id]', params: { id } })} />
-      <MyAlbums items={albums} />
-      <MiniServices />
-      <OrderStrip order={currentOrder} />
-    </ScrollView>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <StatusBar style={showIntro && overPhoto ? 'light' : 'dark'} animated />
+      <Animated.ScrollView
+        ref={scroller}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: true,
+          listener: (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+            const next = e.nativeEvent.contentOffset.y < height - insets.top - 40;
+            if (next !== overPhoto) setOverPhoto(next);
+            const top = e.nativeEvent.contentOffset.y < 30;
+            if (top !== atTop) setAtTop(top);
+          },
+        })}>
+        {showIntro ? (
+          <HeroPager atTop={atTop} items={suggestions} points={points} scrollY={scrollY} onContinue={toTiles} onOpenBook={openBook} />
+        ) : null}
+        <View style={[s.content, { paddingTop: insets.top + (showIntro ? 16 : 6) }]}>
+          {showIntro ? null : <PlainTopBar points={points} />}
+          <ActionTiles
+            order={currentOrder}
+            onAsk={() => router.push('/story')}
+            onMic={() => router.push({ pathname: '/story', params: { voice: '1' } })}
+            onOrder={() => router.navigate('/orders')}
+          />
+          <AlbumCards items={albums} />
+        </View>
+      </Animated.ScrollView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  content: { paddingHorizontal: 18, gap: 18 },
+  content: { paddingHorizontal: 16, gap: 28 },
 });

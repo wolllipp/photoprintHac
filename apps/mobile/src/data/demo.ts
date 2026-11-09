@@ -1,10 +1,14 @@
 /**
  * Демо-данные главной. Позже заменяются ответом GET /home (notes/14-backend-start.md).
  */
+import type { PhotoName } from '@/data/photos';
 import type { AlbumTheme, PhotoKey } from '@/theme';
 
 export type Suggestion = {
   id: string;
+  photo: PhotoName;
+  /** описание на полноэкранном слайде */
+  desc: string;
   title: string;
   meta: string;
   tag: string;
@@ -17,6 +21,9 @@ export type Album = {
   title: string;
   subtitle: string;
   theme: AlbumTheme;
+  photo: PhotoName;
+  /** метка в стеклянной пилюле на обложке */
+  badge: string;
 };
 
 export type CurrentOrder = {
@@ -28,15 +35,18 @@ export type CurrentOrder = {
 
 export const points = 350;
 
+/** Первый — главный черновик в большом блоке главной. */
 export const suggestions: Suggestion[] = [
-  { id: 'karelia', title: 'Карелия, июль', meta: '214 фото · 24 стр.', tag: 'черновик готов', tagTone: 'coral', cover: ['g2', 'g6', 'g3'] },
-  { id: 'year-2026', title: 'Книга года 2026', meta: '1 240 фото · к 20 дек', tag: 'к Новому году', tagTone: 'green', cover: ['g6', 'g1', 'g4'] },
-  { id: 'dacha', title: 'Дача, август', meta: '96 фото · 16 стр.', tag: 'черновик готов', tagTone: 'coral', cover: ['g5', 'g3', 'g1'] },
+  { id: 'minsk', photo: 'city-sunset', desc: 'Прогулки по осеннему городу — уже разложили лучшие кадры на 24 страницы', title: 'Октябрь в Минске', meta: '86 фото · 24 страницы', tag: 'черновик готов', tagTone: 'coral', cover: ['g2', 'g6', 'g3'] },
+  { id: 'birthday', photo: 'birthday-cake', desc: 'Свечи, торт и все, кто пришёл. Черновик готов — осталось выбрать обложку', title: 'День рождения', meta: '64 фото · 20 стр.', tag: 'черновик готов', tagTone: 'coral', cover: ['g5', 'g3', 'g1'] },
+  { id: 'friends', photo: 'friends-selfie', desc: '112 снимков с друзьями за осень. Убрали дубли и смазанные', title: 'Мы с друзьями', meta: '112 фото · 32 стр.', tag: 'черновик готов', tagTone: 'coral', cover: ['g1', 'g4', 'g6'] },
+  { id: 'year-2026', photo: 'night-window', desc: 'Весь ваш год в одной книге. Успеем напечатать к Новому году', title: 'Книга года 2026', meta: '1 240 фото · к 20 дек', tag: 'к Новому году', tagTone: 'green', cover: ['g6', 'g1', 'g4'] },
 ];
 
 export const albums: Album[] = [
-  { id: 'matvey', title: 'Первый год Матвея', subtitle: 'Classic 20×20 · 18 из 24 страниц', theme: 'child' },
-  { id: 'wedding', title: 'Свадьба Ани и Миши', subtitle: 'общий альбом · 34 гостя', theme: 'wedding' },
+  { id: 'concerts', title: 'Концерты', subtitle: 'Classic 20×20 · 12 из 20 страниц', theme: 'default', photo: 'concert', badge: '12 из 20 стр.' },
+  { id: 'cafes', title: 'Кофейни', subtitle: 'общий альбом · 6 друзей', theme: 'default', photo: 'cafe-interior', badge: 'общий · 6 друзей' },
+  { id: 'flowers', title: 'Цветы', subtitle: 'Lite 20×20 · 41 фото', theme: 'love', photo: 'roses', badge: '41 фото' },
 ];
 
 export const currentOrder: CurrentOrder = {
@@ -67,6 +77,9 @@ export const tariffs: Tariff[] = [
 ];
 
 export const drafts: Record<string, { title: string; pages: number; format: string; photos: number }> = {
+  minsk: { title: 'Октябрь в Минске', pages: 24, format: '20×20', photos: 38 },
+  birthday: { title: 'День рождения', pages: 20, format: '20×20', photos: 30 },
+  friends: { title: 'Мы с друзьями', pages: 32, format: '21×30', photos: 52 },
   karelia: { title: 'Карелия, июль', pages: 24, format: '20×20', photos: 38 },
   'year-2026': { title: 'Книга года 2026', pages: 40, format: '21×30', photos: 96 },
   dacha: { title: 'Дача, август', pages: 16, format: '20×20', photos: 24 },
@@ -82,3 +95,16 @@ export const phoneMasked = '+375 29 •••-••-67';
 
 /** Цена пика пока не утверждена (Алеся, #30) — условно 1 пик = 0,01 р. */
 export const PIK_RATE = 0.01;
+
+/** Первый слайд главной — приветствие. */
+export const welcome = {
+  photo: 'friends-night' as PhotoName,
+  title: 'Добро пожаловать',
+  desc: 'Ваши фото из телефона — в готовую книгу за пару минут',
+};
+
+/** Плитки-действия главной. Цена «от» — из справочника (D14). */
+export const tiles = {
+  printFrom: 'от 0,49 р.',
+  inviteBonus: '+100 пиков за друга',
+};

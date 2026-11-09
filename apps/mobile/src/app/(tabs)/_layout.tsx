@@ -1,5 +1,6 @@
 import { NativeTabs } from 'expo-router/native-tabs';
 
+import { useStore } from '@/data/store';
 import { colors } from '@/theme';
 
 /**
@@ -7,8 +8,9 @@ import { colors } from '@/theme';
  * Нативные вкладки: на iOS 26+ система сама рисует плавающую стеклянную капсулу.
  */
 export default function TabsLayout() {
+  const { tabBarHidden } = useStore();
   return (
-    <NativeTabs tintColor={colors.coralAction} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
+    <NativeTabs hidden={tabBarHidden} tintColor={colors.coralAction} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Главная</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house.fill" md="home" />

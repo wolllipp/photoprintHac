@@ -12,10 +12,14 @@ export const colors = {
   tealInk: '#1F6F67',
   tealTint: '#E3F6F3',
   ink2: '#3B4B4A',
-  // поверхности
-  bg: '#F6F1EA',
-  card: '#FFFFFF',
-  card2: '#F1ECE5',
+  // поверхности: белый — основа, тёплые оттенки — для групп и заливок
+  bg: '#FFFFFF',
+  card: '#F8F4F0', // плотные карточки на белом
+  card2: '#F1EAE3',
+  // персиковый — акцент для заливок (метки, кружки иконок, второстепенные кнопки)
+  peach: '#FCE9DE',
+  peachStrong: '#F7D5C2',
+  peachInk: '#A9472B', // текст и иконки на персиковом, ≈5.4:1
   hair: 'rgba(35,43,42,0.10)',
   line: 'rgba(35,43,42,0.08)',
   // текст
@@ -30,8 +34,21 @@ export const radius = { sm: 12, md: 18, lg: 22, xl: 26, pill: 999 } as const;
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 18, xxl: 24 } as const;
 
+/**
+ * Шрифты. Inter — интерфейс. Batica и Onehart — акцентные (крупные заголовки),
+ * файлов пока нет: до их появления роли закрыты Inter (см. FONT_FILES в app/_layout.tsx).
+ */
 export const fonts = {
   logo: 'Pacifico_400Regular',
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+  heavy: 'Inter_800ExtraBold',
+  /** крупные заголовки на фото — Batica, пока Inter ExtraBold */
+  display: 'Inter_800ExtraBold',
+  /** акцентное слово/подзаголовок — Onehart, пока Inter Medium */
+  accent: 'Inter_500Medium',
 } as const;
 
 /** Типографика: размер + интерлиньяж + трекинг как набор. */

@@ -2,7 +2,8 @@
  * Состояние покупки на клиенте: корзина и оформленные заказы.
  * Позже заменяется вызовами API (POST /orders, GET /orders/{id}).
  */
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { points as initialPoints } from '@/data/demo';
 import type { PhotoKey } from '@/theme';
@@ -42,7 +43,15 @@ type Store = {
   placeOrder: (total: number, spentPoints?: number) => PlacedOrder | null;
   points: number;
   markSeen: () => void;
+  /** нижнее меню скрыто, пока на главной виден полноэкранный кадр */
+  tabBarHidden: boolean;
+  setTabBarHidden: (v: boolean) => void;
+  /** показывать приветственный экран на главной (настройка) */
+  showIntro: boolean;
+  setShowIntro: (v: boolean) => void;
 };
+
+const INTRO_KEY = 'picpac.showIntro';
 
 const Ctx = createContext<Store | null>(null);
 
@@ -50,6 +59,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<PlacedOrder[]>([]);
   const [points, setPoints] = useState(initialPoints);
+  const [tabBarHidden, setTabBarHidden] = useState(true);
+  const [showIntro, setShowIntroState] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(INTRO_KEY)
+      .then((v) => {
+        if (v === '0') {
+          setShowIntroState(false);
+          setTabBarHidden(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
+  const setShowIntro = (v: boolean) => {
+    setShowIntroState(v);
+    setTabBarHidden(v);
+    AsyncStorage.setItem(INTRO_KEY, v ? '1' : '0').catch(() => {});
+  };
 
   const value = useMemo<Store>(
     () => ({
@@ -59,6 +86,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearCart: () => setCart([]),
       orders,
       points,
+      tabBarHidden,
+      setTabBarHidden,
+      showIntro,
+      setShowIntro,
       markSeen: () => setOrders((o) => o.map((x) => (x.fresh ? { ...x, fresh: false } : x))),
       placeOrder: (total, spentPoints = 0) => {
         const item = cart[0];
@@ -78,7 +109,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points],
+    [cart, orders, points, tabBarHidden, showIntro],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
