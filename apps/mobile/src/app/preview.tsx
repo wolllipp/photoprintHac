@@ -35,9 +35,13 @@ export default function Preview() {
   // сцена такой высоты, чтобы кнопка «Выбрать тариф» кончалась в 64 точках от низа: там — «Пролистните»,
   // цифры и описание — уже ниже края (название ~120, подпись и отступы ~50, кнопка 56, наплыв на снимок −0,2 ширины)
   const STAGE = Math.round(Math.max(width * 1.1, height - 64 - (226 - width * 0.2)));
-  const hintRef = useRef<ComponentRef<typeof View>>(null);
-  const [fill, setFill] = useState(0); // отступ под подсказкой — чтобы цифры начинались за краем экрана
   const [scrolled, setScrolled] = useState(false);
+  // блок с цифрами, описанием и разворотами до первой прокрутки спрятан и подлетает снизу, когда начали листать
+  const reveal = useSharedValue(0);
+  useEffect(() => {
+    if (scrolled) reveal.value = withSpring(1, { damping: 22, stiffness: 160 });
+  }, [scrolled, reveal]);
+  const fly = useAnimatedStyle(() => ({ opacity: reveal.value, transform: [{ translateY: (1 - reveal.value) * 120 }] }));
   const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
   const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
 
@@ -50,12 +54,12 @@ export default function Preview() {
   return (
     <View style={s.screen}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={32}
         onScroll={(e) => {
-          const v = e.nativeEvent.contentOffset.y > 40;
-          if (v !== scrolled) setScrolled(v);
+          // один раз: показали блок — дальше он на месте
+          if (!scrolled && e.nativeEvent.contentOffset.y > 6) setScrolled(true);
         }}>
         {/* сцена: кадры альбома фоном сменяют друг друга, к низу уходят в белый */}
         <View style={{ height: STAGE, overflow: 'hidden' }}>
@@ -86,40 +90,26 @@ export default function Preview() {
             </Tap>
           </Animated.View>
 
-          {/* подсказка сразу под кнопкой, ниже — отступ до края экрана, дальше цифры и описание */}
-          <View
-            ref={hintRef}
-            style={[s.hintInline, { paddingBottom: fill }]}
-            onLayout={() =>
-              hintRef.current?.measureInWindow((_x, y) => {
-                if (fill === 0) setFill(Math.max(12, height - y - 48));
-              })
-            }>
-            <Animated.View entering={FadeIn.delay(900).duration(500)} style={[s.hintBox, { opacity: scrolled ? 0 : 1 }]} pointerEvents="none">
-              <Text style={s.scrollHintText}>Пролистните</Text>
-              <Bob />
-            </Animated.View>
-          </View>
-
-          <Animated.View entering={FadeInDown.delay(180).duration(420).easing(ease.smoothOut)} style={s.stats}>
+          <Animated.View style={[{ gap: 14 }, fly]}>
+          <View style={s.stats}>
             <Stat value={<AnimatedNumber value={pages} format={String} style={s.statNum} />} label="страниц" />
             <Tap style={{ flex: 1 }} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel={`${picked} фото, посмотреть отбор`}>
               <Stat value={<AnimatedNumber value={picked} format={String} style={[s.statNum, { color: colors.coralAction }]} />} label="фото" />
             </Tap>
-            <Stat value={<Text style={s.statNum}>{rub(price).replace(' р.', '')}</Text>} label="рублей" />
-          </Animated.View>
+            <Stat value={<Text style={s.statNum}>4</Text>} label="главы" />
+          </View>
 
-          <Animated.View entering={FadeInDown.delay(240).duration(420).easing(ease.smoothOut)} style={s.about}>
+          <View style={s.about}>
             <Text style={s.aboutText}>
               {p.about ??
                 `Тёплая книга о поездке: ${picked} лучших кадров из ${p.photos ?? 214}, без дублей и смазанных. Пейзажи — на целый разворот, люди — крупно, лица не попадут в обрез.`}
             </Text>
-          </Animated.View>
+          </View>
 
           <Text style={s.h2}>Развороты</Text>
           <View style={s.grid}>
             {spreads.map((sp, i) => (
-              <Animated.View key={i} entering={FadeInDown.delay(300 + i * 60).duration(420).easing(ease.smoothOut)} style={s.cell}>
+              <View key={i} style={s.cell}>
                 <Tap
                   onPress={() => cells.current[i]?.measureInWindow((x, y, w, h) => setOpen({ i, from: { x, y, w, h } }))}
                   accessibilityRole="button"
@@ -129,11 +119,20 @@ export default function Preview() {
                   </View>
                 </Tap>
                 <Text style={s.cellLabel}>{i === 0 ? 'Обложка и начало' : `Разворот ${i + 1}`}</Text>
-              </Animated.View>
+              </View>
             ))}
           </View>
+          </Animated.View>
         </View>
       </ScrollView>
+
+      {/* подсказка у самого низа экрана; гаснет, когда блок подлетел */}
+      {!scrolled ? (
+        <Animated.View entering={FadeIn.delay(900).duration(500)} exiting={FadeOut.duration(200)} style={[s.hintBox, { bottom: Math.max(10, insets.bottom - 6) }]} pointerEvents="none">
+          <Text style={s.scrollHintText}>Пролистните</Text>
+          <Bob />
+        </Animated.View>
+      ) : null}
 
       {/* разворот крупно: листаются соседние, закрыть — крестиком */}
       <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
@@ -330,8 +329,7 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: { width: '48.5%', gap: 6 },
-  hintInline: { marginTop: -4 },
-  hintBox: { alignItems: 'center', gap: 2, height: 40 },
+  hintBox: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 1 },
   scrollHintText: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
   viewerBg: { backgroundColor: 'rgba(255,255,255,0.96)' },
