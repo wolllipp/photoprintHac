@@ -182,6 +182,48 @@ function Photo({ source, style, transition }: { source: number; style?: StylePro
   );
 }
 
+/**
+ * «Наплыв»: строки заглавными заходят друг на друга, нижняя лежит поверх,
+ * а каждая верхняя к своему верху тает в прозрачность (градиент по маске текста).
+ */
+function splitLines(text: string): string[] {
+  const words = text.toUpperCase().split(' ');
+  if (words.length < 2) return [text.toUpperCase()];
+  // делим на две строки, ближе к середине по числу букв
+  let best = 1, diff = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const d = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
+    if (d < diff) { diff = d; best = i; }
+  }
+  return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+}
+
+function OverlapTitle({ text, size }: { text: string; size: number }) {
+  const lines = splitLines(text);
+  const lh = Math.round(size * 0.86); // строки наезжают
+  const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000' } as const;
+  return (
+    <View accessibilityRole="header" accessibilityLabel={text}>
+      {lines.map((l, i) => {
+        const last = i === lines.length - 1;
+        const style = { height: Math.round(size * 1.08), marginTop: i === 0 ? 0 : lh - Math.round(size * 1.08) };
+        if (Platform.OS === 'web') {
+          return <Text key={i} style={[line, style, { color: last ? '#fff' : 'rgba(255,255,255,0.72)' }]}>{l}</Text>;
+        }
+        return (
+          <MaskedView key={i} style={style} maskElement={<Text style={line}>{l}</Text>}>
+            <LinearGradient
+              colors={last ? ['#fff', '#fff'] : ['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.95)']}
+              locations={[0.05, 0.8]}
+              style={StyleSheet.absoluteFill}
+            />
+          </MaskedView>
+        );
+      })}
+    </View>
+  );
+}
+
 /** Индикатор слайда: активный — полоска, которая заполняется до перелистывания. */
 function Dot({ state, progress }: { state: 'done' | 'now' | 'next'; progress: SharedValue<number> }) {
   const fill = useAnimatedStyle(() => ({ width: `${(state === 'now' ? progress.value : state === 'done' ? 1 : 0) * 100}%` }));
@@ -228,7 +270,6 @@ function SlideView({
   }, [active, zoom]);
   const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
   const titleSize = Math.max(36, Math.min(50, Math.round(width * 0.118)));
-  const titleStyle = { fontSize: titleSize, lineHeight: Math.round(titleSize * 0.98) };
   const photo = slide.kind === 'welcome' ? slide.photo : slide.item.photo;
   return (
     <View style={{ width, height, overflow: 'hidden' }}>
@@ -251,7 +292,7 @@ function SlideView({
           </>
         ) : (
           <>
-            <Text style={[s.title, titleStyle]} accessibilityRole="header">{slide.item.title}</Text>
+            <OverlapTitle text={slide.item.title} size={titleSize} />
           </>
         )}
       </Animated.View>

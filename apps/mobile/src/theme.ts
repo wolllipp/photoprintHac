@@ -40,16 +40,17 @@ export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 18, xxl: 24 } as const;
  */
 export const fonts = {
   logo: 'Pacifico_400Regular',
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  heavy: 'Inter_800ExtraBold',
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semibold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  heavy: 'Manrope_800ExtraBold',
   /** заголовки — Unbounded (кириллица, OFL) */
   display: 'Unbounded_700Bold',
+  /** «наплыв» — крупные заголовки заглавными на фото */
+  overlap: 'Unbounded_800ExtraBold',
   displayMedium: 'Unbounded_600SemiBold',
-  /** акцентное слово/подзаголовок — Onehart, пока Inter Medium */
-  accent: 'Inter_500Medium',
+  accent: 'Manrope_500Medium',
 } as const;
 
 /** Типографика: размер + интерлиньяж + трекинг как набор. */
