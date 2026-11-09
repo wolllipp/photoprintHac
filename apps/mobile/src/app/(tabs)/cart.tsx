@@ -317,8 +317,8 @@ function CartRow({
       <Animated.View style={[s.editBack, backL]}>
         <Pressable style={s.deleteHit} onPress={edit} accessibilityRole="button" accessibilityLabel={`Изменить ${item.title}`}>
           <Animated.View style={[{ alignItems: 'center', gap: 4 }, iconR]}>
-            <PencilSimpleIcon size={22} color="#fff" weight="fill" />
-            <Text style={s.deleteText} numberOfLines={1}>Изменить</Text>
+            <PencilSimpleIcon size={22} color={colors.fg} weight="fill" />
+            <Text style={[s.deleteText, { color: colors.fg }]} numberOfLines={1}>Изменить</Text>
           </Animated.View>
         </Pressable>
       </Animated.View>
@@ -429,7 +429,7 @@ const s = StyleSheet.create({
   price: { fontSize: 18, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
   delete: { position: 'absolute', right: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: '#D9483B', overflow: 'hidden' },
-  editBack: { position: 'absolute', left: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: colors.tealInk, overflow: 'hidden' },
+  editBack: { position: 'absolute', left: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: 'rgba(120,120,128,0.24)', overflow: 'hidden' },
   deleteHit: { flex: 1, minWidth: 88, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
