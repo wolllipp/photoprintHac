@@ -584,8 +584,8 @@ const s = StyleSheet.create({
     backgroundColor: colors.card,
     padding: 16,
     overflow: 'hidden',
-    // чуть объёма: светлая кромка сверху, тёмная — едва снизу, мягкая тёплая тень под плиткой
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(90,40,20,0.05), 0 1px 2px rgba(90,40,20,0.06), 0 8px 18px -10px rgba(90,40,20,0.22)',
+    // объём без тени под плиткой: свет изнутри сверху, лёгкая тень изнутри снизу, тонкая кромка
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75), inset 0 14px 18px -14px rgba(255,255,255,0.55), inset 0 -14px 20px -14px rgba(90,40,20,0.1), inset 0 0 0 0.5px rgba(90,40,20,0.07)',
   },
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
