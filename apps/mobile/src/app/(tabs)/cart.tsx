@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, FadeOutDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOutDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -77,9 +77,9 @@ export default function Cart() {
           </Animated.View>
         ) : (
           <>
-            <View style={{ gap: 10 }}>
+            <View>
               {cart.map((it, i) => (
-                <Animated.View key={it.id} entering={enterItem(i)} exiting={FadeOut.duration(duration.micro)} layout={layout}>
+                <Animated.View key={it.id} entering={enterItem(i)} layout={layout}>
                   <SwipeToDelete label={it.title} onDelete={() => remove(it)}>
                     <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
                   </SwipeToDelete>
@@ -193,10 +193,16 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
   const start = useSharedValue(0);
   const armed = useSharedValue(false);
   const tick = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+  const h = useSharedValue(0); // высота строки вместе с отступом
+  const shrink = useSharedValue(1); // 1 — строка на месте, 0 — схлопнулась
+  // удаление: плитка улетает → строка плавно схлопывается (соседи подтягиваются следом) → убираем из корзины
   const fly = () => {
     'worklet';
-    x.value = withTiming(-width, { duration: 200, easing: ease.smoothOut }, (done) => {
-      if (done) scheduleOnRN(onDelete);
+    x.value = withTiming(-width, { duration: 240, easing: ease.smoothOut }, (done) => {
+      if (!done) return;
+      shrink.value = withTiming(0, { duration: 260, easing: ease.smoothOut }, (d) => {
+        if (d) scheduleOnRN(onDelete);
+      });
     });
   };
   const pan = usePanGesture({
@@ -232,10 +238,14 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
     opacity: x.value > -4 ? 0 : x.value < -width * 0.8 ? Math.max(0, (x.value + width) / (width * 0.2)) : 1,
   }));
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
+  const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, overflow: 'hidden' } : {}));
   return (
-    <View>
+    <Animated.View style={[{ paddingBottom: 10 }, row]} onLayout={(e) => {
+      // пока строка схлопывается, высоту не перезаписываем
+      if (shrink.value === 1) h.value = e.nativeEvent.layout.height;
+    }}>
       <Animated.View style={[s.delete, back]}>
-        <Pressable style={s.deleteHit} onPress={() => x.set(withTiming(-width, { duration: 200 }, (d) => d && scheduleOnRN(onDelete)))} accessibilityRole="button" accessibilityLabel={`Удалить ${label}`}>
+        <Pressable style={s.deleteHit} onPress={fly} accessibilityRole="button" accessibilityLabel={`Удалить ${label}`}>
           <Animated.View style={[{ alignItems: 'center', gap: 4 }, icon]}>
             <TrashIcon size={22} color="#fff" weight="fill" />
             <Text style={s.deleteText} numberOfLines={1}>Удалить</Text>
@@ -245,7 +255,7 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
       <GestureDetector gesture={pan}>
         <Animated.View style={tile}>{children}</Animated.View>
       </GestureDetector>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -342,7 +352,7 @@ const s = StyleSheet.create({
   qty: { minWidth: 18, textAlign: 'center', fontSize: 14, fontFamily: fonts.bold, color: colors.fg },
   price: { fontSize: 18, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
-  delete: { position: 'absolute', right: 0, top: 0, bottom: 0, borderRadius: 26, backgroundColor: '#D9483B', overflow: 'hidden' },
+  delete: { position: 'absolute', right: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: '#D9483B', overflow: 'hidden' },
   deleteHit: { flex: 1, minWidth: 88, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
