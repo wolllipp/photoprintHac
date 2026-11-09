@@ -10,11 +10,11 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { BookOpenTextIcon, ImagesIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOutDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,22 +28,29 @@ const layout = LinearTransition.duration(260).easing(ease.smoothOut).reduceMotio
 
 export default function Cart() {
   const insets = useSafeAreaInsets();
-  const { cart, removeFromCart, restoreToCart, setQty, extras, toggleExtra } = useStore();
-  const [undo, setUndo] = useState<{ item: CartItem; index: number } | null>(null);
-  const total = cartTotal(cart, extras);
-  const pieces = cart.reduce((a, it) => a + it.qty, 0);
-
-  // «Вернуть» живёт 5 секунд
-  useEffect(() => {
-    if (!undo) return;
-    const t = setTimeout(() => setUndo(null), 5000);
-    return () => clearTimeout(t);
-  }, [undo]);
+  const { cart, removeFromCart, setQty, extras, toggleExtra } = useStore();
+  // удалённые, но ещё отменяемые: на их месте серая строка с «Вернуть»
+  const [pending, setPending] = useState<string[]>([]);
+  const live = cart.filter((it) => !pending.includes(it.id));
+  const total = cartTotal(live, extras);
+  const pieces = live.reduce((a, it) => a + it.qty, 0);
 
   const remove = (item: CartItem) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-    setUndo({ item, index: cart.findIndex((x) => x.id === item.id) });
-    removeFromCart(item.id);
+    setPending((p) => [...p, item.id]);
+  };
+  const restore = (id: string) => {
+    Haptics.selectionAsync().catch(() => {});
+    setPending((p) => p.filter((x) => x !== id));
+  };
+  const finalize = (id: string) => {
+    removeFromCart(id);
+    setPending((p) => p.filter((x) => x !== id));
+  };
+  const checkout = () => {
+    pending.forEach(removeFromCart);
+    setPending([]);
+    router.push('/checkout');
   };
   const edit = (item: CartItem) =>
     item.tariff === 'print' ? router.push('/print') : router.push({ pathname: '/book/[id]', params: { id: item.projectId } });
@@ -53,7 +60,7 @@ export default function Cart() {
       <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 120 }]}>
         <View style={s.head}>
           <Text style={s.title}>Корзина</Text>
-          {cart.length ? (
+          {live.length ? (
             <Animated.Text entering={FadeIn} style={s.count}>
               {pieces} {plural(pieces, 'товар', 'товара', 'товаров')}
             </Animated.Text>
@@ -80,12 +87,18 @@ export default function Cart() {
             <View>
               {cart.map((it, i) => (
                 <Animated.View key={it.id} entering={enterItem(i)} layout={layout}>
-                  <SwipeToDelete label={it.title} onDelete={() => remove(it)}>
-                    <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
-                  </SwipeToDelete>
+                  {pending.includes(it.id) ? (
+                    <Ghost item={it} onRestore={() => restore(it.id)} onExpire={() => finalize(it.id)} />
+                  ) : (
+                    <SwipeToDelete label={it.title} onDelete={() => remove(it)}>
+                      <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
+                    </SwipeToDelete>
+                  )}
                 </Animated.View>
               ))}
             </View>
+            {live.length ? (
+              <>
             <Animated.Text layout={layout} style={s.hint}>
               Потяните плитку влево, чтобы удалить
             </Animated.Text>
@@ -118,42 +131,64 @@ export default function Cart() {
             </Animated.View>
 
             <Animated.View layout={layout}>
-              <Tap style={s.cta} onPress={() => router.push('/checkout')} accessibilityRole="button" accessibilityLabel={`Оформить, ${rub(total)}`}>
+              <Tap style={s.cta} onPress={checkout} accessibilityRole="button" accessibilityLabel={`Оформить, ${rub(total)}`}>
                 <Text style={s.ctaText}>Оформить</Text>
                 <View style={s.ctaSum}>
                   <AnimatedNumber value={total} format={rub} style={s.ctaTotal} />
                 </View>
               </Tap>
             </Animated.View>
+              </>
+            ) : null}
           </>
         )}
       </ScrollView>
 
-      {undo ? (
-        <Animated.View
-          key={undo.item.id}
-          entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)}
-          exiting={FadeOutDown.duration(duration.quick)}
-          style={[s.toast, { bottom: insets.bottom + 72 }]}
-          accessibilityLiveRegion="polite">
-          <Countdown seconds={5} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.toastText}>Удалено из корзины</Text>
-            <Text style={s.toastSub} numberOfLines={1}>{undo.item.title}</Text>
-          </View>
-          <Tap
-            onPress={() => {
-              restoreToCart(undo.item, undo.index);
-              setUndo(null);
-              Haptics.selectionAsync().catch(() => {});
-            }}
-            accessibilityRole="button"
-            hitSlop={10}>
-            <Text style={s.toastAction}>Вернуть</Text>
-          </Tap>
-        </Animated.View>
-      ) : null}
     </View>
+  );
+}
+
+/**
+ * Серая строка на месте удалённого: блёклая обложка, название, отсчёт и «Вернуть».
+ * Через 5 секунд плавно схлопывается по высоте — соседи подтягиваются без рывка — и позиция уходит из корзины.
+ */
+function Ghost({ item, onRestore, onExpire }: { item: CartItem; onRestore: () => void; onExpire: () => void }) {
+  const h = useSharedValue(0);
+  const shrink = useSharedValue(1);
+  // таймер ставится один раз; свежий обработчик берём из ссылки, чтобы перерисовки его не сбрасывали
+  const expireRef = useRef(onExpire);
+  useEffect(() => {
+    expireRef.current = onExpire;
+  });
+  useEffect(() => {
+    const expire = () => expireRef.current();
+    const t = setTimeout(() => {
+      shrink.value = withTiming(0, { duration: 260, easing: ease.smoothOut }, (d) => {
+        if (d) scheduleOnRN(expire);
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [shrink]);
+  const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, opacity: shrink.value, overflow: 'hidden' } : {}));
+  return (
+    <Animated.View
+      entering={FadeIn.duration(duration.fast)}
+      style={[{ paddingBottom: 10 }, row]}
+      onLayout={(e) => {
+        if (shrink.value === 1) h.value = e.nativeEvent.layout.height;
+      }}>
+      <View style={s.ghost} accessibilityLiveRegion="polite">
+        <Image source={pic(item.cover)} style={s.ghostCover} contentFit="cover" />
+        <View style={{ flex: 1 }}>
+          <Text style={s.ghostText}>Удалено</Text>
+          <Text style={s.ghostSub} numberOfLines={1}>{item.title}</Text>
+        </View>
+        <Countdown seconds={5} />
+        <Tap style={s.ghostBtn} onPress={onRestore} accessibilityRole="button" accessibilityLabel={`Вернуть ${item.title}`} hitSlop={6}>
+          <Text style={s.ghostBtnText}>Вернуть</Text>
+        </Tap>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -172,8 +207,8 @@ function Countdown({ seconds }: { seconds: number }) {
   const ring = useAnimatedProps(() => ({ strokeDashoffset: L * p.value }));
   return (
     <View style={s.cd}>
-      <Svg width={28} height={28} style={StyleSheet.absoluteFill}>
-        <ACircle cx={14} cy={14} r={R} stroke={colors.coralAction} strokeWidth={2} fill="none" strokeDasharray={L} animatedProps={ring} strokeLinecap="round" rotation={-90} origin="14,14" />
+      <Svg width={28} height={28} style={[StyleSheet.absoluteFill, { transform: [{ rotate: '-90deg' }] }]}>
+        <ACircle cx={14} cy={14} r={R} stroke={colors.coralAction} strokeWidth={2} fill="none" strokeDasharray={L} animatedProps={ring} strokeLinecap="round" />
       </Svg>
       <Text style={s.cdText}>{left}</Text>
     </View>
@@ -193,16 +228,11 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
   const start = useSharedValue(0);
   const armed = useSharedValue(false);
   const tick = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-  const h = useSharedValue(0); // высота строки вместе с отступом
-  const shrink = useSharedValue(1); // 1 — строка на месте, 0 — схлопнулась
-  // удаление: плитка улетает → строка плавно схлопывается (соседи подтягиваются следом) → убираем из корзины
+  // плитка улетает — на её месте сразу серая строка с «Вернуть»
   const fly = () => {
     'worklet';
-    x.value = withTiming(-width, { duration: 240, easing: ease.smoothOut }, (done) => {
-      if (!done) return;
-      shrink.value = withTiming(0, { duration: 260, easing: ease.smoothOut }, (d) => {
-        if (d) scheduleOnRN(onDelete);
-      });
+    x.value = withTiming(-width, { duration: 220, easing: ease.smoothOut }, (done) => {
+      if (done) scheduleOnRN(onDelete);
     });
   };
   const pan = usePanGesture({
@@ -238,12 +268,8 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
     opacity: x.value > -4 ? 0 : x.value < -width * 0.8 ? Math.max(0, (x.value + width) / (width * 0.2)) : 1,
   }));
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
-  const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, overflow: 'hidden' } : {}));
   return (
-    <Animated.View style={[{ paddingBottom: 10 }, row]} onLayout={(e) => {
-      // пока строка схлопывается, высоту не перезаписываем
-      if (shrink.value === 1) h.value = e.nativeEvent.layout.height;
-    }}>
+    <Animated.View entering={FadeIn.duration(duration.fast)} style={{ paddingBottom: 10 }}>
       <Animated.View style={[s.delete, back]}>
         <Pressable style={s.deleteHit} onPress={fly} accessibilityRole="button" accessibilityLabel={`Удалить ${label}`}>
           <Animated.View style={[{ alignItems: 'center', gap: 4 }, icon]}>
@@ -379,14 +405,12 @@ const s = StyleSheet.create({
   emptyPrimary: { backgroundColor: colors.coralAction },
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  toast: {
-    position: 'absolute', left: 12, right: 12, minHeight: 58, borderRadius: 26, backgroundColor: '#fff',
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 14, paddingRight: 18, paddingVertical: 9,
-    boxShadow: '0 12px 32px -12px rgba(60,40,30,0.35), 0 0 0 1px rgba(60,40,30,0.06)',
-  },
-  toastText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
-  toastSub: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
-  toastAction: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralAction },
+  ghost: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 72, borderRadius: 22, backgroundColor: colors.card2, paddingLeft: 12, paddingRight: 8 },
+  ghostCover: { width: 44, height: 50, borderRadius: 10, opacity: 0.4 },
+  ghostText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  ghostSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  ghostBtn: { height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#fff', justifyContent: 'center' },
+  ghostBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralAction },
   cd: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   cdText: { fontSize: 12, fontFamily: fonts.bold, color: colors.coralAction, fontVariant: ['tabular-nums'] },
 });
