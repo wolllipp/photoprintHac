@@ -5,16 +5,18 @@ import { router } from 'expo-router';
 import { CaretRightIcon, CheckIcon, DeviceMobileIcon, XIcon } from 'phosphor-react-native';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Photo, Pik, Tap } from '@/components/ui';
-import { delivery, PIK_RATE, phoneMasked, points } from '@/data/demo';
+import { delivery, PIK_RATE, phoneMasked } from '@/data/demo';
 import { rub, useStore } from '@/data/store';
+import { AnimatedNumber, enterItem } from '@/motion';
 import { colors } from '@/theme';
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
-  const { cart, placeOrder } = useStore();
+  const { cart, placeOrder, points } = useStore();
   const [deliveryId, setDeliveryId] = useState<string>(delivery[0].id);
   const [usePiks, setUsePiks] = useState(false);
   const item = cart[0];
@@ -35,7 +37,7 @@ export default function Checkout() {
   const total = Math.round((item.price + d.price - piksOff) * 100) / 100;
 
   const onPay = () => {
-    placeOrder(total);
+    placeOrder(total, usePiks ? points : 0);
     router.dismissAll();
     router.navigate('/orders');
   };
@@ -112,8 +114,8 @@ export default function Checkout() {
         <View style={{ gap: 2, paddingHorizontal: 4 }}>
           <View style={s.sum}><Text style={s.sumL}>Книга</Text><Text style={s.sumR}>{rub(item.price)}</Text></View>
           <View style={s.sum}><Text style={s.sumL}>Доставка</Text><Text style={s.sumR}>{rub(d.price)}</Text></View>
-          {usePiks ? <View style={s.sum}><Text style={s.sumL}>Пики</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(piksOff)}</Text></View> : null}
-          <View style={[s.sum, { paddingTop: 4 }]}><Text style={s.total}>Итого</Text><Text style={s.total}>{rub(total)}</Text></View>
+          {usePiks ? <Animated.View entering={enterItem()} style={s.sum}><Text style={s.sumL}>Пики</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(piksOff)}</Text></Animated.View> : null}
+          <View style={[s.sum, { paddingTop: 4 }]}><Text style={s.total}>Итого</Text><AnimatedNumber value={total} format={rub} style={s.total} /></View>
         </View>
 
         <View style={s.hint}>
@@ -129,7 +131,7 @@ export default function Checkout() {
           <CaretRightIcon size={12} color={colors.fg} weight="bold" />
         </Tap>
         <Tap style={s.pay} onPress={onPay} accessibilityRole="button">
-          <Text style={s.payText}>Оплатить {rub(total)}</Text>
+          <View style={{ flexDirection: 'row' }}><Text style={s.payText}>Оплатить </Text><AnimatedNumber value={total} format={rub} style={s.payText} /></View>
         </Tap>
       </View>
     </View>

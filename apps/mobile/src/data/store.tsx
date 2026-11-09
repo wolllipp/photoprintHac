@@ -4,6 +4,7 @@
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import { points as initialPoints } from '@/data/demo';
 import type { PhotoKey } from '@/theme';
 
 export type TariffId = 'lite' | 'classic' | 'premium';
@@ -29,6 +30,8 @@ export type PlacedOrder = {
   total: number;
   readyBy: string;
   placedAt: Date;
+  /** только что оплачен — экран заказов показывает подтверждение */
+  fresh: boolean;
 };
 
 type Store = {
@@ -36,7 +39,9 @@ type Store = {
   addToCart: (item: Omit<CartItem, 'id'>) => void;
   clearCart: () => void;
   orders: PlacedOrder[];
-  placeOrder: (total: number) => PlacedOrder | null;
+  placeOrder: (total: number, spentPoints?: number) => PlacedOrder | null;
+  points: number;
+  markSeen: () => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -44,6 +49,7 @@ const Ctx = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<PlacedOrder[]>([]);
+  const [points, setPoints] = useState(initialPoints);
 
   const value = useMemo<Store>(
     () => ({
@@ -52,7 +58,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addToCart: (item) => setCart([{ ...item, id: `${item.projectId}-${item.tariff}` }]),
       clearCart: () => setCart([]),
       orders,
-      placeOrder: (total) => {
+      points,
+      markSeen: () => setOrders((o) => o.map((x) => (x.fresh ? { ...x, fresh: false } : x))),
+      placeOrder: (total, spentPoints = 0) => {
         const item = cart[0];
         if (!item) return null;
         const order: PlacedOrder = {
@@ -62,13 +70,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           total,
           readyBy: item.readyBy,
           placedAt: new Date(),
+          fresh: true,
         };
         setOrders((o) => [order, ...o]);
         setCart([]);
+        if (spentPoints) setPoints((p) => Math.max(0, p - spentPoints));
         return order;
       },
     }),
-    [cart, orders],
+    [cart, orders, points],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { StoreProvider } from '@/data/store';
 import { colors } from '@/theme';
@@ -19,6 +20,7 @@ export default function RootLayout() {
   if (!loaded && !error) return null;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <StoreProvider>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -28,7 +30,9 @@ export default function RootLayout() {
         <Stack.Screen name="select" />
         <Stack.Screen name="book/[id]" />
         <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="assistant" />
       </Stack>
     </StoreProvider>
+    </GestureHandlerRootView>
   );
 }

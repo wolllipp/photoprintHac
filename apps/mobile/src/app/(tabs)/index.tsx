@@ -3,11 +3,13 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AskField, MiniServices, MyAlbums, OrderStrip, Suggestions, TopBar } from '@/components/home';
-import { albums, currentOrder, points, suggestions } from '@/data/demo';
+import { albums, currentOrder, suggestions } from '@/data/demo';
+import { useStore } from '@/data/store';
 import { colors } from '@/theme';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
+  const { points } = useStore();
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}

@@ -18,6 +18,7 @@ import type { ComponentType } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Photo, Pik, SectionHeader, SegmentBar, Tap } from '@/components/ui';
+import { AnimatedNumber } from '@/motion';
 import { STAGES, type Album, type CurrentOrder, type Suggestion } from '@/data/demo';
 import { colors, fonts, radius, themeTint, type AlbumTheme } from '@/theme';
 
@@ -30,7 +31,7 @@ export function TopBar({ initial, points }: { initial: string; points: number })
       </Tap>
       <Text style={s.brand} accessibilityRole="header">PicPac</Text>
       <Tap style={s.points} accessibilityRole="button" accessibilityLabel={`${points} пиков, пригласить друга`}>
-        <Text style={s.pointsText}>{points}</Text>
+        <AnimatedNumber value={points} format={String} style={s.pointsText} />
         <Pik />
       </Tap>
     </View>

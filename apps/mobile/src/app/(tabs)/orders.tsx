@@ -4,25 +4,39 @@
  */
 import { router } from 'expo-router';
 import { CheckIcon } from 'phosphor-react-native';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SegmentBar, Tap } from '@/components/ui';
 import { rub, useStore } from '@/data/store';
+import { SuccessCheck } from '@/motion';
 import { colors } from '@/theme';
 
 const LABELS = ['Принят', 'Проверен', 'Печать', 'Доставка', 'Готов'];
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
-  const { orders } = useStore();
+  const { orders, markSeen } = useStore();
   const order = orders[0];
+  const fresh = order?.fresh ?? false;
+  useEffect(() => {
+    if (!fresh) return;
+    const t = setTimeout(markSeen, 6000);
+    return () => clearTimeout(t);
+  }, [fresh, markSeen]);
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 110 }]}>
       <Text style={s.title}>Заказы</Text>
+      {fresh ? (
+        <View style={s.paid}>
+          <SuccessCheck size={36} />
+          <Text style={s.paidText}>Оплачено. Книга уже в очереди на печать</Text>
+        </View>
+      ) : null}
 
       {!order ? (
         <View style={{ gap: 14, paddingTop: 24 }}>
@@ -70,7 +84,7 @@ export default function Orders() {
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Tap style={s.plain} accessibilityRole="button"><Text style={s.plainText}>Поделиться статусом</Text></Tap>
-            <Tap style={s.plain} accessibilityRole="button"><Text style={s.plainText}>Помощь</Text></Tap>
+            <Tap style={s.plain} onPress={() => router.push('/assistant')} accessibilityRole="button"><Text style={s.plainText}>Помощь</Text></Tap>
           </View>
         </>
       )}
@@ -98,6 +112,8 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 14 },
   title: { fontSize: 30, fontWeight: '700', letterSpacing: -0.75, color: colors.fg, paddingTop: 6 },
   emptyText: { fontSize: 16, lineHeight: 22, color: colors.mut },
+  paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.tealTint, borderRadius: 18, padding: 12 },
+  paidText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.fg },
   card: { backgroundColor: colors.card, borderRadius: 26, padding: 18, gap: 12 },
   small: { fontSize: 13, color: colors.mut },
   stage: { fontSize: 30, fontWeight: '700', letterSpacing: -0.75, color: colors.fg },
