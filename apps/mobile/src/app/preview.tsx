@@ -8,10 +8,10 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CaretLeftIcon, PencilSimpleIcon } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { CaretLeftIcon, PencilSimpleIcon, XIcon } from 'phosphor-react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, ZoomIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OverlapTitle } from '@/components/home';
@@ -30,7 +30,8 @@ export default function Preview() {
   const pages = Number(p.pages ?? 24);
   const picked = Math.round(pages * 1.6); // сколько кадров встанет в книгу
   const price = tariffs[1].price;
-  const STAGE = Math.round(width * 1.3);
+  const STAGE = Math.round(width * 1.45);
+  const [open, setOpen] = useState<number | null>(null); // открытый крупно разворот
 
   const build = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -43,12 +44,12 @@ export default function Preview() {
         {/* сцена: кадры альбома фоном сменяют друг друга, к низу уходят в белый */}
         <View style={{ height: STAGE, overflow: 'hidden' }}>
           <Slideshow shots={SHOTS} />
-          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.55)', '#fff']} locations={[0.45, 0.75, 1]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.45)', '#fff']} locations={[0.68, 0.88, 1]} style={StyleSheet.absoluteFill} />
         </View>
 
         <View style={s.body}>
           {/* название с наплывом наезжает на низ стопки */}
-          <View style={{ marginTop: -Math.round(width * 0.3), zIndex: 5 }}>
+          <View style={{ marginTop: -Math.round(width * 0.2), zIndex: 5 }}>
             <OverlapTitle text={title} size={64} maxWidth={width - 40} rgb="29,33,32" warm enter />
           </View>
           <Animated.Text entering={FadeInDown.delay(60).duration(420).easing(ease.smoothOut)} style={s.kind}>
@@ -81,13 +82,20 @@ export default function Preview() {
           <View style={s.grid}>
             {spreads.map((sp, i) => (
               <Animated.View key={i} entering={FadeInDown.delay(300 + i * 60).duration(420).easing(ease.smoothOut)} style={s.cell}>
-                <MiniSpread sp={sp} />
+                <Tap onPress={() => setOpen(i)} accessibilityRole="button" accessibilityLabel={`Открыть разворот ${i + 1} крупно`}>
+                  <MiniSpread sp={sp} />
+                </Tap>
                 <Text style={s.cellLabel}>{i === 0 ? 'Обложка и начало' : `Разворот ${i + 1}`}</Text>
               </Animated.View>
             ))}
           </View>
         </View>
       </ScrollView>
+
+      {/* разворот крупно: листаются соседние, закрыть — крестиком */}
+      <Modal visible={open !== null} transparent animationType="fade" onRequestClose={() => setOpen(null)}>
+        {open !== null ? <Viewer start={open} onClose={() => setOpen(null)} /> : null}
+      </Modal>
 
       {/* назад — стеклянная кнопка поверх сцены */}
       <Tap style={[s.back, { top: insets.top + 8 }]} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Назад" hitSlop={8}>
@@ -99,7 +107,7 @@ export default function Preview() {
 
 /** Кадры альбома для фона. */
 const SHOTS: Pic[] = ['night-window', 'city-sunset', 'friends-night', 'cafe-dessert', 'roses', 'friends-selfie'];
-const EVERY = 3000;
+const EVERY = 5000;
 
 /** Фон-слайдшоу: кадр медленно приближается, через 3 с мягко сменяется следующим. */
 function Slideshow({ shots }: { shots: Pic[] }) {
@@ -110,7 +118,7 @@ function Slideshow({ shots }: { shots: Pic[] }) {
   }, [shots.length]);
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Animated.View key={i} entering={FadeIn.duration(900)} exiting={FadeOut.duration(900)} style={StyleSheet.absoluteFill}>
+      <Animated.View key={i} entering={FadeIn.duration(1400)} exiting={FadeOut.duration(1400)} style={StyleSheet.absoluteFill}>
         <Slow k={shots[i]} />
       </Animated.View>
     </View>
@@ -129,8 +137,43 @@ function Slow({ k }: { k: Pic }) {
   );
 }
 
+/** Просмотр разворотов крупно: свайпом вбок к соседним, внизу — какой из скольких. */
+function Viewer({ start, onClose }: { start: number; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [page, setPage] = useState(start);
+  const pager = useRef<ComponentRef<typeof ScrollView>>(null);
+  return (
+    <View style={s.viewer}>
+      <Tap style={[s.viewerClose, { top: insets.top + 8 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+        <XIcon size={18} color={colors.fg} weight="bold" />
+      </Tap>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        ref={pager}
+        contentOffset={{ x: start * width, y: 0 }}
+        onLayout={() => pager.current?.scrollTo({ x: start * width, animated: false })}
+        onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+        style={{ flexGrow: 0 }}>
+        {spreads.map((sp, i) => (
+          <View key={i} style={{ width, paddingHorizontal: 12, justifyContent: 'center' }}>
+            <Animated.View entering={i === start ? ZoomIn.duration(280).easing(ease.smoothOut) : undefined}>
+              <MiniSpread sp={sp} big />
+            </Animated.View>
+          </View>
+        ))}
+      </ScrollView>
+      <Text style={s.viewerNo}>
+        {page === 0 ? 'Обложка и начало' : `Разворот ${page + 1}`} · {page + 1} из {spreads.length}
+      </Text>
+    </View>
+  );
+}
+
 const count = (l: PageLayout) => (l === 'one' ? 1 : l === 'two' ? 2 : 3);
-function MiniSpread({ sp }: { sp: Spread }) {
+function MiniSpread({ sp, big }: { sp: Spread; big?: boolean }) {
   const page = (layout: PageLayout, shots: Spread['photos']) => {
     const img = (k: Spread['photos'][number], flex = 1) =>
       k ? <Image key={String(k)} source={pic(k)} style={{ flex, borderRadius: 2 }} contentFit="cover" /> : <View style={{ flex, backgroundColor: colors.card2 }} />;
@@ -156,7 +199,7 @@ function MiniSpread({ sp }: { sp: Spread }) {
     );
   };
   return (
-    <View style={s.mini}>
+    <View style={[s.mini, big && s.big]}>
       {page(sp.left, sp.photos.slice(0, count(sp.left)))}
       {page(sp.right, sp.photos.slice(count(sp.left)))}
     </View>
@@ -194,6 +237,10 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: { width: '48.5%', gap: 6 },
+  big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
+  viewer: { flex: 1, backgroundColor: '#fff', justifyContent: 'center', gap: 18 },
+  viewerClose: { position: 'absolute', right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  viewerNo: { textAlign: 'center', fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
   mini: { aspectRatio: 2 / 1.05, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 10, backgroundColor: '#FFFDF9', boxShadow: '0 6px 16px -10px rgba(60,40,30,0.4), 0 0 0 1px rgba(60,40,30,0.06)' },
   miniPage: { flex: 1, gap: 3 },
   cellLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center' },
