@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Photo, Tap } from '@/components/ui';
 import { rub, useStore } from '@/data/store';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 export default function Cart() {
   const insets = useSafeAreaInsets();
@@ -50,15 +50,15 @@ export default function Cart() {
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 16 },
-  title: { fontSize: 30, fontWeight: '700', letterSpacing: -0.75, color: colors.fg, paddingTop: 6 },
+  title: { fontSize: 30, fontFamily: fonts.display, letterSpacing: -0.75, color: colors.fg, paddingTop: 6 },
   empty: { gap: 14, paddingTop: 24, alignItems: 'flex-start' },
-  emptyText: { fontSize: 16, lineHeight: 22, color: colors.mut },
-  group: { backgroundColor: colors.card, borderRadius: 22, overflow: 'hidden' },
+  emptyText: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22, color: colors.mut },
+  group: { backgroundColor: colors.card, borderRadius: 26, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   thumb: { width: 52, height: 52, borderRadius: 10 },
-  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.fg },
-  rowSub: { fontSize: 13, color: colors.mut, marginTop: 1 },
-  value: { fontSize: 16, fontWeight: '600', color: colors.fg, fontVariant: ['tabular-nums'] },
-  btn: { height: 52, paddingHorizontal: 22, borderRadius: 16, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
-  btnText: { fontSize: 17, fontWeight: '600', color: '#fff' },
+  rowTitle: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
+  rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  value: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  btn: { height: 52, paddingHorizontal: 22, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
+  btnText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
 });

@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Photo, Tap } from '@/components/ui';
-import { colors, type PhotoKey } from '@/theme';
+import { colors, fonts, type PhotoKey } from '@/theme';
 
 const GRID: { k: PhotoKey; on: boolean }[] = [
   { k: 'g1', on: true }, { k: 'g2', on: true }, { k: 'g3', on: false }, { k: 'g6', on: true },
@@ -64,7 +64,7 @@ export default function Select() {
 
         <View style={s.hint}>
           <Text style={s.hintText}>
-            Из 133 похожих пейзажей оставили самые разные. <Text style={{ fontWeight: '700' }}>Любое фото можно вернуть</Text> — нажмите на него.
+            Из 133 похожих пейзажей оставили самые разные. <Text style={{ fontFamily: fonts.bold }}>Любое фото можно вернуть</Text> — нажмите на него.
           </Text>
         </View>
       </ScrollView>
@@ -91,9 +91,9 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 14, paddingBottom: 16 },
   card: { backgroundColor: colors.card, borderRadius: 26, padding: 18, gap: 12 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  small: { fontSize: 13, color: colors.mut },
-  big: { fontSize: 44, fontWeight: '700', letterSpacing: -1.3, color: colors.fg, fontVariant: ['tabular-nums'] },
-  of: { fontSize: 17, color: colors.mut },
+  small: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
+  big: { fontSize: 44, fontFamily: fonts.display, letterSpacing: -1.3, color: colors.fg, fontVariant: ['tabular-nums'] },
+  of: { fontSize: 17, fontFamily: fonts.regular, color: colors.mut },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
   cell: { width: '24.2%', aspectRatio: 1 },
   check: {
@@ -102,11 +102,11 @@ const s = StyleSheet.create({
   },
   stats: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 2 },
-  statN: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5, color: colors.fg, fontVariant: ['tabular-nums'] },
-  statL: { fontSize: 13, color: colors.mut, textAlign: 'center' },
+  statN: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg, fontVariant: ['tabular-nums'] },
+  statL: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
   hint: { backgroundColor: colors.tealTint, borderRadius: 20, padding: 14 },
-  hintText: { fontSize: 14, lineHeight: 20, color: colors.fg },
+  hintText: { fontSize: 14, fontFamily: fonts.regular, lineHeight: 20, color: colors.fg },
   bottom: { paddingHorizontal: 18, paddingTop: 10 },
-  cta: { height: 54, borderRadius: 16, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { fontSize: 17, fontWeight: '600', color: '#fff' },
+  cta: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
 });

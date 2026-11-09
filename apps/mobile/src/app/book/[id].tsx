@@ -14,7 +14,7 @@ import { Photo, Tap } from '@/components/ui';
 import { drafts, tariffs, type Tariff } from '@/data/demo';
 import { rub, useStore } from '@/data/store';
 import { flickSpring, sheetSpring } from '@/motion';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -170,9 +170,9 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 4, gap: 10 },
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.fg },
+  navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
   edit: { width: 'auto', paddingHorizontal: 12 },
-  editText: { fontSize: 15, fontWeight: '600', color: colors.coralLink },
+  editText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   spread: {
@@ -187,7 +187,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 999, paddingVertical: 7, paddingLeft: 8, paddingRight: 12,
   },
   okDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
-  okText: { fontSize: 13, fontWeight: '600', color: colors.fg },
+  okText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.fg },
 
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
@@ -197,26 +197,26 @@ const s = StyleSheet.create({
   handle: { alignSelf: 'center', paddingVertical: 4, paddingHorizontal: 24 },
   grab: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
   sheetHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 18 },
-  sheetTitle: { fontSize: 21, fontWeight: '700', letterSpacing: -0.4, color: colors.fg },
-  sheetMeta: { fontSize: 13, color: colors.mut },
+  sheetTitle: { fontSize: 21, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
+  sheetMeta: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
 
   tariffs: { flexDirection: 'row', gap: 8, paddingHorizontal: 18 },
   tariff: { flex: 1, borderRadius: 18, backgroundColor: colors.bg, padding: 10, paddingBottom: 12, gap: 2, borderWidth: 2, borderColor: 'transparent' },
   tariffOn: { backgroundColor: colors.coralTint, borderColor: colors.coralAction },
   bk: { height: 40, justifyContent: 'flex-end', marginBottom: 4 },
   bookIcon: { width: 34, height: 34, borderTopLeftRadius: 2, borderBottomLeftRadius: 2, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
-  tName: { fontSize: 15, fontWeight: '700', color: colors.fg },
-  tPrice: { fontSize: 15, fontWeight: '600', color: colors.fg, fontVariant: ['tabular-nums'] },
-  tWhen: { fontSize: 13, color: colors.mut },
-  about: { fontSize: 14, color: colors.mut, paddingHorizontal: 18, marginTop: -4 },
+  tName: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
+  tPrice: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  tWhen: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
+  about: { fontSize: 14, fontFamily: fonts.regular, color: colors.mut, paddingHorizontal: 18, marginTop: -4 },
 
   seg: { flexDirection: 'row', backgroundColor: colors.card2, borderRadius: 12, padding: 3, marginHorizontal: 18 },
   segItem: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
   segOn: { backgroundColor: colors.card, shadowColor: '#232B2A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  segText: { fontSize: 14, fontWeight: '500', color: colors.mut },
-  segTextOn: { color: colors.fg, fontWeight: '600' },
+  segText: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  segTextOn: { color: colors.fg, fontFamily: fonts.semibold },
 
-  cta: { height: 54, borderRadius: 16, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
-  ctaText: { fontSize: 17, fontWeight: '600', color: '#fff', letterSpacing: -0.15 },
+  cta: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
+  ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff', letterSpacing: -0.15 },
 });
 

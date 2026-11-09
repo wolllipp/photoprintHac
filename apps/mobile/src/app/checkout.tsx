@@ -12,7 +12,7 @@ import { Photo, Pik, Tap } from '@/components/ui';
 import { delivery, PIK_RATE, phoneMasked } from '@/data/demo';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, enterItem } from '@/motion';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
@@ -120,7 +120,7 @@ export default function Checkout() {
 
         <View style={s.hint}>
           <View style={s.okDot}><CheckIcon size={12} color="#fff" weight="bold" /></View>
-          <Text style={s.hintText}><Text style={{ fontWeight: '700' }}>Проверено:</Text> лица в кадре, резкость в норме. Отмена — до начала печати.</Text>
+          <Text style={s.hintText}><Text style={{ fontFamily: fonts.bold }}>Проверено:</Text> лица в кадре, резкость в норме. Отмена — до начала печати.</Text>
         </View>
       </ScrollView>
 
@@ -142,35 +142,35 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 8 },
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  navTitle: { fontSize: 17, fontWeight: '600', color: colors.fg },
+  navTitle: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
   content: { paddingHorizontal: 18, gap: 12, paddingBottom: 24 },
-  group: { backgroundColor: colors.card, borderRadius: 22, overflow: 'hidden' },
+  group: { backgroundColor: colors.card, borderRadius: 26, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13 },
   divider: { position: 'absolute', top: 0, left: 16, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.hair },
   thumb: { width: 52, height: 52, borderRadius: 10 },
-  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.fg, letterSpacing: -0.15 },
-  rowSub: { fontSize: 13, color: colors.mut, marginTop: 1 },
-  value: { fontSize: 16, fontWeight: '600', color: colors.fg, fontVariant: ['tabular-nums'] },
+  rowTitle: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg, letterSpacing: -0.15 },
+  rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  value: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
   sec: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 },
-  secTitle: { fontSize: 21, fontWeight: '700', letterSpacing: -0.4, color: colors.fg },
-  secAction: { fontSize: 15, fontWeight: '500', color: colors.coralLink },
+  secTitle: { fontSize: 21, fontFamily: fonts.bold, letterSpacing: -0.4, color: colors.fg },
+  secAction: { fontSize: 15, fontFamily: fonts.medium, color: colors.coralLink },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.mut2 },
   radioOn: { borderWidth: 7, borderColor: colors.coralAction },
   sum: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
-  sumL: { fontSize: 15, color: colors.mut },
-  sumR: { fontSize: 15, color: colors.fg, fontVariant: ['tabular-nums'] },
-  total: { fontSize: 17, fontWeight: '700', color: colors.fg, fontVariant: ['tabular-nums'] },
+  sumL: { fontSize: 15, fontFamily: fonts.regular, color: colors.mut },
+  sumR: { fontSize: 15, fontFamily: fonts.regular, color: colors.fg, fontVariant: ['tabular-nums'] },
+  total: { fontSize: 17, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
   hint: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: colors.tealTint, borderRadius: 20, padding: 14 },
   okDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  hintText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.fg },
+  hintText: { flex: 1, fontSize: 14, fontFamily: fonts.regular, lineHeight: 20, color: colors.fg },
   paybar: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 18, paddingTop: 10, backgroundColor: colors.bg },
   chip: { height: 54, borderRadius: 16, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
   card: { width: 30, height: 20, borderRadius: 4, backgroundColor: colors.ink2 },
-  chipText: { fontSize: 14, fontWeight: '600', color: colors.fg },
-  pay: { flex: 1, height: 54, borderRadius: 16, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  payText: { fontSize: 17, fontWeight: '600', color: '#fff' },
+  chipText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.fg },
+  pay: { flex: 1, height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  payText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
   empty: { alignItems: 'center', justifyContent: 'center', gap: 14 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.fg },
-  emptyBtn: { height: 48, paddingHorizontal: 22, borderRadius: 14, backgroundColor: colors.coralAction, justifyContent: 'center' },
-  emptyBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  emptyTitle: { fontSize: 20, fontFamily: fonts.bold, color: colors.fg },
+  emptyBtn: { height: 48, paddingHorizontal: 24, borderRadius: 24, backgroundColor: colors.coralAction, justifyContent: 'center' },
+  emptyBtnText: { fontSize: 16, fontFamily: fonts.semibold, color: '#fff' },
 });

@@ -410,7 +410,7 @@ function Tile({
 
 /** Поверхность плитки: ровная заливка одним спокойным тоном, без стекла и объёма. */
 function TileBg(_: { kind: 'peach' | 'teal' | 'plain' | 'coral' }) {
-  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.card2 }]} />;
+  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />;
 }
 
 /** «Общий альбом»: стопка лиц — сразу видно, что альбом на компанию. */

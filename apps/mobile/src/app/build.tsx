@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
 import { Photo, Tap } from '@/components/ui';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 const STEPS = [
   { title: 'Отбираем лучшие кадры', done: '38 из 214' },
@@ -79,14 +79,14 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { flex: 1, paddingHorizontal: 18, gap: 22, paddingTop: 8 },
   collage: { height: 190, flexDirection: 'row', gap: 6, paddingHorizontal: 6 },
-  title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5, color: colors.fg },
-  sub: { fontSize: 15, color: colors.mut },
-  card: { backgroundColor: colors.card, borderRadius: 22, padding: 16, gap: 14 },
+  title: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
+  sub: { fontSize: 15, fontFamily: fonts.regular, color: colors.mut },
+  card: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   ok: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
   wait: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.card2 },
-  rowText: { flex: 1, fontSize: 16, color: colors.fg },
-  rowMeta: { fontSize: 13, color: colors.mut },
-  stop: { height: 54, borderRadius: 16, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
-  stopText: { fontSize: 17, fontWeight: '600', color: colors.fg },
+  rowText: { flex: 1, fontSize: 16, fontFamily: fonts.regular, color: colors.fg },
+  rowMeta: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
+  stop: { height: 54, borderRadius: 27, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
+  stopText: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
 });

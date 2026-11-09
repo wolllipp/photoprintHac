@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { parseStory } from '@/ai/story';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 const CHIPS = ['Путешествие', 'Ребёнок', 'Свадьба', 'Выпускной', 'Новый год'];
 const DEMO = 'Книга про поездку в Карелию, тёплая, на 24 страницы, больше пейзажей';
@@ -103,26 +103,26 @@ const s = StyleSheet.create({
   chips: { paddingHorizontal: 18, gap: 8 },
   chip: { height: 34, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink2 },
-  chipText: { fontSize: 14, fontWeight: '500', color: colors.fg },
+  chipText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
   chipTextOn: { color: '#fff' },
   inputCard: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 10 },
-  input: { fontSize: 19, lineHeight: 26, fontWeight: '500', color: colors.fg, minHeight: 80, textAlignVertical: 'top' },
+  input: { fontSize: 19, lineHeight: 26, fontFamily: fonts.medium, color: colors.fg, minHeight: 80, textAlignVertical: 'top' },
   inputFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  hint: { fontSize: 13, color: colors.mut },
+  hint: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
   mic: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.coralTint, alignItems: 'center', justifyContent: 'center' },
   micOn: { backgroundColor: colors.coralAction },
   parse: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 10 },
-  lbl: { fontSize: 13, color: colors.mut, paddingLeft: 4 },
+  lbl: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, paddingLeft: 4 },
   prow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bg, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12 },
   pico: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  ptitle: { fontSize: 15.5, fontWeight: '600', color: colors.fg },
-  psub: { fontSize: 13, color: colors.mut },
-  pval: { fontSize: 15.5, fontWeight: '600', color: colors.fg, fontVariant: ['tabular-nums'] },
+  ptitle: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
+  psub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
+  pval: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
   btns: { flexDirection: 'row', gap: 10, paddingTop: 2 },
-  btn: { flex: 1, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  btn: { flex: 1, height: 48, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   btnPlain: { backgroundColor: colors.card2 },
-  btnPlainText: { fontSize: 16, fontWeight: '600', color: colors.fg },
+  btnPlainText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
   btnPrimary: { backgroundColor: colors.coralAction },
-  btnPrimaryText: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  empty: { fontSize: 15, lineHeight: 21, color: colors.mut, paddingHorizontal: 4 },
+  btnPrimaryText: { fontSize: 16, fontFamily: fonts.semibold, color: '#fff' },
+  empty: { fontSize: 15, fontFamily: fonts.regular, lineHeight: 21, color: colors.mut, paddingHorizontal: 4 },
 });

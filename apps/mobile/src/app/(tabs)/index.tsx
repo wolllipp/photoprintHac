@@ -43,7 +43,7 @@ export default function Home() {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
           useNativeDriver: true,
           listener: (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-            const next = e.nativeEvent.contentOffset.y < height - insets.top - 40;
+            const next = e.nativeEvent.contentOffset.y < height * 0.25;
             if (next !== overPhoto) setOverPhoto(next);
             const top = e.nativeEvent.contentOffset.y < 30;
             if (top !== atTop) setAtTop(top);

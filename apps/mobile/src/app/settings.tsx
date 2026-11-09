@@ -47,7 +47,7 @@ const s = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   navTitle: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  group: { backgroundColor: colors.card, borderRadius: 22 },
+  group: { backgroundColor: colors.card, borderRadius: 26 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
   title: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
   sub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.regular, color: colors.mut, marginTop: 3 },

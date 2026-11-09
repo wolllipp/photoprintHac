@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SegmentBar, Tap } from '@/components/ui';
 import { rub, useStore } from '@/data/store';
 import { SuccessCheck } from '@/motion';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 const LABELS = ['Принят', 'Проверен', 'Печать', 'Доставка', 'Готов'];
 
@@ -110,27 +110,27 @@ function Step({ title, sub, done, now }: { title: string; sub: string; done?: bo
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 14 },
-  title: { fontSize: 30, fontWeight: '700', letterSpacing: -0.75, color: colors.fg, paddingTop: 6 },
-  emptyText: { fontSize: 16, lineHeight: 22, color: colors.mut },
-  paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.tealTint, borderRadius: 18, padding: 12 },
-  paidText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.fg },
+  title: { fontSize: 30, fontFamily: fonts.display, letterSpacing: -0.75, color: colors.fg, paddingTop: 6 },
+  emptyText: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22, color: colors.mut },
+  paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 26, padding: 14 },
+  paidText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   card: { backgroundColor: colors.card, borderRadius: 26, padding: 18, gap: 12 },
-  small: { fontSize: 13, color: colors.mut },
-  stage: { fontSize: 30, fontWeight: '700', letterSpacing: -0.75, color: colors.fg },
-  when: { fontSize: 17, fontWeight: '700', color: colors.fg },
+  small: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
+  stage: { fontSize: 30, fontFamily: fonts.display, letterSpacing: -0.75, color: colors.fg },
+  when: { fontSize: 17, fontFamily: fonts.bold, color: colors.fg },
   labels: { flexDirection: 'row', justifyContent: 'space-between' },
-  label: { fontSize: 13, color: colors.mut },
-  labelOn: { color: colors.coralLink, fontWeight: '600' },
+  label: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
+  labelOn: { color: colors.coralLink, fontFamily: fonts.semibold },
   live: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.bg, borderRadius: 16, padding: 12 },
   liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.coralAction },
-  liveTitle: { fontSize: 15, fontWeight: '600', color: colors.fg },
-  group: { backgroundColor: colors.card, borderRadius: 22, paddingVertical: 4 },
+  liveTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  group: { backgroundColor: colors.card, borderRadius: 26, paddingVertical: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
   okDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.mut2 },
-  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.fg },
-  plain: { flex: 1, height: 46, borderRadius: 14, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' },
-  plainText: { fontSize: 15, fontWeight: '600', color: colors.fg },
-  btn: { height: 52, borderRadius: 16, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  btnText: { fontSize: 17, fontWeight: '600', color: '#fff' },
+  rowTitle: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
+  plain: { flex: 1, height: 46, borderRadius: 23, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' },
+  plainText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  btn: { height: 52, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  btnText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
 });

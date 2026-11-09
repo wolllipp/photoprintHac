@@ -12,7 +12,7 @@ import { checkDefect, quickAnswer, type ClaimVerdict } from '@/ai/assistant';
 import { NavBar } from '@/components/nav';
 import { Photo, Tap } from '@/components/ui';
 import { enterItem, SuccessCheck, ThinkingLine } from '@/motion';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 type Msg =
   | { id: number; from: 'me'; text: string }
@@ -125,32 +125,32 @@ export default function Assistant() {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  status: { textAlign: 'center', fontSize: 12, color: colors.tealInk, marginTop: -6, marginBottom: 6 },
+  status: { textAlign: 'center', fontSize: 12, fontFamily: fonts.regular, color: colors.tealInk, marginTop: -6, marginBottom: 6 },
   list: { paddingHorizontal: 18, gap: 10, paddingBottom: 12 },
   left: { alignSelf: 'flex-start', maxWidth: '86%' },
   right: { alignSelf: 'flex-end', maxWidth: '80%' },
   bubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20 },
   me: { backgroundColor: colors.coralAction, borderBottomRightRadius: 6 },
   bot: { backgroundColor: colors.card, borderBottomLeftRadius: 6 },
-  text: { fontSize: 15.5, lineHeight: 21, color: colors.fg },
+  text: { fontSize: 15.5, fontFamily: fonts.regular, lineHeight: 21, color: colors.fg },
   photo: { width: 150, height: 110, borderRadius: 16, overflow: 'hidden' },
   stripe: { position: 'absolute', left: 0, right: 0, top: '46%', height: 6, backgroundColor: 'rgba(255,255,255,0.75)' },
   card: { backgroundColor: colors.card, borderRadius: 20, padding: 14, gap: 8, width: 300 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.fg },
-  free: { fontSize: 12, fontWeight: '600', color: colors.tealInk, backgroundColor: colors.tealTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+  cardTitle: { flex: 1, fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
+  free: { fontSize: 12, fontFamily: fonts.semibold, color: colors.tealInk, backgroundColor: colors.tealTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
   kv: { flexDirection: 'row', justifyContent: 'space-between' },
-  k: { fontSize: 14, color: colors.mut },
-  v: { fontSize: 14, fontWeight: '600', color: colors.fg },
-  cta: { height: 46, borderRadius: 13, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  ctaText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  k: { fontSize: 14, fontFamily: fonts.regular, color: colors.mut },
+  v: { fontSize: 14, fontFamily: fonts.semibold, color: colors.fg },
+  cta: { height: 46, borderRadius: 23, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  ctaText: { fontSize: 16, fontFamily: fonts.semibold, color: '#fff' },
   done: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  doneText: { flex: 1, fontSize: 14, lineHeight: 19, color: colors.fg },
+  doneText: { flex: 1, fontSize: 14, fontFamily: fonts.regular, lineHeight: 19, color: colors.fg },
   chips: { paddingHorizontal: 18, gap: 8, paddingVertical: 8 },
   chip: { height: 34, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' },
-  chipText: { fontSize: 14, fontWeight: '500', color: colors.fg },
+  chipText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 6 },
   round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   send: { backgroundColor: colors.coralAction },
-  input: { flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.card, paddingHorizontal: 16, fontSize: 15.5, color: colors.fg },
+  input: { flex: 1, height: 44, borderRadius: 26, backgroundColor: colors.card, paddingHorizontal: 16, fontSize: 15.5, fontFamily: fonts.regular, color: colors.fg },
 });

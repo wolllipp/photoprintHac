@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Tap } from '@/components/ui';
-import { colors } from '@/theme';
+import { colors, fonts } from '@/theme';
 
 /** Шапка вложенного экрана: «назад», заголовок по центру, необязательное действие справа. */
 export function NavBar({ title, right }: { title: string; right?: ReactNode }) {
@@ -22,5 +22,5 @@ export function NavBar({ title, right }: { title: string; right?: ReactNode }) {
 const s = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 8, gap: 10 },
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.fg },
+  title: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
 });
