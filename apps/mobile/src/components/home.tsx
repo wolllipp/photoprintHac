@@ -228,7 +228,7 @@ function SlideView({
   }, [active, zoom]);
   const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
   const titleSize = Math.max(36, Math.min(50, Math.round(width * 0.118)));
-  const titleStyle = { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.07) };
+  const titleStyle = { fontSize: titleSize, lineHeight: Math.round(titleSize * 0.98) };
   const photo = slide.kind === 'welcome' ? slide.photo : slide.item.photo;
   return (
     <View style={{ width, height, overflow: 'hidden' }}>
@@ -410,7 +410,7 @@ const s = StyleSheet.create({
   points: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16 },
   pointsText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff', fontVariant: ['tabular-nums'] },
 
-  center: { position: 'absolute', left: 0, right: 0, top: 112, alignItems: 'flex-start', paddingHorizontal: 22, gap: 8 },
+  center: { position: 'absolute', left: 0, right: 0, top: 168, alignItems: 'flex-start', paddingHorizontal: 22, gap: 8 },
   kicker: { fontSize: 17, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.88)', letterSpacing: 0.1 },
   title: { fontSize: 44, lineHeight: 50, fontFamily: fonts.display, letterSpacing: -1.2, color: '#fff' },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.88)', textAlign: 'center', maxWidth: 320 },
