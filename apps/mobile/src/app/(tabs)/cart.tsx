@@ -106,8 +106,10 @@ export default function Cart() {
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: on }}
                       accessibilityLabel={`${e.title}, ${e.sub}, плюс ${rub(e.price)}`}>
-                      <Text style={s.extraTitle} numberOfLines={2}>{e.title}</Text>
-                      <Text style={s.extraSub} numberOfLines={2}>{e.sub}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.extraTitle} numberOfLines={1}>{e.title}</Text>
+                        <Text style={s.extraSub} numberOfLines={1}>{e.sub}</Text>
+                      </View>
                       <Text style={[s.extraPrice, on && { color: colors.coralAction }]}>+{rub(e.price)}</Text>
                     </Tap>
                   );
@@ -345,13 +347,13 @@ const s = StyleSheet.create({
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
 
-  extras: { flexDirection: 'row', gap: 10 },
+  extras: { gap: 8 },
   // выбранная — только рамкой, без значков и галочек
-  extra: { flex: 1, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 10, gap: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  extra: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 2, borderColor: 'transparent' },
   extraOn: { borderColor: colors.coralAction },
-  extraTitle: { fontSize: 15, lineHeight: 19, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
-  extraSub: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
-  extraPrice: { marginTop: 4, fontSize: 14, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  extraTitle: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg },
+  extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut },
+  extraPrice: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginTop: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
