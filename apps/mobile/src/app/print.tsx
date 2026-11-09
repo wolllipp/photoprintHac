@@ -96,7 +96,7 @@ export default function Print() {
           <AnimatedNumber value={total} format={rub} style={s.ctaText} />
         </Tap>
       </View>
-      <AddedToast shown={added.shown} bottom={insets.bottom + 80} />
+      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 80} />
     </View>
   );
 }

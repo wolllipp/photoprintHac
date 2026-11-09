@@ -1,23 +1,32 @@
 /**
- * Заказы → отслеживание как у такси: этап крупно, полоса из 5 сегментов, живая строка с производства.
- * Этапы и прогресс позже приходят из GET /orders/{id} (таблицы order_stages, production_progress).
+ * Заказы — статус наглядно: обложка, этап крупно, «будет …», шкала из пяти точек на одной линии
+ * (пройденные — коралловые, текущая пульсирует), живая строка «что сейчас». Под заказом —
+ * «На экран блокировки» (превью Live Activity) и «Помощь». Ниже — все заказы.
+ * Этапы и прогресс в продукте приходят из GET /orders/{id} (order_stages, production_progress).
  */
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { CheckIcon } from 'phosphor-react-native';
-import { useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ChatCircleTextIcon, DeviceMobileIcon, XIcon } from 'phosphor-react-native';
+import { useEffect, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SegmentBar, Tap } from '@/components/ui';
-import { rub, useStore } from '@/data/store';
-import { SuccessCheck } from '@/motion';
+import { Tap } from '@/components/ui';
+import { pic } from '@/data/photos';
+import { rub, useStore, type PlacedOrder } from '@/data/store';
+import { ease, SuccessCheck } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-const LABELS = ['Принят', 'Проверен', 'Печать', 'Доставка', 'Готов'];
+const STAGES = ['Принят', 'Проверен', 'Печать', 'В пути', 'Готов'];
+const NOW = ['Принят', 'Проверяем макет', 'Печатаем', 'В пути', 'Можно забирать'];
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
   const { orders, markSeen } = useStore();
+  const [lock, setLock] = useState(false);
+  const [onLock, setOnLock] = useState<string | null>(null);
   const order = orders[0];
   const fresh = order?.fresh ?? false;
   useEffect(() => {
@@ -27,110 +36,250 @@ export default function Orders() {
   }, [fresh, markSeen]);
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 110 }]}>
-      <Text style={s.title}>Заказы</Text>
-      {fresh ? (
-        <View style={s.paid}>
-          <SuccessCheck size={36} />
-          <Text style={s.paidText}>Оплачено. Книга уже в очереди на печать</Text>
-        </View>
-      ) : null}
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false}>
+        <Text style={s.title}>Заказы</Text>
 
-      {!order ? (
-        <View style={{ gap: 14, paddingTop: 24 }}>
-          <Text style={s.emptyText}>Заказов пока нет. Оформленные книги появятся здесь со статусом печати.</Text>
-          <Tap style={s.btn} onPress={() => router.navigate('/')} accessibilityRole="button">
-            <Text style={s.btnText}>На главную</Text>
-          </Tap>
-        </View>
-      ) : (
-        <>
-          <View style={s.card}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <View>
-                <Text style={s.small}>Сейчас</Text>
-                <Text style={s.stage}>Печатаем</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={s.small}>Будет у вас</Text>
-                <Text style={s.when}>{order.readyBy}</Text>
-              </View>
-            </View>
-            <View style={{ gap: 6 }}>
-              <SegmentBar total={5} done={2} height={7} />
-              <View style={s.labels}>
-                {LABELS.map((l, i) => (
-                  <Text key={l} style={[s.label, i === 2 && s.labelOn]}>{l}</Text>
+        {fresh ? (
+          <Animated.View entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.paid}>
+            <SuccessCheck size={32} />
+            <Text style={s.paidText}>Оплачено. Книга уже в очереди на печать</Text>
+          </Animated.View>
+        ) : null}
+
+        {!order ? (
+          <View style={s.empty}>
+            <Text style={s.emptyTitle}>Заказов пока нет</Text>
+            <Text style={s.emptyText}>Оформленные книги появятся здесь — со статусом печати и доставки.</Text>
+          </View>
+        ) : (
+          <>
+            <Animated.View entering={FadeInDown.delay(60).duration(420).easing(ease.smoothOut)}>
+              <OrderCard order={order} />
+            </Animated.View>
+
+            <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={s.actions}>
+              <Tap style={[s.btn, s.btnMain]} onPress={() => setLock(true)} accessibilityRole="button">
+                <DeviceMobileIcon size={18} color="#fff" weight="bold" />
+                <Text style={[s.btnText, { color: '#fff' }]}>{onLock === order.id ? 'На экране блокировки' : 'На экран блокировки'}</Text>
+              </Tap>
+              <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
+                <ChatCircleTextIcon size={18} color={colors.fg} weight="bold" />
+                <Text style={s.btnText}>Помощь</Text>
+              </Tap>
+            </Animated.View>
+
+            {orders.length > 1 ? (
+              <Animated.View entering={FadeInDown.delay(180).duration(420).easing(ease.smoothOut)} style={{ gap: 8 }}>
+                <Text style={s.h2}>Все заказы</Text>
+                {orders.slice(1).map((o) => (
+                  <View key={o.id} style={s.row}>
+                    <Image source={pic(o.cover)} style={s.rowCover} contentFit="cover" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.rowTitle} numberOfLines={1}>{o.title}</Text>
+                      <Text style={s.rowSub}>№{o.id} · {STAGES[o.stage].toLowerCase()}</Text>
+                    </View>
+                    <Text style={s.rowSum}>{rub(o.total)}</Text>
+                  </View>
                 ))}
-              </View>
-            </View>
-            <View style={s.live}>
-              <View style={s.liveDot} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.liveTitle}>Готово 6 из 12 разворотов</Text>
-                <Text style={s.small}>линия фотокниг · обновлено 2 мин назад</Text>
-              </View>
-            </View>
-          </View>
+              </Animated.View>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
 
-          <View style={s.group}>
-            <Step done title="Принят и оплачен" sub={`№${order.id} · ${rub(order.total)}`} />
-            <Step done title="Макет проверен" sub="лица, резкость, обрез — всё в норме" />
-            <Step now title="Печатаем" sub="затем переплёт и упаковка" />
-            <Step title="Передаём в Европочту" sub="появится трек-номер" />
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Tap style={s.plain} accessibilityRole="button"><Text style={s.plainText}>Поделиться статусом</Text></Tap>
-            <Tap style={s.plain} onPress={() => router.push('/assistant')} accessibilityRole="button"><Text style={s.plainText}>Помощь</Text></Tap>
-          </View>
-        </>
-      )}
-    </ScrollView>
+      {/* превью статуса на экране блокировки (Live Activity) */}
+      <Modal visible={lock} transparent animationType="fade" onRequestClose={() => setLock(false)}>
+        {order ? (
+          <LockPreview
+            order={order}
+            added={onLock === order.id}
+            onAdd={() => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+              setOnLock(order.id);
+            }}
+            onClose={() => setLock(false)}
+          />
+        ) : null}
+      </Modal>
+    </View>
   );
 }
 
-function Step({ title, sub, done, now }: { title: string; sub: string; done?: boolean; now?: boolean }) {
+/** Карточка заказа: обложка, название, этап крупно, «будет …», шкала и живая строка. */
+function OrderCard({ order }: { order: PlacedOrder }) {
   return (
-    <View style={[s.row, !done && !now && { opacity: 0.45 }]} accessibilityLabel={`${title}${done ? ', готово' : now ? ', сейчас' : ''}`}>
-      {done ? (
-        <View style={s.okDot}><CheckIcon size={12} color="#fff" weight="bold" /></View>
-      ) : (
-        <View style={[s.dot, now && { borderWidth: 6, borderColor: colors.coralAction }]} />
-      )}
-      <View style={{ flex: 1 }}>
-        <Text style={s.rowTitle}>{title}</Text>
-        <Text style={s.small}>{sub}</Text>
+    <View style={s.card}>
+      <View style={s.cardHead}>
+        <Image source={pic(order.cover)} style={s.cover} contentFit="cover" />
+        <View style={{ flex: 1 }}>
+          <Text style={s.cardTitle} numberOfLines={1}>{order.title}</Text>
+          <Text style={s.cardSub}>№{order.id} · {order.tariffName} · {rub(order.total)}</Text>
+        </View>
+      </View>
+
+      <View style={s.statusRow}>
+        <Text style={s.stage}>{NOW[order.stage]}</Text>
+        <Text style={s.eta}>будет {order.readyBy}</Text>
+      </View>
+
+      <Track stage={order.stage} />
+
+      <View style={s.live}>
+        <LiveDot />
+        <Text style={s.liveText} numberOfLines={2}>{order.live}</Text>
+      </View>
+    </View>
+  );
+}
+
+/** Шкала: пять точек на одной линии; пройденное — коралловое, текущая точка пульсирует. */
+function Track({ stage }: { stage: number }) {
+  return (
+    <View>
+      <View style={s.track}>
+        <View style={s.line} />
+        <View style={[s.line, s.lineDone, { width: `${(stage / (STAGES.length - 1)) * 100}%` }]} />
+        {STAGES.map((st, i) => (
+          <View key={st} style={s.nodeWrap}>
+            {i === stage ? <Pulse /> : null}
+            <View style={[s.node, i <= stage && s.nodeDone, i === stage && s.nodeNow]} />
+          </View>
+        ))}
+      </View>
+      <View style={s.labels}>
+        {STAGES.map((st, i) => (
+          <Text key={st} style={[s.label, i === stage && s.labelNow, i < stage && { color: colors.fg }]} numberOfLines={1}>
+            {st}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Pulse() {
+  const v = useSharedValue(0);
+  useEffect(() => {
+    v.value = withRepeat(withTiming(1, { duration: 1400 }), -1, false);
+  }, [v]);
+  const a = useAnimatedStyle(() => ({ opacity: 0.45 * (1 - v.value), transform: [{ scale: 1 + v.value * 1.4 }] }));
+  return <Animated.View style={[s.pulse, a]} />;
+}
+
+function LiveDot() {
+  const v = useSharedValue(0);
+  useEffect(() => {
+    v.value = withRepeat(withTiming(1, { duration: 900 }), -1, true);
+  }, [v]);
+  const a = useAnimatedStyle(() => ({ opacity: 0.35 + 0.65 * v.value }));
+  return <Animated.View style={[s.liveDot, a]} />;
+}
+
+/** Как статус будет выглядеть на заблокированном iPhone. В продукте — Live Activity (нужна нативная сборка). */
+function LockPreview({ order, added, onAdd, onClose }: { order: PlacedOrder; added: boolean; onAdd: () => void; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={s.lockScreen}>
+      <Tap style={[s.lockClose, { top: insets.top + 8 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+        <XIcon size={18} color="#fff" weight="bold" />
+      </Tap>
+      <Text style={s.lockTime}>9:41</Text>
+      <Text style={s.lockDate}>вторник, 10 ноября</Text>
+
+      <Animated.View entering={FadeInDown.delay(150).duration(500).easing(ease.smoothOut)} style={s.activity}>
+        <View style={s.actHead}>
+          <Image source={pic(order.cover)} style={s.actCover} contentFit="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={s.actTitle} numberOfLines={1}>{order.title}</Text>
+            <Text style={s.actSub}>picPac · будет {order.readyBy}</Text>
+          </View>
+          <Text style={s.actStage}>{NOW[order.stage]}</Text>
+        </View>
+        <View style={s.actBar}>
+          <View style={[s.actFill, { width: `${((order.stage + 0.5) / STAGES.length) * 100}%` }]} />
+        </View>
+      </Animated.View>
+
+      <View style={{ flex: 1 }} />
+      <View style={[s.lockBottom, { paddingBottom: insets.bottom + 16 }]}>
+        <Text style={s.lockHint}>Статус обновляется сам: печать, отправка, «можно забирать». Без открытия приложения.</Text>
+        {added ? (
+          <Animated.View entering={FadeIn.duration(250)} style={[s.lockBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <Text style={s.lockBtnText}>Добавлено на экран блокировки</Text>
+          </Animated.View>
+        ) : (
+          <Tap style={s.lockBtn} onPress={onAdd} accessibilityRole="button">
+            <Text style={s.lockBtnText}>Добавить</Text>
+          </Tap>
+        )}
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  content: { paddingHorizontal: 18, gap: 14 },
+  content: { paddingHorizontal: 16, gap: 14 },
   title: { fontSize: 36, lineHeight: 42, fontFamily: fonts.display, letterSpacing: -0.9, color: colors.fg, paddingTop: 6 },
-  emptyText: { fontSize: 16, fontFamily: fonts.regular, lineHeight: 22, color: colors.mut },
-  paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 26, padding: 14 },
+  h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
+
+  paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 22, padding: 14 },
   paidText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
-  card: { backgroundColor: colors.card, borderRadius: 26, padding: 18, gap: 12 },
-  small: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
-  stage: { fontSize: 30, fontFamily: fonts.display, letterSpacing: -0.75, color: colors.fg },
-  when: { fontSize: 17, fontFamily: fonts.bold, color: colors.fg },
-  labels: { flexDirection: 'row', justifyContent: 'space-between' },
-  label: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
-  labelOn: { color: colors.coralLink, fontFamily: fonts.semibold },
-  live: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.bg, borderRadius: 16, padding: 12 },
-  liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.coralAction },
-  liveTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
-  group: { backgroundColor: colors.card, borderRadius: 26, paddingVertical: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 11 },
-  okDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.mut2 },
-  rowTitle: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
-  plain: { flex: 1, height: 46, borderRadius: 23, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' },
-  plainText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
-  btn: { height: 52, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  btnText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
+
+  card: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 16 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cover: { width: 52, height: 60, borderRadius: 12 },
+  cardTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.fg },
+  cardSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
+  statusRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  stage: { flexShrink: 1, fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
+  eta: { fontSize: 16, fontFamily: fonts.bold, color: colors.coralAction },
+
+  track: { height: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  line: { position: 'absolute', left: 7, right: 7, height: 4, borderRadius: 2, backgroundColor: colors.card2 },
+  lineDone: { right: undefined, backgroundColor: colors.coralAction, maxWidth: '96%' },
+  nodeWrap: { width: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
+  node: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.card2, borderWidth: 3, borderColor: colors.card },
+  nodeDone: { backgroundColor: colors.coralAction },
+  nodeNow: { width: 18, height: 18, borderRadius: 9, borderWidth: 4, borderColor: '#fff' },
+  pulse: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: colors.coralAction },
+  labels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  label: { width: 64, marginHorizontal: -25, textAlign: 'center', fontSize: 12, fontFamily: fonts.medium, color: colors.mut2 },
+  labelNow: { color: colors.coralAction, fontFamily: fonts.bold },
+
+  live: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.bg, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
+  liveText: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
+
+  actions: { flexDirection: 'row', gap: 8 },
+  btn: { flex: 1, height: 50, borderRadius: 25, backgroundColor: colors.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  btnMain: { flex: 1.5, backgroundColor: colors.coralAction },
+  btnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, padding: 10, paddingRight: 16 },
+  rowCover: { width: 44, height: 52, borderRadius: 10 },
+  rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
+  rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  rowSum: { fontSize: 15, fontFamily: fonts.display, color: colors.fg },
+
+  empty: { backgroundColor: colors.card, borderRadius: 26, padding: 20, gap: 6 },
+  emptyTitle: { fontSize: 22, fontFamily: fonts.display, color: colors.fg },
+  emptyText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut },
+
+  lockScreen: { flex: 1, backgroundColor: '#1E2A33', alignItems: 'center', paddingHorizontal: 16 },
+  lockClose: { position: 'absolute', right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  lockTime: { marginTop: 110, fontSize: 84, lineHeight: 92, fontFamily: fonts.semibold, color: '#fff', letterSpacing: -2 },
+  lockDate: { fontSize: 17, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.8)' },
+  activity: { alignSelf: 'stretch', marginTop: 36, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 26, padding: 14, gap: 12 },
+  actHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  actCover: { width: 40, height: 46, borderRadius: 9 },
+  actTitle: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
+  actSub: { fontSize: 12.5, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.7)' },
+  actStage: { fontSize: 15, fontFamily: fonts.display, color: colors.peachStrong },
+  actBar: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
+  actFill: { height: 6, borderRadius: 3, backgroundColor: colors.peachStrong },
+  lockBottom: { alignSelf: 'stretch', gap: 12 },
+  lockHint: { fontSize: 14, lineHeight: 20, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
+  lockBtn: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  lockBtnText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
 });

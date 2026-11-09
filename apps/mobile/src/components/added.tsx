@@ -5,6 +5,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { XIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
@@ -26,10 +27,10 @@ export function useAdded() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setShown((x) => ({ n: (x?.n ?? 0) + 1, title, cover }));
   };
-  return { shown, show };
+  return { shown, show, hide: () => setShown(null) };
 }
 
-export function AddedToast({ shown, bottom }: { shown: { n: number; title: string; cover: Pic } | null; bottom: number }) {
+export function AddedToast({ shown, bottom, onHide }: { shown: { n: number; title: string; cover: Pic } | null; bottom: number; onHide: () => void }) {
   if (!shown) return null;
   const open = () => {
     router.dismissAll();
@@ -50,6 +51,9 @@ export function AddedToast({ shown, bottom }: { shown: { n: number; title: strin
       <Tap style={s.btn} onPress={open} accessibilityRole="button" accessibilityLabel="Открыть корзину" hitSlop={6}>
         <Text style={s.btnText}>Открыть</Text>
       </Tap>
+      <Tap style={s.close} onPress={onHide} accessibilityRole="button" accessibilityLabel="Скрыть" hitSlop={8}>
+        <XIcon size={14} color={colors.mut} weight="bold" />
+      </Tap>
     </Animated.View>
   );
 }
@@ -57,12 +61,13 @@ export function AddedToast({ shown, bottom }: { shown: { n: number; title: strin
 const s = StyleSheet.create({
   toast: {
     position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', borderRadius: 24, padding: 10, paddingRight: 10,
+    backgroundColor: '#fff', borderRadius: 24, padding: 10, paddingRight: 6,
     boxShadow: '0 12px 32px -12px rgba(60,40,30,0.35), 0 0 0 1px rgba(60,40,30,0.06)',
   },
   cover: { width: 44, height: 44, borderRadius: 12 },
   title: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
   sub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   btn: { height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.coralAction, justifyContent: 'center' },
+  close: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
 });

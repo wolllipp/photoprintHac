@@ -9,13 +9,13 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceTile } from '@/components/choice';
 import { Pik, Tap } from '@/components/ui';
-import { delivery, payments, PIK_RATE, phoneMasked } from '@/data/demo';
+import { delivery, payments, PIK_RATE } from '@/data/demo';
 import { pic } from '@/data/photos';
 import { cartTotal, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease } from '@/motion';
@@ -23,7 +23,13 @@ import { colors, fonts } from '@/theme';
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
-  const { cart, placeOrder, points, extras } = useStore();
+  const { cart, placeOrder, points, extras, cards, cardId, phone, setPhone } = useStore();
+  const card = cards.find((c) => c.id === cardId) ?? cards[0];
+  // телефон: смотреть → ввести новый → код из SMS (демо-код 0000)
+  const [phoneStep, setPhoneStep] = useState<'view' | 'edit' | 'code'>('view');
+  const [draftPhone, setDraftPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [codeErr, setCodeErr] = useState(false);
   const [deliveryId, setDeliveryId] = useState<string>(delivery[0].id);
   const [payId, setPayId] = useState<string>(payments[0].id);
   const [usePiks, setUsePiks] = useState(false);
@@ -56,7 +62,7 @@ export default function Checkout() {
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
       <View style={s.nav}>
-        <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+        <Tap style={s.round} onPress={() => (router.canGoBack() ? router.back() : router.replace('/cart'))} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
           <XIcon size={16} color={colors.fg} weight="bold" />
         </Tap>
       </View>
@@ -91,9 +97,18 @@ export default function Checkout() {
 
         <Animated.View entering={enter(3)} style={s.section}>
           <Text style={s.h2}>Оплата</Text>
-          {payments.map((x) => (
-            <ChoiceTile key={x.id} title={x.title} sub={x.sub} on={x.id === payId} onPick={() => setPayId(x.id)} />
-          ))}
+          {/* карта: выбрана — нажатие открывает колесо карт, чтобы сменить или добавить */}
+          <ChoiceTile
+            title={`${card.brand} •• ${card.last4}`}
+            sub={`${card.bank} · нажмите, чтобы сменить`}
+            on={payId === 'card'}
+            onPick={() => (payId === 'card' ? router.push('/cards') : setPayId('card'))}
+          />
+          {payments
+            .filter((x) => x.id !== 'card')
+            .map((x) => (
+              <ChoiceTile key={x.id} title={x.title} sub={x.sub} on={x.id === payId} onPick={() => setPayId(x.id)} />
+            ))}
           <View style={s.row}>
             <Pik size={28} />
             <View style={{ flex: 1 }}>
@@ -116,13 +131,75 @@ export default function Checkout() {
 
         <Animated.View entering={enter(4)} style={s.section}>
           <Text style={s.h2}>Получатель</Text>
-          <View style={s.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.rowTitle}>{phoneMasked}</Text>
-              <Text style={s.rowSub}>код из SMS — только при первом заказе</Text>
+          {phoneStep === 'view' ? (
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowTitle}>{phone}</Text>
+                <Text style={s.rowSub}>код из SMS — только при первом заказе</Text>
+              </View>
+              <Tap onPress={() => setPhoneStep('edit')} accessibilityRole="button" hitSlop={10}>
+                <Text style={s.link}>Изменить</Text>
+              </Tap>
             </View>
-            <Text style={s.link}>Изменить</Text>
-          </View>
+          ) : phoneStep === 'edit' ? (
+            <Animated.View entering={FadeInDown.duration(260).easing(ease.smoothOut)} style={s.editBox}>
+              <TextInput
+                value={draftPhone}
+                onChangeText={(t) => setDraftPhone(formatPhone(t))}
+                placeholder="+375 __ ___-__-__"
+                placeholderTextColor={colors.mut2}
+                keyboardType="phone-pad"
+                autoFocus
+                style={s.input}
+                accessibilityLabel="Новый номер телефона"
+              />
+              <View style={s.editBtns}>
+                <Tap style={[s.small, s.smallPlain]} onPress={() => setPhoneStep('view')} accessibilityRole="button">
+                  <Text style={s.smallPlainText}>Отмена</Text>
+                </Tap>
+                <Tap
+                  style={[s.small, draftPhone.replace(/\D/g, '').length < 12 && { opacity: 0.4 }]}
+                  disabled={draftPhone.replace(/\D/g, '').length < 12}
+                  onPress={() => {
+                    setCode('');
+                    setCodeErr(false);
+                    setPhoneStep('code');
+                  }}
+                  accessibilityRole="button">
+                  <Text style={s.smallText}>Получить код</Text>
+                </Tap>
+              </View>
+            </Animated.View>
+          ) : (
+            <Animated.View entering={FadeInDown.duration(260).easing(ease.smoothOut)} style={s.editBox}>
+              <Text style={s.rowSub}>Код из SMS на {draftPhone} · в демо — 0000</Text>
+              <TextInput
+                value={code}
+                onChangeText={(t) => {
+                  const c = t.replace(/\D/g, '').slice(0, 4);
+                  setCode(c);
+                  setCodeErr(false);
+                  if (c.length === 4) {
+                    if (c === '0000') {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                      setPhone(draftPhone);
+                      setPhoneStep('view');
+                    } else {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                      setCodeErr(true);
+                    }
+                  }
+                }}
+                placeholder="• • • •"
+                placeholderTextColor={colors.mut2}
+                keyboardType="number-pad"
+                autoFocus
+                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
+                accessibilityLabel="Код из SMS"
+              />
+              {codeErr ? <Text style={s.err}>Код не подошёл — проверьте SMS</Text> : null}
+            </Animated.View>
+          )}
         </Animated.View>
 
         <Animated.View entering={enter(5)} style={s.sums}>
@@ -151,6 +228,15 @@ export default function Checkout() {
   );
 }
 
+/** +375 29 123-45-67 — по мере ввода. */
+function formatPhone(t: string) {
+  let d = t.replace(/\D/g, '');
+  if (!d.startsWith('375')) d = `375${d.replace(/^375?/, '')}`;
+  d = d.slice(0, 12);
+  const p = [d.slice(0, 3), d.slice(3, 5), d.slice(5, 8), d.slice(8, 10), d.slice(10, 12)];
+  return `+${p[0]}${p[1] ? ` ${p[1]}` : ''}${p[2] ? ` ${p[2]}` : ''}${p[3] ? `-${p[3]}` : ''}${p[4] ? `-${p[4]}` : ''}`;
+}
+
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   nav: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
@@ -171,6 +257,15 @@ const s = StyleSheet.create({
   rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
   rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   link: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
+  editBox: { backgroundColor: colors.card, borderRadius: 22, padding: 12, gap: 10 },
+  input: { height: 50, borderRadius: 16, backgroundColor: '#fff', paddingHorizontal: 14, fontSize: 18, fontFamily: fonts.semibold, color: colors.fg, borderWidth: 2, borderColor: 'transparent' },
+  code: { textAlign: 'center', letterSpacing: 10, fontSize: 22 },
+  err: { fontSize: 13, fontFamily: fonts.medium, color: colors.coralAction, textAlign: 'center' },
+  editBtns: { flexDirection: 'row', gap: 8 },
+  small: { flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  smallText: { fontSize: 15, fontFamily: fonts.semibold, color: '#fff' },
+  smallPlain: { backgroundColor: colors.card2 },
+  smallPlainText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
   sums: { gap: 4, paddingHorizontal: 4 },
   sum: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

@@ -159,7 +159,7 @@ export default function BookScreen() {
           <Text style={s.ctaText}>В корзину</Text>
         </Tap>
       </Animated.View>
-      <AddedToast shown={added.shown} bottom={insets.bottom + 84} />
+      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 84} />
     </View>
   );
 }

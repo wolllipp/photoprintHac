@@ -126,11 +126,19 @@ export const delivery = [
 ] as const;
 
 export const payments = [
-  { id: 'card', title: 'Карта •• 4242', sub: 'Visa, сохранена' },
+  { id: 'card', title: 'Карта', sub: 'сохранённая' },
   { id: 'erip', title: 'ЕРИП', sub: 'номер для оплаты придёт в SMS' },
 ] as const;
 
 export const phoneMasked = '+375 29 •••-••-67';
+
+/** Сохранённые карты (демо). Цвета — градиент лица карты. */
+export type Card = { id: string; brand: 'Visa' | 'Mastercard' | 'Белкарт'; last4: string; bank: string; colors: [string, string] };
+export const cards: Card[] = [
+  { id: 'c1', brand: 'Visa', last4: '4242', bank: 'Приорбанк', colors: ['#2B2F36', '#596273'] },
+  { id: 'c2', brand: 'Mastercard', last4: '5571', bank: 'Беларусбанк', colors: ['#B84F4B', '#E39A86'] },
+  { id: 'c3', brand: 'Белкарт', last4: '0938', bank: 'БПС-Сбербанк', colors: ['#1F6F67', '#5CB3A8'] },
+];
 
 /** Цена пика пока не утверждена (Алеся, #30) — условно 1 пик = 0,01 р. */
 export const PIK_RATE = 0.01;

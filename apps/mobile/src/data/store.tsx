@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { points as initialPoints } from '@/data/demo';
-import type { Spread } from '@/data/demo';
+import { cards as demoCards, phoneMasked, type Card, type Spread } from '@/data/demo';
 import type { Pic } from '@/data/photos';
 
 export type TariffId = 'lite' | 'classic' | 'premium' | 'print';
@@ -46,6 +46,25 @@ export type PlacedOrder = {
   placedAt: Date;
   /** только что оплачен — экран заказов показывает подтверждение */
   fresh: boolean;
+  cover: Pic;
+  /** этап: 0 принят · 1 проверен · 2 печать · 3 в пути · 4 готов */
+  stage: number;
+  /** что сейчас происходит на этапе — одной строкой */
+  live: string;
+};
+
+/** Заказ, который уже в пути (его же показывает плитка на главной). */
+const DEMO_ORDER: PlacedOrder = {
+  id: '4792088',
+  title: 'Юбилей мамы',
+  tariffName: 'Classic',
+  total: 72.9,
+  readyBy: 'завтра',
+  placedAt: new Date(2026, 10, 6),
+  fresh: false,
+  cover: 'bouquet',
+  stage: 3,
+  live: 'Европочта · ПВЗ №112, Притыцкого, 29',
 };
 
 type Store = {
@@ -60,6 +79,13 @@ type Store = {
   setPending: (fn: (p: string[]) => string[]) => void;
   /** сколько штук в корзине — одно число и для шапки корзины, и для значка на вкладке */
   cartCount: number;
+  /** карты оплаты и выбранная; телефон получателя */
+  cards: Card[];
+  cardId: string;
+  setCardId: (id: string) => void;
+  addCard: (c: Card) => void;
+  phone: string;
+  setPhone: (p: string) => void;
   extras: ExtraId[];
   toggleExtra: (id: ExtraId) => void;
   clearCart: () => void;
@@ -84,13 +110,16 @@ const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<PlacedOrder[]>([]);
+  const [orders, setOrders] = useState<PlacedOrder[]>([DEMO_ORDER]);
   const [points, setPoints] = useState(initialPoints);
   const [tabBarHidden, setTabBarHidden] = useState(true);
   const [showIntro, setShowIntroState] = useState(true);
   const [design, setDesign] = useState<Spread[] | null>(null);
   const [extras, setExtras] = useState<ExtraId[]>([]);
   const [pending, setPending] = useState<string[]>([]);
+  const [cardList, setCardList] = useState<Card[]>(demoCards);
+  const [cardId, setCardId] = useState(demoCards[0].id);
+  const [phone, setPhone] = useState(phoneMasked);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -112,18 +141,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       cart,
       // та же книга с тем же тарифом обновляется на месте, остальное добавляется
+      // другой тариф, формат или ламинация — отдельная позиция; тот же вариант ещё раз — +1 экземпляр
       addToCart: (item) =>
         setCart((c) => {
-          const id = `${item.projectId}-${item.tariff}`;
-          const at = c.findIndex((x) => x.projectId === item.projectId);
-          const next = { ...item, id, qty: at >= 0 ? c[at].qty : 1 };
-          return at >= 0 ? c.map((x, i) => (i === at ? next : x)) : [...c, next];
+          const id = `${item.projectId}-${item.tariff}-${item.format}-${item.finish}`;
+          const at = c.findIndex((x) => x.id === id);
+          return at >= 0 ? c.map((x, i) => (i === at ? { ...x, qty: Math.min(20, x.qty + 1) } : x)) : [...c, { ...item, id, qty: 1 }];
         }),
       removeFromCart: (id) => setCart((c) => c.filter((x) => x.id !== id)),
       restoreToCart: (item, index) => setCart((c) => [...c.slice(0, index), item, ...c.slice(index)]),
       setQty: (id, qty) => setCart((c) => c.map((x) => (x.id === id ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x))),
       pending,
       setPending,
+      cards: cardList,
+      cardId,
+      setCardId,
+      addCard: (c) => {
+        setCardList((l) => [...l, c]);
+        setCardId(c.id);
+      },
+      phone,
+      setPhone,
       cartCount: cart.filter((x) => !pending.includes(x.id)).reduce((a, x) => a + x.qty, 0),
       extras,
       toggleExtra: (id) => setExtras((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id])),
@@ -148,6 +186,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           readyBy: item.readyBy,
           placedAt: new Date(),
           fresh: true,
+          cover: item.cover,
+          stage: 1,
+          live: 'макет проверен — ставим в очередь печати',
         };
         setOrders((o) => [order, ...o]);
         setCart([]);
@@ -156,7 +197,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
