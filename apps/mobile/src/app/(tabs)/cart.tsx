@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -85,19 +85,20 @@ export default function Cart() {
             <View>
               {cart.map((it, i) => (
                 <Animated.View key={it.id} entering={enterItem(i)}>
-                  {pending.includes(it.id) ? (
-                    <Ghost item={it} onRestore={() => restore(it.id)} onExpire={() => finalize(it.id)} />
-                  ) : (
-                    <SwipeToDelete label={it.title} onDelete={() => remove(it)}>
-                      <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
-                    </SwipeToDelete>
-                  )}
+                  <CartRow
+                    item={it}
+                    deleted={pending.includes(it.id)}
+                    onDelete={() => remove(it)}
+                    onRestore={() => restore(it.id)}
+                    onExpire={() => finalize(it.id)}>
+                    <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
+                  </CartRow>
                 </Animated.View>
               ))}
             </View>
             {/* последний товар удалён — блок сразу уходит вниз */}
             {live.length ? (
-              <Animated.View exiting={FadeOutDown.duration(320).easing(ease.smoothOut)} style={{ gap: 14 }}>
+              <Animated.View exiting={SlideOutDown.duration(420).easing(Easing.in(Easing.cubic))} style={{ gap: 14 }}>
             <Animated.Text style={s.hint}>
               Потяните плитку влево, чтобы удалить
             </Animated.Text>
@@ -147,50 +148,6 @@ export default function Cart() {
   );
 }
 
-/**
- * Серая строка на месте удалённого: блёклая обложка, название, отсчёт и «Вернуть».
- * Через 5 секунд плавно схлопывается по высоте — соседи подтягиваются без рывка — и позиция уходит из корзины.
- */
-function Ghost({ item, onRestore, onExpire }: { item: CartItem; onRestore: () => void; onExpire: () => void }) {
-  const h = useSharedValue(0);
-  const shrink = useSharedValue(1);
-  // таймер ставится один раз; свежий обработчик берём из ссылки, чтобы перерисовки его не сбрасывали
-  const expireRef = useRef(onExpire);
-  useEffect(() => {
-    expireRef.current = onExpire;
-  });
-  useEffect(() => {
-    const expire = () => expireRef.current();
-    const t = setTimeout(() => {
-      shrink.value = withTiming(0, { duration: 260, easing: ease.smoothOut }, (d) => {
-        if (d) scheduleOnRN(expire);
-      });
-    }, 5000);
-    return () => clearTimeout(t);
-  }, [shrink]);
-  const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, opacity: shrink.value, overflow: 'hidden' } : {}));
-  return (
-    <Animated.View
-      entering={FadeIn.duration(duration.fast)}
-      style={[{ paddingBottom: 10 }, row]}
-      onLayout={(e) => {
-        if (shrink.value === 1) h.value = e.nativeEvent.layout.height;
-      }}>
-      <View style={s.ghost} accessibilityLiveRegion="polite">
-        <Image source={pic(item.cover)} style={s.ghostCover} contentFit="cover" />
-        <View style={{ flex: 1 }}>
-          <Text style={s.ghostText}>Удалено</Text>
-          <Text style={s.ghostSub} numberOfLines={1}>{item.title}</Text>
-        </View>
-        <Countdown seconds={5} />
-        <Tap style={s.ghostBtn} onPress={onRestore} accessibilityRole="button" accessibilityLabel={`Вернуть ${item.title}`} hitSlop={6}>
-          <Text style={s.ghostBtnText}>Вернуть</Text>
-        </Tap>
-      </View>
-    </Animated.View>
-  );
-}
-
 /** Круговой отсчёт до исчезновения «Вернуть»: кольцо тает, внутри — секунды. */
 const ACircle = Animated.createAnimatedComponent(Circle);
 function Countdown({ seconds }: { seconds: number }) {
@@ -215,26 +172,45 @@ function Countdown({ seconds }: { seconds: number }) {
 }
 
 /**
- * Удаление как в Telegram: плитка едет за пальцем, красная подложка растёт следом.
- * Короткий свайп оставляет кнопку «Удалить», длинный (за половину ширины) — щелчок вибрацией
- * и при отпускании плитка улетает и удаляется. Быстрый бросок тоже удаляет.
+ * Строка корзины. Удаление как в Telegram: плитка едет за пальцем, красная подложка растёт следом.
+ * Короткий свайп оставляет кнопку «Удалить», длинный (за половину ширины) — щелчок вибрацией.
+ * Отпустил — плитка возвращается на место и прямо на месте становится серой «Удалено · Вернуть»
+ * с отсчётом 5 секунд; ничего не пропадает и не появляется заново. По истечении строка плавно
+ * схлопывается по высоте (соседи подтягиваются следом) и товар уходит из корзины.
  */
-function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete: () => void; children: React.ReactNode }) {
+function CartRow({
+  item,
+  deleted,
+  onDelete,
+  onRestore,
+  onExpire,
+  children,
+}: {
+  item: CartItem;
+  deleted: boolean;
+  onDelete: () => void;
+  onRestore: () => void;
+  onExpire: () => void;
+  children: React.ReactNode;
+}) {
   const { width } = useWindowDimensions();
   const OPEN = -96;
   const FULL = -(width - 32) * 0.5;
   const x = useSharedValue(0);
   const start = useSharedValue(0);
   const armed = useSharedValue(false);
+  const h = useSharedValue(0);
+  const shrink = useSharedValue(1);
   const tick = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-  // плитка улетает — на её месте сразу серая строка с «Вернуть»
-  const fly = () => {
+
+  // удалить: плитка возвращается на место, поверх проявляется серое состояние
+  const commit = () => {
     'worklet';
-    x.value = withTiming(-width, { duration: 220, easing: ease.smoothOut }, (done) => {
-      if (done) scheduleOnRN(onDelete);
-    });
+    x.value = withTiming(0, { duration: 220, easing: ease.smoothOut });
+    scheduleOnRN(onDelete);
   };
   const pan = usePanGesture({
+    enabled: !deleted,
     activeOffsetX: [-12, 12],
     failOffsetY: [-10, 10],
     onBegin: () => {
@@ -244,7 +220,6 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
     onUpdate: (e) => {
       'worklet';
       const next = start.value + e.translationX;
-      // вправо — с резиновым сопротивлением, влево — за пальцем
       x.value = next > 0 ? next * 0.15 : next;
       const a = x.value < FULL;
       if (a !== armed.value) {
@@ -254,23 +229,42 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
     },
     onDeactivate: (e) => {
       'worklet';
-      if (x.value < FULL || (e.velocityX < -1400 && x.value < OPEN / 2)) fly();
+      if (x.value < FULL || (e.velocityX < -1400 && x.value < OPEN / 2)) commit();
       else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 30, stiffness: 300 });
       else x.value = withSpring(0, { damping: 30, stiffness: 300 });
       armed.value = false;
     },
   });
+
+  // 5 секунд на «Вернуть», потом схлопываемся; обработчик берём из ссылки, чтобы перерисовки не сбрасывали таймер
+  const expireRef = useRef(onExpire);
+  useEffect(() => {
+    expireRef.current = onExpire;
+  });
+  useEffect(() => {
+    if (!deleted) return;
+    const expire = () => expireRef.current();
+    const t = setTimeout(() => {
+      shrink.value = withTiming(0, { duration: 260, easing: ease.smoothOut }, (d) => {
+        if (d) scheduleOnRN(expire);
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [deleted, shrink]);
+
   const tile = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  const back = useAnimatedStyle(() => ({
-    width: Math.max(0, -x.value - 8),
-    // пока плитка улетает, подложка гаснет — к удалению строки на её месте пусто
-    opacity: x.value > -4 ? 0 : x.value < -width * 0.8 ? Math.max(0, (x.value + width) / (width * 0.2)) : 1,
-  }));
+  const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
+  const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, opacity: shrink.value, overflow: 'hidden' } : {}));
+
   return (
-    <Animated.View entering={FadeIn.duration(duration.fast)} style={{ paddingBottom: 10 }}>
+    <Animated.View
+      style={[{ paddingBottom: 10 }, row]}
+      onLayout={(e) => {
+        if (shrink.value === 1) h.value = e.nativeEvent.layout.height;
+      }}>
       <Animated.View style={[s.delete, back]}>
-        <Pressable style={s.deleteHit} onPress={fly} accessibilityRole="button" accessibilityLabel={`Удалить ${label}`}>
+        <Pressable style={s.deleteHit} onPress={commit} accessibilityRole="button" accessibilityLabel={`Удалить ${item.title}`}>
           <Animated.View style={[{ alignItems: 'center', gap: 4 }, icon]}>
             <TrashIcon size={22} color="#fff" weight="fill" />
             <Text style={s.deleteText} numberOfLines={1}>Удалить</Text>
@@ -278,7 +272,22 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
         </Pressable>
       </Animated.View>
       <GestureDetector gesture={pan}>
-        <Animated.View style={tile}>{children}</Animated.View>
+        <Animated.View style={tile}>
+          {children}
+          {deleted ? (
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, s.ghost]} accessibilityLiveRegion="polite">
+              <Image source={pic(item.cover)} style={s.ghostCover} contentFit="cover" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.ghostText}>Удалено</Text>
+                <Text style={s.ghostSub} numberOfLines={1}>{item.title}</Text>
+              </View>
+              <Countdown seconds={5} />
+              <Tap style={s.ghostBtn} onPress={onRestore} accessibilityRole="button" accessibilityLabel={`Вернуть ${item.title}`} hitSlop={6}>
+                <Text style={s.ghostBtnText}>Вернуть</Text>
+              </Tap>
+            </Animated.View>
+          ) : null}
+        </Animated.View>
       </GestureDetector>
     </Animated.View>
   );
@@ -404,7 +413,7 @@ const s = StyleSheet.create({
   emptyPrimary: { backgroundColor: colors.coralAction },
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  ghost: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 136, borderRadius: 26, backgroundColor: colors.card2, padding: 12, paddingRight: 14 },
+  ghost: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 26, backgroundColor: colors.card2, padding: 12, paddingRight: 14 },
   ghostCover: { width: 84, height: '100%', borderRadius: 14, opacity: 0.35 },
   ghostText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   ghostSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
