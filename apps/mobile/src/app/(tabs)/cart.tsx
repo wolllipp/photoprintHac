@@ -6,7 +6,6 @@
  * отклик сразу (вибрация, пересчёт суммы), пространственная связность (соседи сдвигаются, а не прыгают).
  */
 import * as Haptics from 'expo-haptics';
-import { GlassView } from 'expo-glass-effect';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -19,7 +18,6 @@ import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, FadeOu
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NATIVE_GLASS } from '@/components/glass';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore, type CartItem } from '@/data/store';
@@ -81,7 +79,7 @@ export default function Cart() {
           <>
             <View style={{ gap: 10 }}>
               {cart.map((it, i) => (
-                <Animated.View key={it.id} entering={enterItem(i)} exiting={FadeOut.duration(duration.fast)} layout={layout}>
+                <Animated.View key={it.id} entering={enterItem(i)} exiting={FadeOut.duration(duration.micro)} layout={layout}>
                   <SwipeToDelete label={it.title} onDelete={() => remove(it)}>
                     <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
                   </SwipeToDelete>
@@ -181,7 +179,7 @@ function Countdown({ seconds }: { seconds: number }) {
   return (
     <View style={s.cd}>
       <Svg width={28} height={28} style={StyleSheet.absoluteFill}>
-        <ACircle cx={14} cy={14} r={R} stroke="#fff" strokeWidth={2} fill="none" strokeDasharray={L} animatedProps={ring} strokeLinecap="round" rotation={-90} origin="14,14" />
+        <ACircle cx={14} cy={14} r={R} stroke={colors.coralAction} strokeWidth={2} fill="none" strokeDasharray={L} animatedProps={ring} strokeLinecap="round" rotation={-90} origin="14,14" />
       </Svg>
       <Text style={s.cdText}>{left}</Text>
     </View>
@@ -234,7 +232,11 @@ function SwipeToDelete({ label, onDelete, children }: { label: string; onDelete:
     },
   });
   const tile = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
+  const back = useAnimatedStyle(() => ({
+    width: Math.max(0, -x.value - 8),
+    // пока плитка улетает, подложка гаснет — к удалению строки на её месте пусто
+    opacity: x.value > -4 ? 0 : x.value < -width * 0.8 ? Math.max(0, (x.value + width) / (width * 0.2)) : 1,
+  }));
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
   return (
     <View>
@@ -260,8 +262,8 @@ function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void;
       {/* фон: та же фотография, сильно размытая, к правому краю тает в цвет плитки */}
       <View style={s.ambientWrap} pointerEvents="none">
         <Image source={pic(item.cover)} style={s.ambient} contentFit="cover" blurRadius={28} />
-        {/* серый слой в режиме «насыщенность» снимает цвет с фото под ним — фон чёрно-белый */}
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#808080', mixBlendMode: 'saturation' }]} />
+        {/* светлая вуаль приглушает цвет — фон спокойный, обложка выделяется */}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(241,234,227,0.5)' }]} />
       </View>
       <LinearGradient
         pointerEvents="none"
@@ -274,19 +276,15 @@ function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void;
       {/* обложка — чёткая, как книга на полке */}
       <View style={s.cover}>
         <Image source={pic(item.cover)} style={StyleSheet.absoluteFill} contentFit="cover" />
-        {/* стекло поверх обложки: на iOS 26 системное, иначе блик и светлая кромка */}
-        {NATIVE_GLASS ? (
-          <GlassView pointerEvents="none" glassEffectStyle="clear" style={[StyleSheet.absoluteFill, { borderRadius: 14 }]} />
-        ) : (
-          <LinearGradient
-            pointerEvents="none"
-            colors={['rgba(255,255,255,0.42)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
-            locations={[0, 0.45, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[StyleSheet.absoluteFill, s.glassEdge]}
-          />
-        )}
+        {/* стекло поверх обложки: блик из угла и светлая кромка */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(255,255,255,0.42)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
+          locations={[0, 0.45, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, s.glassEdge]}
+        />
       </View>
       <Pressable style={StyleSheet.absoluteFill} onPress={onEdit} accessibilityRole="button" accessibilityLabel={`${item.title}, ${rub(item.price * item.qty)}, изменить`} />
       <View style={s.info} pointerEvents="box-none">
@@ -332,7 +330,7 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
 
   tile: { height: 124, borderRadius: 26, overflow: 'hidden', backgroundColor: colors.card },
-  ambientWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, isolation: 'isolate', overflow: 'hidden' },
+  ambientWrap: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, overflow: 'hidden' },
   ambient: { position: 'absolute', left: -30, top: -30, bottom: -30, right: -30 },
   glassEdge: { borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)' },
   cover: { position: 'absolute', left: 12, top: 12, bottom: 12, width: 84, borderRadius: 14, overflow: 'hidden', boxShadow: '0 6px 14px -6px rgba(0,0,0,0.35)' },
@@ -372,13 +370,13 @@ const s = StyleSheet.create({
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
   toast: {
-    position: 'absolute', left: 12, right: 12, minHeight: 54, borderRadius: 18, backgroundColor: 'rgba(29,33,32,0.94)',
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 12, paddingRight: 16, paddingVertical: 8,
-    boxShadow: '0 10px 30px -10px rgba(0,0,0,0.35)',
+    position: 'absolute', left: 12, right: 12, minHeight: 58, borderRadius: 26, backgroundColor: '#fff',
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 14, paddingRight: 18, paddingVertical: 9,
+    boxShadow: '0 12px 32px -12px rgba(60,40,30,0.35), 0 0 0 1px rgba(60,40,30,0.06)',
   },
-  toastText: { fontSize: 14.5, fontFamily: fonts.semibold, color: '#fff' },
-  toastSub: { fontSize: 12.5, fontFamily: fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 1 },
-  toastAction: { fontSize: 15, fontFamily: fonts.bold, color: colors.peachStrong },
+  toastText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
+  toastSub: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  toastAction: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralAction },
   cd: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  cdText: { fontSize: 12, fontFamily: fonts.bold, color: '#fff', fontVariant: ['tabular-nums'] },
+  cdText: { fontSize: 12, fontFamily: fonts.bold, color: colors.coralAction, fontVariant: ['tabular-nums'] },
 });
