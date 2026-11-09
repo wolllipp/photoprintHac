@@ -314,18 +314,19 @@ function CartRow({
   );
 }
 
-/** Допуслуга: при выборе обводка плавно проявляется с лёгким коралловым свечением, плитка чуть «вздыхает». */
+/** Допуслуга: при выборе обводка плавно проявляется, на миг вспыхивает лёгкое коралловое свечение и гаснет, плитка чуть «вздыхает». */
 function ExtraTile({ title, sub, price, on, onToggle }: { title: string; sub: string; price: number; on: boolean; onToggle: () => void }) {
   const v = useSharedValue(on ? 1 : 0);
   const pop = useSharedValue(1);
+  const glow = useSharedValue(0); // вспышка свечения в момент выбора, потом гаснет
   useEffect(() => {
     v.value = withTiming(on ? 1 : 0, { duration: 260, easing: ease.smoothOut });
   }, [on, v]);
   const frame = useAnimatedStyle(() => ({
     borderColor: interpolateColor(v.value, [0, 1], ['rgba(184,79,75,0)', colors.coralAction]),
     shadowColor: colors.coralAction,
-    shadowOpacity: 0.28 * v.value,
-    shadowRadius: 10 * v.value,
+    shadowOpacity: 0.32 * glow.value,
+    shadowRadius: 12 * glow.value,
     shadowOffset: { width: 0, height: 0 },
     transform: [{ scale: pop.value }],
   }));
@@ -335,6 +336,7 @@ function ExtraTile({ title, sub, price, on, onToggle }: { title: string; sub: st
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         pop.set(withSequence(withTiming(1.02, { duration: 110 }), withTiming(1, { duration: 180, easing: ease.smoothOut })));
+        if (!on) glow.set(withSequence(withTiming(1, { duration: 140 }), withTiming(0, { duration: 520, easing: ease.smoothOut })));
         onToggle();
       }}
       accessibilityRole="checkbox"
