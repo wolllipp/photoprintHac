@@ -8,10 +8,10 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CaretLeftIcon, PencilSimpleIcon, XIcon } from 'phosphor-react-native';
+import { ArrowDownIcon, CaretLeftIcon, PencilSimpleIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,18 +32,29 @@ export default function Preview() {
   const picked = Math.round(pages * 1.6); // сколько кадров встанет в книгу
   const price = tariffs[1].price;
   // сцена почти на весь экран: сначала видно снимки, название и кнопки, описание — уже при прокрутке
-  const STAGE = Math.round(Math.max(width * 1.3, height - 240));
+  // сцена такой высоты, чтобы кнопка «Выбрать тариф» кончалась в 64 точках от низа: там — «Пролистните»,
+  // цифры и описание — уже ниже края (название ~120, подпись и отступы ~50, кнопка 56, наплыв на снимок −0,2 ширины)
+  const STAGE = Math.round(Math.max(width * 1.1, height - 64 - (226 - width * 0.2)));
+  const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
   const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
 
-  const build = () => {
+  // книга уже собрана: дальше — выбрать тариф и в корзину
+  const next = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    router.push('/build');
+    router.push({ pathname: '/book/[id]', params: { id: 'karelia' } });
   };
 
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const v = e.nativeEvent.contentOffset.y > 40;
+          if (v !== scrolled) setScrolled(v);
+        }}>
         {/* сцена: кадры альбома фоном сменяют друг друга, к низу уходят в белый */}
         <View style={{ height: STAGE, overflow: 'hidden' }}>
           <Slideshow shots={SHOTS} />
@@ -65,8 +76,8 @@ export default function Preview() {
           </Animated.Text>
 
           <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={s.actions}>
-            <Tap style={s.cta} onPress={build} accessibilityRole="button" accessibilityLabel={`Собрать книгу, ${rub(price)}`}>
-              <Text style={s.ctaText}>Собрать книгу</Text>
+            <Tap style={s.cta} onPress={next} accessibilityRole="button" accessibilityLabel={`Выбрать тариф, от ${rub(price)}`}>
+              <Text style={s.ctaText}>Выбрать тариф</Text>
             </Tap>
             <Tap style={s.edit} onPress={() => router.push({ pathname: '/editor', params: { id: 'karelia' } })} accessibilityRole="button" accessibilityLabel="Править">
               <PencilSimpleIcon size={20} color={colors.fg} weight="bold" />
@@ -75,7 +86,9 @@ export default function Preview() {
 
           <Animated.View entering={FadeInDown.delay(180).duration(420).easing(ease.smoothOut)} style={s.stats}>
             <Stat value={<AnimatedNumber value={pages} format={String} style={s.statNum} />} label="страниц" />
-            <Stat value={<AnimatedNumber value={picked} format={String} style={s.statNum} />} label="фото" />
+            <Tap style={{ flex: 1 }} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel={`${picked} фото, посмотреть отбор`}>
+              <Stat value={<AnimatedNumber value={picked} format={String} style={[s.statNum, { color: colors.coralAction }]} />} label="фото ›" />
+            </Tap>
             <Stat value={<Text style={s.statNum}>{rub(price).replace(' р.', '')}</Text>} label="рублей" />
           </Animated.View>
 
@@ -105,6 +118,14 @@ export default function Preview() {
         </View>
       </ScrollView>
 
+      {/* подсказка: ниже есть описание и развороты */}
+      {!scrolled ? (
+        <Animated.View entering={FadeIn.delay(900).duration(500)} exiting={FadeOut.duration(200)} style={[s.scrollHint, { bottom: insets.bottom + 6 }]} pointerEvents="none">
+          <Text style={s.scrollHintText}>Пролистните</Text>
+          <Bob />
+        </Animated.View>
+      ) : null}
+
       {/* разворот крупно: листаются соседние, закрыть — крестиком */}
       <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
         {open !== null ? <Viewer start={open.i} from={open.from} onClose={() => setOpen(null)} /> : null}
@@ -115,6 +136,20 @@ export default function Preview() {
         <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
       </Tap>
     </View>
+  );
+}
+
+/** Стрелка вниз мягко покачивается. */
+function Bob() {
+  const y = useSharedValue(0);
+  useEffect(() => {
+    y.value = withRepeat(withSequence(withTiming(4, { duration: 650, easing: Easing.inOut(Easing.quad) }), withTiming(0, { duration: 650, easing: Easing.inOut(Easing.quad) })), -1, false);
+  }, [y]);
+  const a = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
+  return (
+    <Animated.View style={a}>
+      <ArrowDownIcon size={16} color={colors.mut} weight="bold" />
+    </Animated.View>
   );
 }
 
@@ -286,6 +321,8 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: { width: '48.5%', gap: 6 },
+  scrollHint: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 },
+  scrollHintText: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
   viewerBg: { backgroundColor: 'rgba(255,255,255,0.96)' },
   viewerClose: { position: 'absolute', right: 16 },

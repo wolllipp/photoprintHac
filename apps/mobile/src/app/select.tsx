@@ -25,6 +25,11 @@ const GRID = Array.from({ length: 16 }, (_, i) => ({ k: LIB[(i * 3) % LIB.length
 const BASE = 38; // столько выбрал ИИ из 214
 const BASE_ON = GRID.filter((g) => g.on).length;
 const GAP = 6;
+const REMOVED = [
+  { n: 41, label: 'дубли', color: colors.coralAction },
+  { n: 17, label: 'смазанные', color: '#E39A86' },
+  { n: 23, label: 'скриншоты', color: colors.peachStrong },
+];
 
 export default function Select() {
   const insets = useSafeAreaInsets();
@@ -61,20 +66,34 @@ export default function Select() {
           ))}
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(160).duration(420).easing(ease.smoothOut)} style={s.stats}>
-          <Stat n="−41" label={'дубли\nи серии'} />
-          <Stat n="−17" label={'смазанные\nи тёмные'} />
-          <Stat n="−23" label={'скриншоты\nи чеки'} />
+        {/* что убрал ИИ — одной карточкой: число, полоса долей и подписи, без длинного текста */}
+        <Animated.View entering={FadeInDown.delay(160).duration(420).easing(ease.smoothOut)} style={s.removed}>
+          <View style={s.removedHead}>
+            <Text style={s.removedNum}>−{REMOVED.reduce((a, x) => a + x.n, 0)}</Text>
+            <Text style={s.removedOf}>лишних кадров убрали</Text>
+          </View>
+          <View style={s.bar}>
+            {REMOVED.map((x) => (
+              <View key={x.label} style={{ flex: x.n, backgroundColor: x.color }} />
+            ))}
+          </View>
+          <View style={s.legend}>
+            {REMOVED.map((x) => (
+              <View key={x.label} style={s.legendItem}>
+                <View style={[s.dot, { backgroundColor: x.color }]} />
+                <Text style={s.legendText}>
+                  <Text style={s.legendNum}>{x.n}</Text> {x.label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(220).duration(420).easing(ease.smoothOut)} style={s.hint}>
-          <Text style={s.hintText}>Из 133 похожих пейзажей оставили самые разные. Любое фото можно вернуть — нажмите на него.</Text>
-        </Animated.View>
+        <Text style={s.tip}>Нажмите на фото, чтобы убрать или вернуть</Text>
       </ScrollView>
 
       <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
-        <Tap style={s.cta} onPress={() => router.replace({ pathname: '/book/[id]', params: { id: 'karelia' } })} accessibilityRole="button">
-          <Text style={s.ctaText}>Смотреть книгу</Text>
+        <Tap style={s.cta} onPress={() => router.back()} accessibilityRole="button">
+          <Text style={s.ctaText}>Готово</Text>
         </Tap>
       </View>
     </View>
@@ -107,15 +126,6 @@ function Cell({ k, size, on, n, onToggle }: { k: PhotoName; size: number; on: bo
   );
 }
 
-function Stat({ n, label }: { n: string; label: string }) {
-  return (
-    <View style={s.stat}>
-      <Text style={s.statN}>{n}</Text>
-      <Text style={s.statL}>{label}</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 16, gap: 16 },
@@ -131,13 +141,17 @@ const s = StyleSheet.create({
     backgroundColor: colors.coralAction, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center',
   },
 
-  stats: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, height: 96, backgroundColor: colors.card, borderRadius: 22, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 6 },
-  statN: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg, textAlign: 'center' },
-  statL: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center' },
-
-  hint: { backgroundColor: colors.peach, borderRadius: 22, padding: 16 },
-  hintText: { fontSize: 14.5, lineHeight: 20, fontFamily: fonts.medium, color: colors.fg, textAlign: 'center' },
+  removed: { backgroundColor: colors.card, borderRadius: 22, padding: 16, gap: 12 },
+  removedHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  removedNum: { fontSize: 26, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
+  removedOf: { fontSize: 15, fontFamily: fonts.medium, color: colors.mut },
+  bar: { flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', gap: 2 },
+  legend: { flexDirection: 'row', justifyContent: 'space-between' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 13.5, fontFamily: fonts.medium, color: colors.mut },
+  legendNum: { fontFamily: fonts.bold, color: colors.fg },
+  tip: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center', marginTop: -6 },
 
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: 'rgba(255,255,255,0.94)' },
   cta: { height: 56, borderRadius: 28, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },

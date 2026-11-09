@@ -243,7 +243,7 @@ export function OverlapTitle({
     if (!maxWidth || fit !== null) return;
     setFit(w <= maxWidth ? wanted : Math.floor((wanted * maxWidth) / w));
   };
-  const top = warm ? (['rgba(204,96,91,1)', 'rgba(218,132,116,0.72)', 'rgba(240,184,164,0.3)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
+  const top = warm ? (['rgba(204,96,91,1)', 'rgba(208,108,98,0.9)', 'rgba(220,140,124,0.62)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
   const topAt = warm ? ([0.15, 0.6, 1] as const) : ([0.25, 0.9] as const);
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), '');
   return (

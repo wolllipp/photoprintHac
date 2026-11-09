@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CaretLeftIcon, CheckIcon } from 'phosphor-react-native';
+import { CaretLeftIcon, CheckIcon, PencilSimpleIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -16,7 +16,7 @@ import { Tap } from '@/components/ui';
 import { drafts, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { type PhotoName, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { AnimatedNumber, ease, flickSpring, sheetSpring } from '@/motion';
+import { ease, flickSpring, sheetSpring } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function BookScreen() {
@@ -90,8 +90,8 @@ export default function BookScreen() {
           <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
         </Tap>
         <Text style={s.navTitle} numberOfLines={1}>{draft.title}</Text>
-        <Tap style={[s.round, s.edit]} onPress={() => router.push({ pathname: '/editor', params: { id: id ?? 'karelia' } })} accessibilityRole="button" accessibilityLabel="Править в конструкторе">
-          <Text style={s.editText}>Править</Text>
+        <Tap style={s.round} onPress={() => router.push({ pathname: '/editor', params: { id: id ?? 'karelia' } })} accessibilityRole="button" accessibilityLabel="Править в конструкторе">
+          <PencilSimpleIcon size={18} color={colors.fg} weight="bold" />
         </Tap>
       </View>
 
@@ -114,9 +114,7 @@ export default function BookScreen() {
             <View style={s.sheetHead} onLayout={onHeadLayout}>
               <Text style={s.sheetTitle}>Фотокнига</Text>
               <View style={{ flexDirection: 'row' }}>
-                <Text style={s.sheetMeta}>{tariff.name} · </Text>
-                <AnimatedNumber value={tariff.price} format={rub} style={s.sheetMeta} />
-                <Text style={s.sheetMeta}> · {draft.pages} стр.</Text>
+                <Text style={s.sheetMeta}>{draft.format} · {draft.pages} стр.</Text>
               </View>
             </View>
           </View>
@@ -152,12 +150,9 @@ export default function BookScreen() {
           </View>
         </View>
 
-        {/* как «Оформить» в корзине: текст слева, цена в пилюле справа */}
-        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`В корзину, ${rub(tariff.price)}`}>
+        {/* цена уже на выбранном тарифе — на кнопке без повтора */}
+        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`В корзину, ${tariff.name}, ${rub(tariff.price)}`}>
           <Text style={s.ctaText}>В корзину</Text>
-          <View style={s.ctaSum}>
-            <AnimatedNumber value={tariff.price} format={rub} style={s.ctaPrice} />
-          </View>
         </Tap>
       </Animated.View>
     </View>
@@ -264,10 +259,8 @@ function Leaf({ layout, shots, side }: { layout: PageLayout; shots: (PhotoName |
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 4, gap: 10 },
-  round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
-  edit: { width: 'auto', paddingHorizontal: 12 },
-  editText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
+  round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  navTitle: { flex: 1, textAlign: 'center', fontSize: 22, lineHeight: 28, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   spread: {
@@ -315,9 +308,7 @@ const s = StyleSheet.create({
   chipOn: { backgroundColor: colors.coralAction },
   chipText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginHorizontal: 18 },
+  cta: { height: 56, borderRadius: 28, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
-  ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
-  ctaPrice: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: '#fff' },
 });
 

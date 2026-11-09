@@ -373,7 +373,7 @@ function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => vo
                 <Text style={s.foundMore}>+{p.photos - FOUND.length} фото</Text>
               </View>
 
-              <Tap style={s.cta} onPress={() => router.push({ pathname: '/preview', params: { title: p.album, pages: String(sp.spreads * 2), photos: String(p.photos), format: sp.format, lam: sp.lam } })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
+              <Tap style={s.cta} onPress={() => router.push({ pathname: '/build', params: { title: p.album, pages: String(sp.spreads * 2), photos: String(p.photos), format: sp.format, lam: sp.lam } })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
                 <Text style={s.ctaText}>Показать вариант</Text>
                 <View style={s.ctaSum}>
                   <Text style={s.ctaPrice}>от {rub(price)}</Text>

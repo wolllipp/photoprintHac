@@ -7,7 +7,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -58,18 +58,21 @@ const PILE = [
 export default function Build() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const params = useLocalSearchParams<Record<string, string>>();
   const [step, setStep] = useState(0);
   const done = step >= STEPS.length;
 
   useEffect(() => {
     if (done) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      const t = setTimeout(() => router.replace('/select'), 1300);
+      // книга собрана — показываем её (параметры из диалога передаём дальше)
+      const t = setTimeout(() => router.replace({ pathname: '/preview', params }), 1100);
       return () => clearTimeout(t);
     }
     if (step > 0) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     const t = setTimeout(() => setStep((x) => x + 1), STEP_MS);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, done]);
 
   const W = width - 36;
