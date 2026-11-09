@@ -127,8 +127,12 @@ export function HeroPager({
       </Animated.View>
       {/* нижний край кадра не обрывается: размывается и тает в белый фон плиток */}
       <Animated.View pointerEvents="none" style={[s.edge, { opacity: edgeOpacity }]}>
-        <ProgressiveBlur from={0.15} intensity={40} tint="light" />
-        <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.75)', '#fff']} locations={[0.1, 0.65, 1]} style={StyleSheet.absoluteFill} />
+        {/* плавная кривая без ступеньки: прозрачность растёт по ease-in, а не по прямой */}
+        <LinearGradient
+          colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.32)', 'rgba(255,255,255,0.56)', 'rgba(255,255,255,0.82)', '#fff']}
+          locations={[0, 0.18, 0.36, 0.54, 0.72, 0.88, 1]}
+          style={StyleSheet.absoluteFill}
+        />
       </Animated.View>
 
       {/* шапка на снимке: аватар · логотип · пики */}
@@ -409,7 +413,7 @@ function Tile({
  * Где его нет — ровная заливка тем же цветом, без имитаций.
  */
 // один спокойный тёплый оттенок на все плитки; цвет — только в акцентах (иконки, +100, микрофон)
-const CALM = { glass: 'rgba(240,233,226,0.5)', flat: colors.card };
+const CALM = { glass: 'rgba(222,211,201,0.62)', flat: colors.card2 };
 const SURFACE = { peach: CALM, teal: CALM, plain: CALM, coral: CALM } as const;
 function TileBg({ kind }: { kind: keyof typeof SURFACE }) {
   if (NATIVE_GLASS) {
@@ -575,7 +579,7 @@ const s = StyleSheet.create({
   plainAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
   plainAvatarText: { fontSize: 16, fontFamily: fonts.bold, color: colors.peachInk },
   plainPoints: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(35,43,42,0.12)' },
-  edge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220 },
+  edge: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 320 },
   /* слайды */
   top: { position: 'absolute', left: 18, right: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   who: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, marginRight: 12 },
