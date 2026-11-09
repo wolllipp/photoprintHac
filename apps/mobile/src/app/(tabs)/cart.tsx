@@ -198,8 +198,11 @@ function CartRow({
 }) {
   const { width } = useWindowDimensions();
   const OPEN = -96;
-  // удаление — только если дотянуть почти до края экрана
-  const FULL = -(width - 32) * 0.85;
+  // удаление — только сильным движением: палец должен пройти три четверти экрана
+  const PULL = -width * 0.75;
+  // где при этом окажется плитка (после кнопки «Удалить» она сопротивляется — едет на 60% от пальца)
+  const FULL = OPEN + (PULL - OPEN) * 0.6;
+  const drag = useSharedValue(0);
   const x = useSharedValue(0);
   const start = useSharedValue(0);
   const armed = useSharedValue(false);
@@ -224,8 +227,10 @@ function CartRow({
     onUpdate: (e) => {
       'worklet';
       const next = start.value + e.translationX;
-      x.value = next > 0 ? next * 0.15 : next;
-      const a = x.value < FULL;
+      drag.value = next;
+      // вправо — резина, влево до кнопки — за пальцем, дальше — с сопротивлением
+      x.value = next > 0 ? next * 0.15 : next > OPEN ? next : OPEN + (next - OPEN) * 0.6;
+      const a = next < PULL;
       if (a !== armed.value) {
         armed.value = a;
         scheduleOnRN(tick);
@@ -233,7 +238,7 @@ function CartRow({
     },
     onDeactivate: (e) => {
       'worklet';
-      if (x.value < FULL) commit();
+      if (drag.value < PULL) commit();
       else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 30, stiffness: 300 });
       else x.value = withSpring(0, { damping: 30, stiffness: 300 });
       armed.value = false;
