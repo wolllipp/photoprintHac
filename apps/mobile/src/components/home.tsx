@@ -613,7 +613,7 @@ const s = StyleSheet.create({
   albumTop: { position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between' },
   albumBadge: { height: 28, paddingHorizontal: 11, borderRadius: 14, justifyContent: 'center' },
   more: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  albumTitleWrap: { position: 'absolute', left: 16, right: 16, top: 28, bottom: 0, justifyContent: 'center' },
-  albumMask: { flex: 1, justifyContent: 'center' },
+  albumTitleWrap: { position: 'absolute', left: 16, right: 16, bottom: 4, height: 72, justifyContent: 'flex-end' },
+  albumMask: { flex: 1, justifyContent: 'flex-end' },
   albumTitle: { fontSize: 58, lineHeight: 70, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000', textAlign: 'center' },
 });
