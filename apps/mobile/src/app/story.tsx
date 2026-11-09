@@ -112,7 +112,7 @@ export default function Story() {
                 accessibilityLabel="Описание книги"
               />
               <View style={s.bar}>
-                <Tap style={s.ghost} accessibilityRole="button" accessibilityLabel="Добавить фото">
+                <Tap style={s.ghost} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel="Выбрать фото">
                   <PlusIcon size={18} color={colors.fg} weight="bold" />
                 </Tap>
                 <View style={{ flex: 1 }} />

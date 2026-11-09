@@ -60,7 +60,7 @@ export default function Checkout() {
             <Image source={photos[item.cover]} style={s.thumb} contentFit="cover" />
             <View style={{ flex: 1 }}>
               <Text style={s.rowTitle}>{item.title}</Text>
-              <Text style={s.rowSub}>{item.tariffName} {item.format} · {item.pages} страницы · {item.finish.toLowerCase()}</Text>
+              <Text style={s.rowSub}>{item.tariffName} {item.format} · {item.pages} {item.tariff === 'print' ? 'фото' : 'стр.'} · {item.finish.toLowerCase()}</Text>
             </View>
             <Text style={s.value}>{rub(item.price)}</Text>
           </View>
@@ -76,7 +76,6 @@ export default function Checkout() {
 
         <View style={s.sec}>
           <Text style={s.secTitle}>Доставка</Text>
-          <Tap hitSlop={10} accessibilityRole="button"><Text style={s.secAction}>Ещё 3 способа</Text></Tap>
         </View>
         <View style={s.group} accessibilityRole="radiogroup">
           {delivery.map((x, i) => {
@@ -155,7 +154,6 @@ const s = StyleSheet.create({
   value: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
   sec: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 },
   secTitle: { fontSize: 21, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
-  secAction: { fontSize: 15, fontFamily: fonts.medium, color: colors.coralLink },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.mut2 },
   radioOn: { borderWidth: 7, borderColor: colors.coralAction },
   sum: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },

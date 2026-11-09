@@ -476,6 +476,7 @@ export function ActionTiles({
           photo={photos['cafe-dessert']}
           icon={<ImagesIcon size={18} color="#fff" weight="fill" />}
           title="Фотопечать"
+          onPress={() => router.push('/print')}
           sub={`${tiles.printFrom} за снимок`}
         />
         <View style={{ flex: 1, gap: TILE_GAP }}>

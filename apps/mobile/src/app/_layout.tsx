@@ -39,6 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="shared/[id]" />
         <Stack.Screen name="points" />
         <Stack.Screen name="retouch" />
+        <Stack.Screen name="print" />
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       </Stack>
     </StoreProvider>

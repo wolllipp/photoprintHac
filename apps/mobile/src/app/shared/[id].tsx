@@ -7,7 +7,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { PrinterIcon, ShareNetworkIcon } from 'phosphor-react-native';
+import { ShareNetworkIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -69,10 +69,6 @@ export default function Shared() {
             <Tap style={[s.btn, s.btnPrimary]} onPress={share} accessibilityRole="button">
               <ShareNetworkIcon size={18} color="#fff" weight="bold" />
               <Text style={s.btnPrimaryText}>Поделиться</Text>
-            </Tap>
-            <Tap style={[s.btn, s.btnPlain]} accessibilityRole="button" accessibilityLabel="Напечатать карточки с кодом для столов">
-              <PrinterIcon size={18} color={colors.fg} weight="bold" />
-              <Text style={s.btnPlainText}>Карточки на стол</Text>
             </Tap>
           </View>
         </Animated.View>
@@ -152,8 +148,6 @@ const s = StyleSheet.create({
   btn: { flex: 1, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   btnPrimary: { backgroundColor: colors.coralAction },
   btnPrimaryText: { fontSize: 15, fontFamily: fonts.semibold, color: '#fff' },
-  btnPlain: { backgroundColor: colors.card2 },
-  btnPlainText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   live: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 12 },
   liveHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   faces: { flexDirection: 'row' },

@@ -8,7 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { points as initialPoints } from '@/data/demo';
 import type { PhotoName } from '@/data/photos';
 
-export type TariffId = 'lite' | 'classic' | 'premium';
+export type TariffId = 'lite' | 'classic' | 'premium' | 'print';
 
 export type CartItem = {
   id: string;

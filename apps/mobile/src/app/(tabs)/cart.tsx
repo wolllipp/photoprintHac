@@ -39,7 +39,7 @@ export default function Cart() {
                 <Image source={photos[it.cover]} style={s.thumb} contentFit="cover" />
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowTitle} numberOfLines={1}>{it.title}</Text>
-                  <Text style={s.rowSub} numberOfLines={1}>{it.tariffName} {it.format} · {it.pages} стр. · будет {it.readyBy}</Text>
+                  <Text style={s.rowSub} numberOfLines={1}>{it.tariffName} {it.format} · {it.pages} {it.tariff === 'print' ? 'фото' : 'стр.'} · будет {it.readyBy}</Text>
                 </View>
                 <Text style={s.value}>{rub(it.price)}</Text>
               </Animated.View>
