@@ -108,9 +108,7 @@ export default function Cart() {
                       accessibilityLabel={`${e.title}, ${e.sub}, плюс ${rub(e.price)}`}>
                       <Text style={s.extraTitle} numberOfLines={2}>{e.title}</Text>
                       <Text style={s.extraSub} numberOfLines={2}>{e.sub}</Text>
-                      <View style={[s.pricePill, on && s.pricePillOn]}>
-                        <Text style={[s.extraPrice, on && { color: '#fff' }]}>+{rub(e.price)}</Text>
-                      </View>
+                      <Text style={[s.extraPrice, on && { color: colors.coralAction }]}>+{rub(e.price)}</Text>
                     </Tap>
                   );
                 })}
@@ -353,9 +351,7 @@ const s = StyleSheet.create({
   extraOn: { borderColor: colors.coralAction },
   extraTitle: { fontSize: 15, lineHeight: 19, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
   extraSub: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
-  pricePill: { marginTop: 6, height: 26, paddingHorizontal: 10, borderRadius: 13, backgroundColor: '#fff', justifyContent: 'center' },
-  pricePillOn: { backgroundColor: colors.coralAction },
-  extraPrice: { fontSize: 13, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  extraPrice: { marginTop: 4, fontSize: 14, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
 
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginTop: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
