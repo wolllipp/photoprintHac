@@ -35,6 +35,8 @@ export default function Preview() {
   // сцена такой высоты, чтобы кнопка «Выбрать тариф» кончалась в 64 точках от низа: там — «Пролистните»,
   // цифры и описание — уже ниже края (название ~120, подпись и отступы ~50, кнопка 56, наплыв на снимок −0,2 ширины)
   const STAGE = Math.round(Math.max(width * 1.1, height - 64 - (226 - width * 0.2)));
+  const hintRef = useRef<ComponentRef<typeof View>>(null);
+  const [fill, setFill] = useState(0); // отступ под подсказкой — чтобы цифры начинались за краем экрана
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
   const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
@@ -84,10 +86,25 @@ export default function Preview() {
             </Tap>
           </Animated.View>
 
+          {/* подсказка сразу под кнопкой, ниже — отступ до края экрана, дальше цифры и описание */}
+          <View
+            ref={hintRef}
+            style={[s.hintInline, { paddingBottom: fill }]}
+            onLayout={() =>
+              hintRef.current?.measureInWindow((_x, y) => {
+                if (fill === 0) setFill(Math.max(12, height - y - 48));
+              })
+            }>
+            <Animated.View entering={FadeIn.delay(900).duration(500)} style={[s.hintBox, { opacity: scrolled ? 0 : 1 }]} pointerEvents="none">
+              <Text style={s.scrollHintText}>Пролистните</Text>
+              <Bob />
+            </Animated.View>
+          </View>
+
           <Animated.View entering={FadeInDown.delay(180).duration(420).easing(ease.smoothOut)} style={s.stats}>
             <Stat value={<AnimatedNumber value={pages} format={String} style={s.statNum} />} label="страниц" />
             <Tap style={{ flex: 1 }} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel={`${picked} фото, посмотреть отбор`}>
-              <Stat value={<AnimatedNumber value={picked} format={String} style={[s.statNum, { color: colors.coralAction }]} />} label="фото ›" />
+              <Stat value={<AnimatedNumber value={picked} format={String} style={[s.statNum, { color: colors.coralAction }]} />} label="фото" />
             </Tap>
             <Stat value={<Text style={s.statNum}>{rub(price).replace(' р.', '')}</Text>} label="рублей" />
           </Animated.View>
@@ -117,14 +134,6 @@ export default function Preview() {
           </View>
         </View>
       </ScrollView>
-
-      {/* подсказка: ниже есть описание и развороты */}
-      {!scrolled ? (
-        <Animated.View entering={FadeIn.delay(900).duration(500)} exiting={FadeOut.duration(200)} style={[s.scrollHint, { bottom: insets.bottom + 6 }]} pointerEvents="none">
-          <Text style={s.scrollHintText}>Пролистните</Text>
-          <Bob />
-        </Animated.View>
-      ) : null}
 
       {/* разворот крупно: листаются соседние, закрыть — крестиком */}
       <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
@@ -321,7 +330,8 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: { width: '48.5%', gap: 6 },
-  scrollHint: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 },
+  hintInline: { marginTop: -4 },
+  hintBox: { alignItems: 'center', gap: 2, height: 40 },
   scrollHintText: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
   viewerBg: { backgroundColor: 'rgba(255,255,255,0.96)' },

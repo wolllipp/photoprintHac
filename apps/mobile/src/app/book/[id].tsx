@@ -98,9 +98,10 @@ export default function BookScreen() {
       {/* сцена: разворот книги */}
       <Animated.View style={[s.stage, stageStyle]}>
         <Pager pages={draft.pages} />
-        <View style={s.okPill} accessibilityRole="text">
-          <View style={s.okDot}><CheckIcon size={12} color="#fff" weight="bold" /></View>
-          <Text style={s.okText}>Лица в кадре · резкость в норме</Text>
+        {/* проверка качества — тихой строкой под разворотом, а не плашкой поверх */}
+        <View style={s.ok} accessibilityRole="text">
+          <CheckIcon size={14} color={colors.tealInk} weight="bold" />
+          <Text style={s.okText}>Проверено: лица в кадре, резкость в норме</Text>
         </View>
       </Animated.View>
 
@@ -274,12 +275,8 @@ const s = StyleSheet.create({
   leaf: { flex: 1, padding: 8, gap: 6 },
   leafLeft: { borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
   leafRight: { borderTopRightRadius: 10, borderBottomRightRadius: 10 },
-  okPill: {
-    position: 'absolute', top: 10, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 999, paddingVertical: 7, paddingLeft: 8, paddingRight: 12,
-  },
-  okDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
-  okText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.fg },
+  ok: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 },
+  okText: { fontSize: 13, fontFamily: fonts.medium, color: colors.tealInk },
 
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
