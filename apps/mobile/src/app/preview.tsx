@@ -47,9 +47,12 @@ export default function Preview() {
         {/* сцена: кадры альбома фоном сменяют друг друга, к низу уходят в белый */}
         <View style={{ height: STAGE, overflow: 'hidden' }}>
           <Slideshow shots={SHOTS} />
-          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.45)', '#fff']} locations={[0.68, 0.88, 1]} style={StyleSheet.absoluteFill} />
-          {/* мягкая белая дымка только в зоне названия — чтобы коралловые буквы читались на любом снимке */}
-          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.7)']} locations={[0, 0.7]} style={[s.haze, { height: Math.round(width * 0.5) }]} />
+          {/* переход в белый — плавной кривой из нескольких ступеней, без видимого края даже на тёмных снимках */}
+          <LinearGradient
+            colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.2)', 'rgba(255,255,255,0.42)', 'rgba(255,255,255,0.68)', 'rgba(255,255,255,0.9)', '#fff']}
+            locations={[0.55, 0.64, 0.72, 0.8, 0.87, 0.94, 1]}
+            style={StyleSheet.absoluteFill}
+          />
         </View>
 
         <View style={s.body}>
@@ -283,7 +286,6 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: { width: '48.5%', gap: 6 },
-  haze: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
   viewerBg: { backgroundColor: 'rgba(255,255,255,0.96)' },
   viewerClose: { position: 'absolute', right: 16 },

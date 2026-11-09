@@ -8,7 +8,6 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { CheckIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -21,7 +20,6 @@ import Animated, {
   withRepeat,
   withSpring,
   withTiming,
-  ZoomIn,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,10 +30,10 @@ import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const STEPS = [
-  { title: 'Отбираем лучшие кадры', now: 'Смотрим 214 фото…', done: '38 из 214' },
-  { title: 'Раскладываем по главам', now: 'Ищем пары и крупные планы…', done: '4 главы' },
-  { title: 'Проверяем лица и обрез', now: 'Ни одно лицо не уйдёт в корешок…', done: 'всё в норме' },
-  { title: 'Подбираем подписи', now: 'Пишем названия глав…', done: 'готово' },
+  { title: 'Кадры', now: 'смотрим 214 фото', done: '38 лучших' },
+  { title: 'Главы', now: 'ищем пары и крупные планы', done: '4 главы' },
+  { title: 'Лица и обрез', now: 'проверяем край страниц', done: 'всё в норме' },
+  { title: 'Подписи', now: 'пишем названия глав', done: 'готово' },
 ];
 const STEP_MS = 1500;
 
@@ -79,39 +77,34 @@ export default function Build() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 12 }]}>
-      <NavBar title="Карелия, июль" />
+      <NavBar title="" />
       <View style={s.body}>
-        <Spread w={W} h={H} step={step} />
-
         <View style={{ gap: 4 }} accessibilityLiveRegion="polite">
-          <Text style={s.title}>{done ? 'Книга готова' : 'Собираем книгу'}</Text>
-          <Text style={s.sub}>{done ? '24 страницы · 38 фото' : 'обычно до 30 секунд'}</Text>
+          <Animated.Text key={done ? 'done' : 'work'} entering={FadeIn.duration(duration.slow)} style={s.title}>
+            {done ? 'Книга готова' : 'Собираем книгу'}
+          </Animated.Text>
+          <Text style={s.sub}>{done ? 'Карелия, июль · 24 страницы · 38 фото' : 'Карелия, июль · обычно до 30 секунд'}</Text>
         </View>
 
-        <View style={s.card}>
+        <Spread w={W} h={H} step={step} />
+
+        {/* шаги — теми же строками «подпись — итог», что в диалоге */}
+        <View style={{ gap: 6 }}>
           {STEPS.map((st, i) => {
             const isDone = i < step;
             const now = i === step;
             return (
-              <View key={st.title} style={[s.row, !isDone && !now && { opacity: 0.4 }]}>
+              <View key={st.title} style={[s.row, !isDone && !now && { opacity: 0.45 }]}>
+                <Text style={s.rowLabel}>{st.title}</Text>
                 {isDone ? (
-                  <Animated.View entering={ZoomIn.springify().damping(14).reduceMotion(ReduceMotion.System)} style={s.ok}>
-                    <CheckIcon size={12} color="#fff" weight="bold" />
-                  </Animated.View>
-                ) : now ? (
-                  <Pulse />
-                ) : (
-                  <View style={s.wait} />
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rowText}>{st.title}</Text>
-                  {now ? <ThinkingLine text={st.now} style={s.rowNow} /> : null}
-                </View>
-                {isDone ? (
-                  <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.rowMeta}>
+                  <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.rowDone}>
                     {st.done}
                   </Animated.Text>
-                ) : null}
+                ) : now ? (
+                  <ThinkingLine text={`${st.now}…`} style={s.rowNow} />
+                ) : (
+                  <Text style={s.rowNow}>ждёт</Text>
+                )}
               </View>
             );
           })}
@@ -203,42 +196,21 @@ function Scan({ w, h }: { w: number; h: number }) {
   );
 }
 
-/** Текущий этап: мягко пульсирующая точка вместо крутилки. */
-function Pulse() {
-  const v = useSharedValue(0);
-  useEffect(() => {
-    v.value = withRepeat(withTiming(1, { duration: 900, reduceMotion: ReduceMotion.System }), -1, true);
-  }, [v]);
-  const ring = useAnimatedStyle(() => ({ transform: [{ scale: 0.7 + v.value * 0.5 }], opacity: 0.5 - v.value * 0.35 }));
-  return (
-    <View style={s.pulse}>
-      <Animated.View style={[s.pulseRing, ring]} />
-      <View style={s.pulseDot} />
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { flex: 1, paddingHorizontal: 18, gap: 20, paddingTop: 8 },
+  body: { flex: 1, paddingHorizontal: 16, gap: 18, paddingTop: 4 },
   spread: { backgroundColor: '#FFFDFB', borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px -14px rgba(60,40,30,0.35), 0 0 0 1px rgba(60,40,30,0.06)' },
   spine: { position: 'absolute', top: 0, bottom: 0, width: 28 },
   shot: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.card2, boxShadow: '0 4px 10px -4px rgba(0,0,0,0.25)' },
   scan: { position: 'absolute', top: 0, left: 0, width: 40 },
   caption: { position: 'absolute', right: 10, bottom: 4 },
   captionText: { fontSize: 10, fontFamily: fonts.semibold, color: colors.mut, letterSpacing: 0.2 },
-  title: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
+  title: { fontSize: 32, lineHeight: 38, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
   sub: { fontSize: 15, fontFamily: fonts.regular, color: colors.mut },
-  card: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 14 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 36 },
-  ok: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
-  wait: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.card2 },
-  pulse: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  pulseRing: { position: 'absolute', width: 24, height: 24, borderRadius: 12, backgroundColor: colors.coralAction },
-  pulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.coralAction },
-  rowText: { fontSize: 16, fontFamily: fonts.medium, color: colors.fg },
-  rowNow: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
-  rowMeta: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: colors.card, borderRadius: 18, height: 50, paddingHorizontal: 16 },
+  rowLabel: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  rowDone: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
+  rowNow: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
   stop: { height: 54, borderRadius: 27, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
   stopText: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
 });

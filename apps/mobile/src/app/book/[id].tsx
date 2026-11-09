@@ -1,21 +1,22 @@
 /**
  * «Книга и цена» (путь А): книга на сцене, параметры и цена в шторке, тарифы — как в Яндекс Go.
  */
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CaretLeftIcon, CheckIcon } from 'phosphor-react-native';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { drafts, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { type PhotoName, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { AnimatedNumber, flickSpring, sheetSpring } from '@/motion';
+import { AnimatedNumber, ease, flickSpring, sheetSpring } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function BookScreen() {
@@ -122,44 +123,81 @@ export default function BookScreen() {
         </GestureDetector>
 
         <View style={s.tariffs} accessibilityRole="radiogroup">
-          {tariffs.map((t) => {
-            const on = t.id === tariff.id;
-            return (
-              <Tap
-                key={t.id}
-                style={[s.tariff, on && s.tariffOn]}
-                onPress={() => setTariff(t)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`${t.name}, ${rub(t.price)}, будет ${t.readyBy}`}>
-                <View style={s.bk}>
-                  <LinearGradient colors={t.cover} style={[s.bookIcon, t.tall && { width: 26, height: 38 }]} />
-                </View>
-                <Text style={s.tName}>{t.name}</Text>
-                <Text style={s.tPrice}>{rub(t.price)}</Text>
-                <Text style={s.tWhen}>будет {t.readyBy}</Text>
-              </Tap>
-            );
-          })}
+          {tariffs.map((t) => (
+            <TariffTile key={t.id} t={t} on={t.id === tariff.id} onPick={() => setTariff(t)} />
+          ))}
         </View>
         <Text style={s.about}>{tariff.about}</Text>
 
-        <View style={s.seg} accessibilityRole="radiogroup">
-          {(['Глянец', 'Зерно'] as const).map((f) => (
-            <Tap key={f} style={[s.segItem, f === finish && s.segOn]} onPress={() => setFinish(f)} accessibilityRole="radio" accessibilityState={{ selected: f === finish }}>
-              <Text style={[s.segText, f === finish && s.segTextOn]}>{f}</Text>
-            </Tap>
-          ))}
+        {/* ламинация — пилюлями, как в вопросах ИИ */}
+        <View style={s.lam}>
+          <Text style={s.lamLabel}>Ламинация</Text>
+          <View style={s.lamRow} accessibilityRole="radiogroup">
+            {(['Глянец', 'Зерно'] as const).map((f) => {
+              const on = f === finish;
+              return (
+                <Tap
+                  key={f}
+                  style={[s.chip, on && s.chipOn]}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setFinish(f);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}>
+                  <Text style={[s.chipText, on && { color: '#fff' }]}>{f === 'Глянец' ? 'глянцевая' : 'зернистая'}</Text>
+                </Tap>
+              );
+            })}
+          </View>
         </View>
 
-        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button">
-          <View style={{ flexDirection: 'row' }}>
-            <Text style={s.ctaText}>В корзину · </Text>
-            <AnimatedNumber value={tariff.price} format={rub} style={s.ctaText} />
+        {/* как «Оформить» в корзине: текст слева, цена в пилюле справа */}
+        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`В корзину, ${rub(tariff.price)}`}>
+          <Text style={s.ctaText}>В корзину</Text>
+          <View style={s.ctaSum}>
+            <AnimatedNumber value={tariff.price} format={rub} style={s.ctaPrice} />
           </View>
         </Tap>
       </Animated.View>
     </View>
+  );
+}
+
+/** Тариф: выбор — обводка плавно проявляется, на миг вспыхивает свечение (как допуслуги в корзине). */
+function TariffTile({ t, on, onPick }: { t: Tariff; on: boolean; onPick: () => void }) {
+  const v = useSharedValue(on ? 1 : 0);
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    v.value = withTiming(on ? 1 : 0, { duration: 260, easing: ease.smoothOut });
+  }, [on, v]);
+  const frame = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(v.value, [0, 1], ['rgba(184,79,75,0)', colors.coralAction]),
+    shadowColor: colors.coralAction,
+    shadowOpacity: 0.32 * glow.value,
+    shadowRadius: 12 * glow.value,
+    shadowOffset: { width: 0, height: 0 },
+  }));
+  return (
+    <Pressable
+      style={{ flex: 1 }}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        if (!on) glow.set(withSequence(withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 1100, easing: Easing.inOut(Easing.quad) })));
+        onPick();
+      }}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={`${t.name}, ${rub(t.price)}, будет ${t.readyBy}`}>
+      <Animated.View style={[s.tariff, frame]}>
+        <View style={s.bk}>
+          <LinearGradient colors={t.cover} style={[s.bookIcon, t.tall && { width: 26, height: 38 }]} />
+        </View>
+        <Text style={s.tName}>{t.name}</Text>
+        <Text style={[s.tPrice, on && { color: colors.coralAction }]}>{rub(t.price)}</Text>
+        <Text style={s.tWhen}>будет {t.readyBy}</Text>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -262,22 +300,24 @@ const s = StyleSheet.create({
   sheetMeta: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
 
   tariffs: { flexDirection: 'row', gap: 8, paddingHorizontal: 18 },
-  tariff: { flex: 1, borderRadius: 18, backgroundColor: colors.bg, padding: 10, paddingBottom: 12, gap: 2, borderWidth: 2, borderColor: 'transparent' },
-  tariffOn: { backgroundColor: colors.coralTint, borderColor: colors.coralAction },
+  tariff: { borderRadius: 22, backgroundColor: colors.bg, padding: 12, paddingBottom: 14, gap: 2, borderWidth: 2, borderColor: 'transparent' },
   bk: { height: 40, justifyContent: 'flex-end', marginBottom: 4 },
   bookIcon: { width: 34, height: 34, borderTopLeftRadius: 2, borderBottomLeftRadius: 2, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
   tName: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
-  tPrice: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  tPrice: { fontSize: 16, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
   tWhen: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut },
   about: { fontSize: 14, fontFamily: fonts.regular, color: colors.mut, paddingHorizontal: 18, marginTop: -4 },
 
-  seg: { flexDirection: 'row', backgroundColor: colors.card2, borderRadius: 12, padding: 3, marginHorizontal: 18 },
-  segItem: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
-  segOn: { backgroundColor: colors.card, shadowColor: '#232B2A', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  segText: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
-  segTextOn: { color: colors.fg, fontFamily: fonts.semibold },
+  lam: { paddingHorizontal: 18, gap: 6 },
+  lamLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
+  lamRow: { flexDirection: 'row', gap: 6 },
+  chip: { height: 38, paddingHorizontal: 16, borderRadius: 19, backgroundColor: colors.bg, justifyContent: 'center' },
+  chipOn: { backgroundColor: colors.coralAction },
+  chipText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  cta: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
-  ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff', letterSpacing: -0.15 },
+  cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginHorizontal: 18 },
+  ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
+  ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
+  ctaPrice: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: '#fff' },
 });
 
