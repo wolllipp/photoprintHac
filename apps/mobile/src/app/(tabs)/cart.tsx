@@ -252,9 +252,10 @@ function CartRow({
     },
     onDeactivate: (e) => {
       'worklet';
+      // лёгкий бросок влево открывает кнопку, вправо — закрывает; без броска решает положение
+      const open = e.velocityX < -250 ? true : e.velocityX > 250 ? false : x.value < OPEN / 2;
       if (drag.value < PULL) commit();
-      else if (x.value < OPEN / 2) x.value = withSpring(OPEN, { damping: 30, stiffness: 300 });
-      else x.value = withSpring(0, { damping: 30, stiffness: 300 });
+      else x.value = withSpring(open ? OPEN : 0, { damping: 26, stiffness: 260, velocity: e.velocityX });
       armed.value = false;
     },
   });
