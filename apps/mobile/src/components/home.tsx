@@ -9,8 +9,8 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ArrowDownIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MicrophoneIcon, QrCodeIcon } from 'phosphor-react-native';
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MicrophoneIcon, QrCodeIcon } from 'phosphor-react-native';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   Animated,
   Platform,
@@ -284,6 +284,75 @@ export function PlainTopBar({ points }: { points: number }) {
 /*  Плитки-действия                                                        */
 /* ====================================================================== */
 
+/*
+ * Система плиток (одна на всю главную):
+ *  • сетка: 2 колонки, зазор 10; малая плитка — 116, большая — 2 малые + зазор, широкая — на всю ширину;
+ *  • структура: сверху слева — иконка в круге 36, справа — метка; снизу — заголовок (Unbounded) и подпись (Inter);
+ *  • поверхность по роли: peach — действие, photo — продукт, plain — статус.
+ */
+const TILE_S = 116;
+const TILE_GAP = 10;
+const TILE_L = TILE_S * 2 + TILE_GAP;
+
+type Surface = 'peach' | 'photo' | 'plain';
+
+function TileIcon({ surface, children }: { surface: Surface; children: ReactNode }) {
+  if (surface === 'photo') {
+    return <Glass tone="dark" style={s.tIcon}>{children}</Glass>;
+  }
+  return <View style={[s.tIcon, { backgroundColor: surface === 'peach' ? '#fff' : colors.peach }]}>{children}</View>;
+}
+
+function Tile({
+  surface,
+  icon,
+  title,
+  sub,
+  size = 'S',
+  photo,
+  onPress,
+  label,
+  children,
+}: {
+  surface: Surface;
+  icon: ReactNode;
+  title: string;
+  sub?: string;
+  size?: 'S' | 'L' | 'W';
+  photo?: number;
+  onPress?: () => void;
+  label?: string;
+  children?: ReactNode;
+}) {
+  const onPhoto = surface === 'photo';
+  return (
+    <Tap
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label ?? [title, sub].filter(Boolean).join(', ')}
+      style={[
+        s.tile,
+        surface === 'peach' && { backgroundColor: colors.peach },
+        size === 'S' && { height: TILE_S },
+        size === 'L' && { height: TILE_L },
+        size === 'W' && { minHeight: TILE_S },
+        size !== 'W' && { flex: 1 },
+      ]}>
+      {onPhoto && photo ? (
+        <>
+          <Photo source={photo} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.6)']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+        </>
+      ) : null}
+      <TileIcon surface={surface}>{icon}</TileIcon>
+      <View style={{ flex: 1, minHeight: 8 }} />
+      <Text style={[size === 'S' ? s.tTitleS : s.tTitleL, onPhoto && { color: '#fff' }]} numberOfLines={2}>{title}</Text>
+      {sub ? <Text style={[s.tSub, onPhoto && { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>{sub}</Text> : null}
+      {children}
+    </Tap>
+  );
+}
+
 export function ActionTiles({
   order,
   onAsk,
@@ -295,13 +364,17 @@ export function ActionTiles({
   onMic: () => void;
   onOrder: () => void;
 }) {
+  const iconPeach = colors.peachInk;
   return (
-    <View style={{ gap: 10 }}>
-      {/* собрать книгу: поле + голос */}
-      <View style={[s.tile, s.tilePeach, { gap: 12 }]}>
-        <View>
-          <Text style={s.tileTitle}>Собрать книгу</Text>
-          <Text style={s.tileSub}>Опишите словами или скажите голосом</Text>
+    <View style={{ gap: TILE_GAP }}>
+      {/* действие: собрать книгу */}
+      <View style={[s.tile, { backgroundColor: colors.peach, gap: 12 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TileIcon surface="peach"><BookOpenTextIcon size={19} color={iconPeach} weight="fill" /></TileIcon>
+          <View style={{ flex: 1 }}>
+            <Text style={s.tTitleL}>Собрать книгу</Text>
+            <Text style={s.tSub}>Опишите словами или скажите голосом</Text>
+          </View>
         </View>
         <View style={s.field}>
           <Tap style={s.fieldTap} onPress={onAsk} accessibilityRole="search" accessibilityLabel="Какую книгу соберём?">
@@ -313,47 +386,36 @@ export function ActionTiles({
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {/* фотопечать — плитка-фото */}
-        <Tap style={[s.tile, s.tileTall, s.tilePhoto]} accessibilityRole="button" accessibilityLabel={`Фотопечать, ${tiles.printFrom}`}>
-          <Photo source={photos['cafe-dessert']} style={StyleSheet.absoluteFill} />
-          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']} locations={[0.4, 1]} style={StyleSheet.absoluteFill} />
-          <Glass tone="dark" style={s.tileTag}>
-            <ImagesIcon size={13} color="#fff" weight="fill" />
-            <Text style={s.chipText}>{tiles.printFrom}</Text>
-          </Glass>
-          <Text style={s.tilePhotoTitle}>Фото-{'\n'}печать</Text>
-        </Tap>
-
-        <View style={{ flex: 1, gap: 10 }}>
-          <Tap style={[s.tile, s.tileShort]} accessibilityRole="button">
-            <View style={s.tileIcon}><QrCodeIcon size={20} color={colors.peachInk} weight="fill" /></View>
-            <View>
-              <Text style={s.tileTitleSm}>Общий альбом</Text>
-              <Text style={s.tileSub}>гости по QR-коду</Text>
-            </View>
-          </Tap>
-          <Tap style={[s.tile, s.tileShort, s.tilePeach]} accessibilityRole="button" accessibilityLabel={`Пригласить друга, ${tiles.inviteBonus}`}>
-            <Pik size={30} />
-            <View>
-              <Text style={s.tileTitleSm}>Пригласить друга</Text>
-              <Text style={s.tileSub}>{tiles.inviteBonus}</Text>
-            </View>
-          </Tap>
+      <View style={{ flexDirection: 'row', gap: TILE_GAP }}>
+        {/* продукт: фотопечать */}
+        <Tile
+          surface="photo"
+          size="L"
+          photo={photos['cafe-dessert']}
+          icon={<ImagesIcon size={18} color="#fff" weight="fill" />}
+          title="Фотопечать"
+          sub={`${tiles.printFrom} за снимок`}
+        />
+        <View style={{ flex: 1, gap: TILE_GAP }}>
+          {/* действия */}
+          <Tile surface="peach" icon={<QrCodeIcon size={18} color={iconPeach} weight="fill" />} title="Общий альбом" sub="гости по QR-коду" />
+          <Tile surface="peach" icon={<Pik size={22} />} title="Позвать друга" sub={tiles.inviteBonus} />
         </View>
       </View>
 
-      {/* текущий заказ */}
-      <Tap style={[s.tile, s.order]} onPress={onOrder} accessibilityRole="button" accessibilityLabel={`${order.title}, ${order.when}`}>
-        <Photo source={photos.bouquet} style={s.orderThumb} />
-        <View style={{ flex: 1, gap: 7 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={s.orderTitle} numberOfLines={1}>{order.title}</Text>
-            <Text style={s.when}>{order.when}</Text>
-          </View>
+      {/* статус: текущий заказ */}
+      <Tile
+        surface="plain"
+        size="W"
+        onPress={onOrder}
+        label={`${order.title}, ${order.when}`}
+        icon={<Photo source={photos.bouquet} style={s.tIconPhoto} />}
+        title={order.title}
+        sub={`Будет ${order.when}`}>
+        <View style={{ marginTop: 10 }}>
           <SegmentBar total={STAGES.length} done={STAGES.indexOf(order.stage)} />
         </View>
-      </Tap>
+      </Tile>
     </View>
   );
 }
@@ -429,24 +491,15 @@ const s = StyleSheet.create({
 
   /* плитки */
   tile: { borderRadius: 26, backgroundColor: colors.card, padding: 16, overflow: 'hidden' },
-  tilePeach: { backgroundColor: colors.peach },
-  tileTall: { flex: 1, height: 238, justifyContent: 'flex-end' },
-  tileShort: { height: 114, justifyContent: 'space-between' },
-  tilePhoto: { padding: 14 },
-  tileTitle: { fontSize: 23, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
-  tileTitleSm: { fontSize: 16, fontFamily: fonts.bold, letterSpacing: -0.2, color: colors.fg },
-  tileSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
-  tileIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
-  tileTag: { position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 5, height: 28, paddingHorizontal: 10, borderRadius: 14 },
-  tilePhotoTitle: { fontSize: 30, lineHeight: 32, fontFamily: fonts.display, letterSpacing: -0.8, color: '#fff' },
+  tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tIconPhoto: { width: 36, height: 36 },
+  tTitleS: { fontSize: 16, lineHeight: 19, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
+  tTitleL: { fontSize: 21, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
+  tSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 3 },
   field: { height: 54, borderRadius: 18, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingRight: 6 },
   fieldTap: { flex: 1, height: '100%', justifyContent: 'center', paddingLeft: 16 },
   fieldText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.mut },
   mic: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  order: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingLeft: 12 },
-  orderThumb: { width: 44, height: 44, borderRadius: 12 },
-  orderTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
-  when: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
   chipText: { fontSize: 12.5, fontFamily: fonts.semibold, color: '#fff' },
 
   /* альбомы */
