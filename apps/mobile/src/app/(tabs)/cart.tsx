@@ -9,12 +9,11 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { BookOpenTextIcon, ImagesIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
+import { ArrowCounterClockwiseIcon, BookOpenTextIcon, ImagesIcon, MinusIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -151,26 +150,41 @@ export default function Cart() {
   );
 }
 
-/** Круговой отсчёт до исчезновения «Вернуть»: кольцо тает, внутри — секунды. */
-const ACircle = Animated.createAnimatedComponent(Circle);
-function Countdown({ seconds }: { seconds: number }) {
-  const R = 11;
-  const L = 2 * Math.PI * R;
-  const p = useSharedValue(0);
-  const [left, setLeft] = useState(seconds);
+/**
+ * «Удалено»: что удалили, сколько секунд на отмену (словами и тающей полоской вдоль низа плитки),
+ * и крупная кнопка «Вернуть».
+ */
+const WAIT = 5;
+function Pending({ title, cover, onRestore }: { title: string; cover: CartItem['cover']; onRestore: () => void }) {
+  const [left, setLeft] = useState(WAIT);
+  const p = useSharedValue(1);
   useEffect(() => {
-    p.value = withTiming(1, { duration: seconds * 1000, easing: Easing.linear });
+    p.value = withTiming(0, { duration: WAIT * 1000, easing: Easing.linear });
     const t = setInterval(() => setLeft((n) => Math.max(1, n - 1)), 1000);
     return () => clearInterval(t);
-  }, [p, seconds]);
-  const ring = useAnimatedProps(() => ({ strokeDashoffset: L * p.value }));
+  }, [p]);
+  const bar = useAnimatedStyle(() => ({ width: `${p.value * 100}%` }));
   return (
-    <View style={s.cd}>
-      <Svg width={28} height={28} style={[StyleSheet.absoluteFill, { transform: [{ rotate: '-90deg' }] }]}>
-        <ACircle cx={14} cy={14} r={R} stroke={colors.coralAction} strokeWidth={2} fill="none" strokeDasharray={L} animatedProps={ring} strokeLinecap="round" />
-      </Svg>
-      <Text style={s.cdText}>{left}</Text>
-    </View>
+    <>
+      <View style={s.ghostCoverWrap}>
+        <Image source={pic(cover)} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <View style={s.ghostCoverVeil}>
+          <TrashIcon size={20} color={colors.mut} weight="fill" />
+        </View>
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={s.ghostText}>Удалено из корзины</Text>
+        <Text style={s.ghostSub} numberOfLines={1}>{title}</Text>
+        <Text style={s.ghostLeft}>вернуть можно ещё {left} с</Text>
+      </View>
+      <Tap style={s.ghostBtn} onPress={onRestore} accessibilityRole="button" accessibilityLabel={`Вернуть ${title}`} hitSlop={6}>
+        <ArrowCounterClockwiseIcon size={16} color="#fff" weight="bold" />
+        <Text style={s.ghostBtnText}>Вернуть</Text>
+      </Tap>
+      <View style={s.ghostTrack} pointerEvents="none">
+        <Animated.View style={[s.ghostBar, bar]} />
+      </View>
+    </>
   );
 }
 
@@ -285,15 +299,7 @@ function CartRow({
           {children}
           {deleted ? (
             <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, s.ghost]} accessibilityLiveRegion="polite">
-              <Image source={pic(item.cover)} style={s.ghostCover} contentFit="cover" />
-              <View style={{ flex: 1 }}>
-                <Text style={s.ghostText}>Удалено</Text>
-                <Text style={s.ghostSub} numberOfLines={1}>{item.title}</Text>
-              </View>
-              <Countdown seconds={5} />
-              <Tap style={s.ghostBtn} onPress={onRestore} accessibilityRole="button" accessibilityLabel={`Вернуть ${item.title}`} hitSlop={6}>
-                <Text style={s.ghostBtnText}>Вернуть</Text>
-              </Tap>
+              <Pending title={item.title} cover={item.cover} onRestore={onRestore} />
             </Animated.View>
           ) : null}
         </Animated.View>
@@ -422,12 +428,14 @@ const s = StyleSheet.create({
   emptyPrimary: { backgroundColor: colors.coralAction },
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  ghost: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 26, backgroundColor: colors.card2, padding: 12, paddingRight: 14 },
-  ghostCover: { width: 84, height: '100%', borderRadius: 14, opacity: 0.35 },
-  ghostText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
-  ghostSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
-  ghostBtn: { height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#fff', justifyContent: 'center' },
-  ghostBtnText: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralAction },
-  cd: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  cdText: { fontSize: 12, fontFamily: fonts.bold, color: colors.coralAction, fontVariant: ['tabular-nums'] },
+  ghost: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 26, backgroundColor: colors.card2, padding: 12, paddingRight: 14, overflow: 'hidden' },
+  ghostCoverWrap: { width: 84, height: '100%', borderRadius: 14, overflow: 'hidden' },
+  ghostCoverVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(230,220,210,0.72)', alignItems: 'center', justifyContent: 'center' },
+  ghostText: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
+  ghostSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  ghostLeft: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut, fontVariant: ['tabular-nums'] },
+  ghostBtn: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ghostBtnText: { fontSize: 15, fontFamily: fonts.bold, color: '#fff' },
+  ghostTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(0,0,0,0.05)' },
+  ghostBar: { height: 4, backgroundColor: colors.coralAction },
 });
