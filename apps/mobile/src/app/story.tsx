@@ -12,7 +12,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,11 +24,11 @@ import { rub } from '@/data/store';
 import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
+/** Короткие подсказки над полем: подпись на пилюле → полная фраза, которая отправится. */
 const EXAMPLES = [
-  'Поездка в Карелию, тёплая, 24 страницы, больше пейзажей',
-  'Первый год сына, светлая книга на 32 страницы',
-  'Выпускной 11 «Б» — все фото класса, 40 страниц',
-  'Наш год вдвоём, love story, 20 страниц',
+  { label: 'Поездка в Карелию', text: 'Поездка в Карелию, тёплая, 24 страницы, больше пейзажей' },
+  { label: 'Первый год сына', text: 'Первый год сына, светлая книга на 32 страницы' },
+  { label: 'Выпускной 11 «Б»', text: 'Выпускной 11 «Б» — все фото класса, 40 страниц' },
 ];
 /** Что «услышала» диктовка в демо (в продукте — распознавание речи в локальном контуре). */
 const HEARD = 'Книга про лето на даче с бабушкой, светлая, 20 страниц, больше людей';
@@ -48,7 +48,7 @@ function answerText(p: ParsedStory) {
 }
 
 type Turn = { id: number; q: string; parsed: ParsedStory; step: number; text: string; done: boolean };
-const STEP_MS = 650;
+const STEP_MS = 380;
 
 export default function Story() {
   const insets = useSafeAreaInsets();
@@ -61,6 +61,20 @@ export default function Story() {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const nextId = useRef(1);
   const busy = turns.some((t) => !t.done);
+  const [top, setTop] = useState(0); // где окно начинается на экране — для правильного отступа под клавиатуру
+  const [kb, setKb] = useState(false);
+  const root = useRef<ComponentRef<typeof View>>(null);
+  useEffect(() => {
+    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKb(true));
+    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKb(false));
+    // клавиатура — после того, как окно доехало, иначе анимации спорят и всё дёргается
+    const t = voice ? undefined : setTimeout(() => input.current?.focus(), 420);
+    return () => {
+      a.remove();
+      b.remove();
+      if (t) clearTimeout(t);
+    };
+  }, [voice]);
   const last = turns[turns.length - 1];
 
   // диктовка: слова появляются по ходу речи
@@ -99,7 +113,7 @@ export default function Story() {
             clearInterval(t);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           }
-        }, 40);
+        }, 22);
       }
     }, STEP_MS);
     return () => {
@@ -134,49 +148,44 @@ export default function Story() {
   const empty = turns.length === 0;
 
   return (
-    <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* шапка окна: ручка, заголовок, закрыть */}
+    <View
+      ref={root}
+      style={s.screen}
+      onLayout={() => root.current?.measureInWindow((_x, y) => setTop(y))}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={top}>
+      {/* шапка окна: ручка, крупный заголовок, закрыть */}
       <View style={[s.head, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }]}>
         <View style={s.grab} />
         <View style={s.headRow}>
-          <View style={{ width: 36 }} />
-          <Text style={s.headTitle}>Собрать книгу</Text>
+          <Text style={s.title}>Собрать книгу</Text>
           <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
             <XIcon size={16} color={colors.fg} weight="bold" />
           </Tap>
         </View>
+        {empty ? <Text style={s.sub}>Опишите книгу словами или голосом — соберём её из ваших фото.</Text> : null}
       </View>
 
       <ScrollView
         ref={scroll}
         style={{ flex: 1 }}
-        contentContainerStyle={[s.content, empty && { flexGrow: 1, justifyContent: 'flex-end' }]}
+        contentContainerStyle={s.content}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         onContentSizeChange={() => !empty && scroll.current?.scrollToEnd({ animated: true })}>
-        {empty ? (
-          <View style={{ gap: 14 }}>
-            <Animated.Text entering={FadeInDown.delay(120).duration(duration.slow).easing(ease.smoothOut)} style={s.lead}>
-              Опишите книгу словами или голосом
-            </Animated.Text>
-            <View style={{ gap: 8 }}>
-              {EXAMPLES.map((e, i) => (
-                <Animated.View key={e} entering={FadeInDown.delay(200 + 70 * i).duration(duration.slow).easing(ease.smoothOut)}>
-                  <Tap style={s.example} onPress={() => send(e)} accessibilityRole="button" accessibilityLabel={`Пример: ${e}`}>
-                    <Text style={s.exampleText}>{e}</Text>
-                    <ArrowUpIcon size={14} color={colors.mut} weight="bold" style={{ transform: [{ rotate: '45deg' }] }} />
-                  </Tap>
-                </Animated.View>
-              ))}
-            </View>
-          </View>
-        ) : (
-          turns.map((t) => <TurnView key={t.id} turn={t} />)
-        )}
+        {empty ? null : turns.map((t) => <TurnView key={t.id} turn={t} />)}
       </ScrollView>
 
-      {/* поле ввода у большого пальца */}
-      <Animated.View entering={FadeInDown.delay(80).duration(duration.slow).easing(ease.smoothOut)} style={[s.composerWrap, { paddingBottom: insets.bottom + 8 }]}>
+      {/* поле ввода у большого пальца; над ним — короткие подсказки, пока пусто */}
+      <View style={[s.composerWrap, { paddingBottom: kb ? 8 : insets.bottom + 8 }]}>
+        {empty && !listening ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.hintsRow} contentContainerStyle={s.hints}>
+            {EXAMPLES.map((e) => (
+              <Tap key={e.label} style={s.hint} onPress={() => send(e.text)} accessibilityRole="button" accessibilityLabel={`Пример: ${e.text}`}>
+                <Text style={s.hintText}>{e.label}</Text>
+              </Tap>
+            ))}
+          </ScrollView>
+        ) : null}
         <View style={s.composer}>
           {listening ? (
             <Animated.View key="wave" entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={{ gap: 10 }}>
@@ -201,7 +210,6 @@ export default function Story() {
                 value={text}
                 onChangeText={setText}
                 multiline
-                autoFocus={!voice}
                 placeholder={empty ? 'Какую книгу соберём?' : 'Уточните: «32 страницы», «меньше селфи»'}
                 placeholderTextColor={colors.mut2}
                 style={s.input}
@@ -228,8 +236,9 @@ export default function Story() {
             </Animated.View>
           )}
         </View>
-      </Animated.View>
+      </View>
     </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -244,7 +253,7 @@ function TurnView({ turn }: { turn: Turn }) {
   const price = tariffs[1].price;
   return (
     <View style={s.turn}>
-      <Animated.Text entering={FadeInDown.duration(duration.slow).easing(ease.smoothOut)} style={s.q}>
+      <Animated.Text entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.q}>
         {turn.q}
       </Animated.Text>
 
@@ -269,12 +278,12 @@ function TurnView({ turn }: { turn: Turn }) {
       </View>
 
       {turn.step >= 3 ? (
-        <Animated.View entering={FadeInDown.duration(duration.slow).easing(ease.smoothOut)} style={s.answer}>
+        <Animated.View entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.answer}>
           <Text style={s.answerTitle}>{p.album}</Text>
           <Text style={s.answerText}>{turn.text}</Text>
 
           {turn.done ? (
-            <Animated.View entering={FadeIn.duration(duration.slow)} style={{ gap: 12 }}>
+            <Animated.View entering={FadeIn.duration(duration.fast)} style={{ gap: 12 }}>
               {/* найденные фото — как источники */}
               <View style={s.found}>
                 {FOUND.map((k, i) => (
@@ -333,16 +342,18 @@ function Timer() {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  head: { paddingHorizontal: 16, paddingBottom: 6, alignItems: 'center', gap: 8 },
+  head: { paddingHorizontal: 16, paddingBottom: 6, alignItems: 'center', gap: 6 },
   grab: { width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
-  headTitle: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
+  title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
+  sub: { alignSelf: 'stretch', fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut },
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 28 },
 
-  lead: { fontSize: 26, lineHeight: 32, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
-  example: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 13, paddingHorizontal: 16 },
-  exampleText: { flex: 1, fontSize: 15, lineHeight: 20, fontFamily: fonts.medium, color: colors.fg },
+  hintsRow: { marginHorizontal: -12, flexGrow: 0, marginBottom: 8 },
+  hints: { paddingHorizontal: 12, gap: 6 },
+  hint: { height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: colors.card, justifyContent: 'center' },
+  hintText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
 
   turn: { gap: 14 },
   q: { fontSize: 22, lineHeight: 28, fontFamily: fonts.bold, letterSpacing: -0.3, color: colors.fg },
