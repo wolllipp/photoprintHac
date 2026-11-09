@@ -10,8 +10,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CaretLeftIcon, PencilSimpleIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, ZoomIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OverlapTitle } from '@/components/home';
@@ -31,7 +32,8 @@ export default function Preview() {
   const picked = Math.round(pages * 1.6); // сколько кадров встанет в книгу
   const price = tariffs[1].price;
   const STAGE = Math.round(width * 1.45);
-  const [open, setOpen] = useState<number | null>(null); // открытый крупно разворот
+  const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
+  const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
 
   const build = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -45,6 +47,8 @@ export default function Preview() {
         <View style={{ height: STAGE, overflow: 'hidden' }}>
           <Slideshow shots={SHOTS} />
           <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.45)', '#fff']} locations={[0.68, 0.88, 1]} style={StyleSheet.absoluteFill} />
+          {/* мягкая белая дымка только в зоне названия — чтобы коралловые буквы читались на любом снимке */}
+          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.7)']} locations={[0, 0.7]} style={[s.haze, { height: Math.round(width * 0.5) }]} />
         </View>
 
         <View style={s.body}>
@@ -82,8 +86,13 @@ export default function Preview() {
           <View style={s.grid}>
             {spreads.map((sp, i) => (
               <Animated.View key={i} entering={FadeInDown.delay(300 + i * 60).duration(420).easing(ease.smoothOut)} style={s.cell}>
-                <Tap onPress={() => setOpen(i)} accessibilityRole="button" accessibilityLabel={`Открыть разворот ${i + 1} крупно`}>
-                  <MiniSpread sp={sp} />
+                <Tap
+                  onPress={() => cells.current[i]?.measureInWindow((x, y, w, h) => setOpen({ i, from: { x, y, w, h } }))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Открыть разворот ${i + 1} крупно`}>
+                  <View ref={(v) => { cells.current[i] = v; }} collapsable={false}>
+                    <MiniSpread sp={sp} />
+                  </View>
                 </Tap>
                 <Text style={s.cellLabel}>{i === 0 ? 'Обложка и начало' : `Разворот ${i + 1}`}</Text>
               </Animated.View>
@@ -93,8 +102,8 @@ export default function Preview() {
       </ScrollView>
 
       {/* разворот крупно: листаются соседние, закрыть — крестиком */}
-      <Modal visible={open !== null} transparent animationType="fade" onRequestClose={() => setOpen(null)}>
-        {open !== null ? <Viewer start={open} onClose={() => setOpen(null)} /> : null}
+      <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
+        {open !== null ? <Viewer start={open.i} from={open.from} onClose={() => setOpen(null)} /> : null}
       </Modal>
 
       {/* назад — стеклянная кнопка поверх сцены */}
@@ -137,37 +146,73 @@ function Slow({ k }: { k: Pic }) {
   );
 }
 
-/** Просмотр разворотов крупно: свайпом вбок к соседним, внизу — какой из скольких. */
-function Viewer({ start, onClose }: { start: number; onClose: () => void }) {
+type Rect = { x: number; y: number; w: number; h: number };
+
+/**
+ * Просмотр разворотов крупно. Разворот вырастает из миниатюры, на которую нажали, и встаёт по центру;
+ * свайпом — к соседним; нажатие мимо разворота или крестик — уменьшается обратно в своё место.
+ */
+function Viewer({ start, from, onClose }: { start: number; from: Rect; onClose: () => void }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [page, setPage] = useState(start);
   const pager = useRef<ComponentRef<typeof ScrollView>>(null);
+  const p = useSharedValue(0); // 0 — в миниатюре, 1 — по центру
+  const W = width - 24;
+  const H = W / (2 / 1.05);
+  useEffect(() => {
+    p.value = withSpring(1, { damping: 26, stiffness: 240 });
+  }, [p]);
+  const close = () => {
+    // своя миниатюра — улетаем в неё, чужая (долистали) — просто гаснем
+    p.set(
+      withTiming(0, { duration: 260, easing: ease.smoothOut }, (d) => {
+        if (d) scheduleOnRN(onClose);
+      }),
+    );
+  };
+  const bg = useAnimatedStyle(() => ({ opacity: p.value }));
+  const grow = useAnimatedStyle(() => {
+    if (page !== start) return { opacity: p.value };
+    const sc = from.w / W + (1 - from.w / W) * p.value;
+    const dx = (from.x + from.w / 2 - width / 2) * (1 - p.value);
+    const dy = (from.y + from.h / 2 - height / 2) * (1 - p.value);
+    return { transform: [{ translateX: dx }, { translateY: dy }, { scale: sc }] };
+  });
   return (
-    <View style={s.viewer}>
-      <Tap style={[s.viewerClose, { top: insets.top + 8 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
-        <XIcon size={18} color={colors.fg} weight="bold" />
-      </Tap>
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        ref={pager}
-        contentOffset={{ x: start * width, y: 0 }}
-        onLayout={() => pager.current?.scrollTo({ x: start * width, animated: false })}
-        onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
-        style={{ flexGrow: 0 }}>
-        {spreads.map((sp, i) => (
-          <View key={i} style={{ width, paddingHorizontal: 12, justifyContent: 'center' }}>
-            <Animated.View entering={i === start ? ZoomIn.duration(280).easing(ease.smoothOut) : undefined}>
-              <MiniSpread sp={sp} big />
-            </Animated.View>
-          </View>
-        ))}
-      </ScrollView>
-      <Text style={s.viewerNo}>
+    <View style={StyleSheet.absoluteFill}>
+      {/* фон — нажатие мимо разворота закрывает */}
+      <Animated.View style={[StyleSheet.absoluteFill, s.viewerBg, bg]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Закрыть" />
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, { justifyContent: 'center' }, grow]} pointerEvents="box-none">
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          ref={pager}
+          contentOffset={{ x: start * width, y: 0 }}
+          onLayout={() => pager.current?.scrollTo({ x: start * width, animated: false })}
+          onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+          style={{ flexGrow: 0 }}>
+          {spreads.map((sp, i) => (
+            <Pressable key={i} onPress={close} style={{ width, height: H + 80, paddingHorizontal: 12, justifyContent: 'center' }}>
+              {/* сам разворот нажатия не закрывает */}
+              <Pressable onPress={() => {}}>
+                <MiniSpread sp={sp} big />
+              </Pressable>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </Animated.View>
+      <Animated.Text style={[s.viewerNo, { bottom: insets.bottom + 40 }, bg]}>
         {page === 0 ? 'Обложка и начало' : `Разворот ${page + 1}`} · {page + 1} из {spreads.length}
-      </Text>
+      </Animated.Text>
+      <Animated.View style={[s.viewerClose, { top: insets.top + 8 }, bg]}>
+        <Tap style={s.viewerCloseBtn} onPress={close} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+          <XIcon size={18} color={colors.fg} weight="bold" />
+        </Tap>
+      </Animated.View>
     </View>
   );
 }
@@ -237,10 +282,12 @@ const s = StyleSheet.create({
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: { width: '48.5%', gap: 6 },
+  haze: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
-  viewer: { flex: 1, backgroundColor: '#fff', justifyContent: 'center', gap: 18 },
-  viewerClose: { position: 'absolute', right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  viewerNo: { textAlign: 'center', fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  viewerBg: { backgroundColor: 'rgba(255,255,255,0.96)' },
+  viewerClose: { position: 'absolute', right: 16 },
+  viewerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  viewerNo: { position: 'absolute', left: 0, right: 0, textAlign: 'center', fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
   mini: { aspectRatio: 2 / 1.05, flexDirection: 'row', gap: 4, padding: 4, borderRadius: 10, backgroundColor: '#FFFDF9', boxShadow: '0 6px 16px -10px rgba(60,40,30,0.4), 0 0 0 1px rgba(60,40,30,0.06)' },
   miniPage: { flex: 1, gap: 3 },
   cellLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center' },
