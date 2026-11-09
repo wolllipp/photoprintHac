@@ -8,11 +8,13 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CaretLeftIcon, PencilSimpleIcon, SparkleIcon } from 'phosphor-react-native';
+import { CaretLeftIcon, PencilSimpleIcon } from 'phosphor-react-native';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { OverlapTitle } from '@/components/home';
 import { Tap } from '@/components/ui';
 import { spreads, tariffs, type PageLayout, type Spread } from '@/data/demo';
 import { pic, type Pic } from '@/data/photos';
@@ -28,8 +30,7 @@ export default function Preview() {
   const pages = Number(p.pages ?? 24);
   const picked = Math.round(pages * 1.6); // сколько кадров встанет в книгу
   const price = tariffs[1].price;
-  const cover: Pic = spreads[0].photos[0] ?? 'city-sunset';
-  const STAGE = Math.round(width * 1.05);
+  const STAGE = Math.round(width * 0.98);
 
   const build = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -39,20 +40,17 @@ export default function Preview() {
   return (
     <View style={s.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
-        {/* сцена: размытая обложка как свет вокруг книги, к низу — в белый */}
-        <View style={{ height: STAGE }}>
-          <Image source={pic(cover)} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={40} />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.18)' }]} />
-          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.6)', '#fff']} locations={[0.55, 0.82, 1]} style={StyleSheet.absoluteFill} />
-          <Animated.View entering={FadeIn.duration(500)} style={[s.bookWrap, { top: insets.top + 56 }]}>
-            <Book cover={cover} title={title} w={Math.round(width * 0.56)} />
-          </Animated.View>
+        {/* сцена: кадры альбома фоном сменяют друг друга, к низу уходят в белый */}
+        <View style={{ height: STAGE, overflow: 'hidden' }}>
+          <Slideshow shots={SHOTS} />
+          <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.55)', '#fff']} locations={[0.45, 0.75, 1]} style={StyleSheet.absoluteFill} />
         </View>
 
         <View style={s.body}>
-          <Animated.Text entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.title}>
-            {title}
-          </Animated.Text>
+          {/* название с наплывом наезжает на низ стопки */}
+          <View style={{ marginTop: -Math.round(width * 0.3), zIndex: 5 }}>
+            <OverlapTitle text={title} size={64} maxWidth={width - 40} rgb="29,33,32" warm enter />
+          </View>
           <Animated.Text entering={FadeInDown.delay(60).duration(420).easing(ease.smoothOut)} style={s.kind}>
             Фотокнига Classic 20×20
           </Animated.Text>
@@ -73,12 +71,6 @@ export default function Preview() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(240).duration(420).easing(ease.smoothOut)} style={s.about}>
-            <View style={s.aboutHead}>
-              <View style={s.aiDot}>
-                <SparkleIcon size={11} color="#fff" weight="fill" />
-              </View>
-              <Text style={s.aboutLabel}>Что получится</Text>
-            </View>
             <Text style={s.aboutText}>
               {p.about ??
                 `Тёплая книга о поездке: ${picked} лучших кадров из ${p.photos ?? 214}, без дублей и смазанных. Пейзажи — на целый разворот, люди — крупно, лица не попадут в обрез.`}
@@ -105,42 +97,35 @@ export default function Preview() {
   );
 }
 
-/** Книга: обложка с фото и названием, корешок с тенью, срез страниц справа и снизу, мягкая тень на «столе». */
-function Book({ cover, title, w }: { cover: Pic; title: string; w: number }) {
-  const h = Math.round(w * 1.0);
+/** Кадры альбома для фона. */
+const SHOTS: Pic[] = ['night-window', 'city-sunset', 'friends-night', 'cafe-dessert', 'roses', 'friends-selfie'];
+const EVERY = 3000;
+
+/** Фон-слайдшоу: кадр медленно приближается, через 3 с мягко сменяется следующим. */
+function Slideshow({ shots }: { shots: Pic[] }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => (x + 1) % shots.length), EVERY);
+    return () => clearInterval(t);
+  }, [shots.length]);
   return (
-    <View style={{ width: w + 10, height: h + 10 }}>
-      {/* тень на столе */}
-      <View style={[s.bookShadow, { width: w * 0.9, left: w * 0.08, top: h - 6 }]} />
-      {/* срез страниц: несколько светлых слоёв со смещением */}
-      {[6, 4, 2].map((o) => (
-        <View key={o} style={[s.pages, { width: w, height: h, left: o + 2, top: o }]} />
-      ))}
-      {/* обложка */}
-      <View style={[s.cover, { width: w, height: h }]}>
-        <Image source={pic(cover)} style={StyleSheet.absoluteFill} contentFit="cover" />
-        <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)']} locations={[0.5, 1]} style={StyleSheet.absoluteFill} />
-        {/* корешок: тень и блик у сгиба */}
-        <LinearGradient
-          colors={['rgba(0,0,0,0.38)', 'rgba(255,255,255,0.18)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0)']}
-          locations={[0, 0.035, 0.07, 0.14]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* лак: мягкий блик по диагонали */}
-        <LinearGradient
-          colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']}
-          locations={[0.25, 0.45, 0.65]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <Text style={s.coverTitle} numberOfLines={2}>
-          {title}
-        </Text>
-      </View>
+    <View style={StyleSheet.absoluteFill}>
+      <Animated.View key={i} entering={FadeIn.duration(900)} exiting={FadeOut.duration(900)} style={StyleSheet.absoluteFill}>
+        <Slow k={shots[i]} />
+      </Animated.View>
     </View>
+  );
+}
+function Slow({ k }: { k: Pic }) {
+  const z = useSharedValue(1);
+  useEffect(() => {
+    z.value = withTiming(1.1, { duration: EVERY + 900, easing: Easing.linear });
+  }, [z]);
+  const a = useAnimatedStyle(() => ({ transform: [{ scale: z.value }] }));
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, a]}>
+      <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
+    </Animated.View>
   );
 }
 
@@ -189,15 +174,10 @@ function Stat({ value, label }: { value: React.ReactNode; label: string }) {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  bookWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  bookShadow: { position: 'absolute', height: 26, borderRadius: 20, backgroundColor: 'rgba(40,25,15,0.28)', transform: [{ scaleY: 0.6 }], boxShadow: '0 0 24px 10px rgba(40,25,15,0.22)' },
-  pages: { position: 'absolute', backgroundColor: '#FBF7F1', borderTopRightRadius: 6, borderBottomRightRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(60,40,30,0.12)' },
-  cover: { position: 'absolute', left: 0, top: 0, borderTopRightRadius: 6, borderBottomRightRadius: 6, borderTopLeftRadius: 2, borderBottomLeftRadius: 2, overflow: 'hidden', backgroundColor: colors.card2 },
-  coverTitle: { position: 'absolute', left: 18, right: 14, bottom: 14, fontSize: 20, lineHeight: 23, fontFamily: fonts.display, letterSpacing: -0.4, color: '#fff' },
 
-  body: { paddingHorizontal: 16, marginTop: -36, gap: 14 },
+  body: { paddingHorizontal: 16, gap: 14 },
   title: { fontSize: 34, lineHeight: 40, fontFamily: fonts.display, letterSpacing: -0.9, color: colors.fg, textAlign: 'center' },
-  kind: { fontSize: 15, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center', marginTop: -8 },
+  kind: { fontSize: 15, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center', marginTop: -4 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   cta: { flex: 1, height: 56, borderRadius: 28, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
@@ -208,11 +188,8 @@ const s = StyleSheet.create({
   statNum: { fontSize: 26, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
   statLabel: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
 
-  about: { backgroundColor: colors.card, borderRadius: 22, padding: 14, gap: 8 },
-  aboutHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  aiDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  aboutLabel: { fontSize: 13, fontFamily: fonts.bold, color: colors.fg },
-  aboutText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.fg },
+  about: { backgroundColor: colors.card, borderRadius: 22, padding: 16, gap: 6, alignItems: 'center' },
+  aboutText: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.fg, textAlign: 'center' },
 
   h2: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
