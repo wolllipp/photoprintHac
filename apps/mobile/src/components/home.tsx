@@ -243,7 +243,7 @@ export function OverlapTitle({
     if (!maxWidth || fit !== null) return;
     setFit(w <= maxWidth ? wanted : Math.floor((wanted * maxWidth) / w));
   };
-  const top = warm ? (['rgba(204,96,91,1)', 'rgba(222,140,122,0.9)', 'rgba(240,184,164,0.75)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
+  const top = warm ? (['rgba(204,96,91,1)', 'rgba(218,132,116,0.72)', 'rgba(240,184,164,0.3)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
   const topAt = warm ? ([0.15, 0.6, 1] as const) : ([0.25, 0.9] as const);
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), '');
   return (
@@ -278,6 +278,15 @@ export function OverlapTitle({
               <Text style={[line, { opacity: 0 }]}>{l}</Text>
               <LinearGradient colors={top} locations={topAt} style={StyleSheet.absoluteFill} />
             </MaskedView>
+            {/* нижняя часть верхней строки не только бледнеет, но и расплывается под нижней */}
+            {warm ? (
+              <MaskedView
+                pointerEvents="none"
+                style={StyleSheet.absoluteFill}
+                maskElement={<LinearGradient colors={['transparent', 'black']} locations={[0.35, 0.9]} style={StyleSheet.absoluteFill} />}>
+                <BlurView intensity={16} tint="default" style={StyleSheet.absoluteFill} />
+              </MaskedView>
+            ) : null}
           </Reanimated.View>
         );
       })}
