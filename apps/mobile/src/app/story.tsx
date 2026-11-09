@@ -10,10 +10,10 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { ArrowUpIcon, CheckIcon, MicrophoneIcon, PlusIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, useWindowDimensions, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory, type ParsedStory } from '@/ai/story';
@@ -328,10 +328,10 @@ function AskRow<T extends string | number>({ label, items, value, show, hint, on
 function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => void }) {
   const p = turn.parsed;
   const sp = turn.spec;
-  const steps: { icon: ReactNode; now: string; done: string }[] = [
-    { icon: <ImagesIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Ищу фото по описанию', done: `${p.photos} фото · «${p.album}»` },
-    { icon: <SparkleIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Отбираю лучшие кадры', done: 'без дублей и смазанных' },
-    { icon: <BookOpenTextIcon size={16} color={colors.peachInk} weight="fill" />, now: 'Подбираю объём и шаблон', done: `шаблон «${p.themeLabel === 'Своя тема' ? 'Классика' : p.themeLabel}»` },
+  const steps: { label: string; now: string; done: string }[] = [
+    { label: 'Фото', now: 'ищу по описанию', done: `${p.photos} · «${p.album}»` },
+    { label: 'Отбор', now: 'убираю дубли и смазанные', done: 'лучшие кадры' },
+    { label: 'Шаблон', now: 'подбираю', done: p.themeLabel === 'Своя тема' ? 'Классика' : p.themeLabel },
   ];
   const price = tariffs[1].price;
   return (
@@ -344,14 +344,11 @@ function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => vo
         {steps.map((st, i) =>
           i <= turn.step ? (
             <Animated.View key={i} entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.step}>
-              <View style={s.stepIco}>{st.icon}</View>
+              <Text style={s.stepLabel}>{st.label}</Text>
               {i < turn.step ? (
-                <>
-                  <Text style={s.stepText} numberOfLines={1}>{st.done}</Text>
-                  <Animated.View entering={ZoomIn.duration(duration.fast)} style={s.ok}>
-                    <CheckIcon size={11} color="#fff" weight="bold" />
-                  </Animated.View>
-                </>
+                <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.stepText} numberOfLines={1}>
+                  {st.done}
+                </Animated.Text>
               ) : (
                 <ThinkingLine text={`${st.now}…`} style={s.stepNow} />
               )}
@@ -423,13 +420,12 @@ const s = StyleSheet.create({
   hintText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
 
   turn: { gap: 14 },
-  q: { fontSize: 22, lineHeight: 28, fontFamily: fonts.bold, letterSpacing: -0.3, color: colors.fg },
+  q: { fontSize: 23, lineHeight: 29, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   steps: { gap: 6 },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 9, paddingHorizontal: 10 },
-  stepIco: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  stepText: { flex: 1, fontSize: 14.5, fontFamily: fonts.medium, color: colors.fg },
-  stepNow: { fontSize: 14.5, fontFamily: fonts.medium, color: colors.mut },
-  ok: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
+  step: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: colors.card, borderRadius: 18, height: 50, paddingHorizontal: 16 },
+  stepLabel: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  stepText: { flexShrink: 1, fontSize: 15, fontFamily: fonts.bold, color: colors.fg, textAlign: 'right' },
+  stepNow: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut, textAlign: 'right' },
 
   answer: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 8 },
   askTitle: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginBottom: 2 },
@@ -440,7 +436,7 @@ const s = StyleSheet.create({
   askChip: { height: 38, paddingHorizontal: 16, borderRadius: 19, backgroundColor: '#fff', justifyContent: 'center' },
   askChipOn: { backgroundColor: colors.coralAction },
   askChipText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
-  answerTitle: { fontSize: 22, lineHeight: 28, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
+  answerTitle: { fontSize: 13, fontFamily: fonts.bold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.peachInk },
   answerText: { fontSize: 16, lineHeight: 23, fontFamily: fonts.regular, color: colors.fg, minHeight: 23 },
   found: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   foundImg: { width: 42, height: 42, borderRadius: 12, borderWidth: 2, borderColor: colors.card },
