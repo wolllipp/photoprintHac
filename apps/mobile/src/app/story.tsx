@@ -12,7 +12,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowUpIcon, BookOpenTextIcon, CheckIcon, ImagesIcon, MicrophoneIcon, PlusIcon, SparkleIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Keyboard, LayoutAnimation, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, useWindowDimensions, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +21,7 @@ import { Tap } from '@/components/ui';
 import { tariffs } from '@/data/demo';
 import { pic, type PhotoName } from '@/data/photos';
 import { rub } from '@/data/store';
+import { OverlapTitle } from '@/components/home';
 import { VoiceGlow } from '@/components/voiceGlow';
 import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -53,6 +54,7 @@ const STEP_MS = 380;
 
 export default function Story() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { voice } = useLocalSearchParams<{ voice?: string }>();
   const [text, setText] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -62,24 +64,13 @@ export default function Story() {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const nextId = useRef(1);
   const busy = turns.some((t) => !t.done);
-  const [kbPad, setKbPad] = useState(0); // насколько клавиатура перекрывает окно
-  const kb = kbPad > 0;
+  const [kb, setKb] = useState(false);
   const root = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
-    // окно-шторка на iOS сдвинуто от верха экрана, и стандартный подъём под клавиатуру ошибается —
-    // меряем, где у окна низ, в момент появления клавиатуры и поднимаемся ровно на перекрытие
-    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
-      root.current?.measureInWindow((_x, y, _w, h) => {
-        LayoutAnimation.configureNext({ duration: e.duration || 250, update: { type: Platform.OS === 'ios' ? 'keyboard' : 'easeInEaseOut' } });
-        setKbPad(Math.max(0, y + h - e.endCoordinates.screenY));
-      });
-    });
-    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', (e) => {
-      LayoutAnimation.configureNext({ duration: e.duration || 250, update: { type: Platform.OS === 'ios' ? 'keyboard' : 'easeInEaseOut' } });
-      setKbPad(0);
-    });
-    // клавиатура — после того, как окно доехало, иначе анимации спорят и всё дёргается
-    const t = voice ? undefined : setTimeout(() => input.current?.focus(), 420);
+    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKb(true));
+    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKb(false));
+    // клавиатура поднимается вместе с окном — одно движение снизу
+    const t = voice ? undefined : setTimeout(() => input.current?.focus(), 60);
     return () => {
       a.remove();
       b.remove();
@@ -172,10 +163,9 @@ export default function Story() {
 
   return (
     <View ref={root} style={s.screen}>
-    <View style={{ flex: 1, paddingBottom: kbPad }}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* шапка окна: ручка, закрыть; в диалоге — заголовок мелко по центру */}
-      <View style={[s.head, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }]}>
-        <View style={s.grab} />
+      <View style={[s.head, { paddingTop: insets.top + 6 }]}>
         <View style={s.headRow}>
           <View style={{ width: 36 }} />
           {empty ? <View /> : <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.headTitle}>Собрать книгу</Animated.Text>}
@@ -195,7 +185,7 @@ export default function Story() {
         {empty ? (
           // пустой экран: крупный заголовок по центру — экран не пустует
           <Animated.View exiting={FadeOut.duration(duration.quick)} style={s.hero}>
-            <Text style={s.title}>{'Собрать\nкнигу'}</Text>
+            <OverlapTitle text="Собрать книгу" size={Math.min(64, Math.round(width * 0.155))} rgb="29,33,32" />
             <Text style={s.sub}>Опишите книгу словами или голосом — соберём её из ваших фото.</Text>
           </Animated.View>
         ) : (
@@ -267,7 +257,7 @@ export default function Story() {
           )}
         </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
     </View>
   );
 }

@@ -211,7 +211,8 @@ function splitLines(text: string): string[] {
   return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
 }
 
-function OverlapTitle({ text, size }: { text: string; size: number }) {
+/** rgb — цвет букв без прозрачности, «r,g,b»: белый на фото, тёмный на светлом фоне. */
+export function OverlapTitle({ text, size, rgb = '255,255,255' }: { text: string; size: number; rgb?: string }) {
   const lines = splitLines(text);
   const lh = Math.round(size * 0.8); // строки наезжают
   const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000', textAlign: 'center' } as const;
@@ -221,14 +222,14 @@ function OverlapTitle({ text, size }: { text: string; size: number }) {
         const last = i === lines.length - 1;
         const style = { height: Math.round(size * 1.08), marginTop: i === 0 ? 0 : lh - Math.round(size * 1.08) };
         if (Platform.OS === 'web') {
-          return <Text key={i} style={[line, style, { color: last ? '#fff' : 'rgba(255,255,255,0.6)' }]}>{l}</Text>;
+          return <Text key={i} style={[line, style, { color: last ? `rgb(${rgb})` : `rgba(${rgb},0.6)` }]}>{l}</Text>;
         }
         return (
           <MaskedView key={i} style={style} maskElement={<Text style={line}>{l}</Text>}>
             {/* невидимая копия задаёт маске ширину, иначе она схлопывается в ноль */}
             <Text style={[line, { opacity: 0 }]}>{l}</Text>
             <LinearGradient
-              colors={last ? ['#fff', 'rgba(255,255,255,0.86)'] : ['#fff', 'rgba(255,255,255,0.12)']}
+              colors={last ? [`rgb(${rgb})`, `rgba(${rgb},0.86)`] : [`rgb(${rgb})`, `rgba(${rgb},0.12)`]}
               locations={last ? [0.4, 1] : [0.25, 0.9]}
               style={StyleSheet.absoluteFill}
             />

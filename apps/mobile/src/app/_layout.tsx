@@ -28,7 +28,7 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="story" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="story" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="build" options={{ gestureEnabled: false }} />
         <Stack.Screen name="select" />
         <Stack.Screen name="book/[id]" />
