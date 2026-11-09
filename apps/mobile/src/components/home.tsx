@@ -236,14 +236,15 @@ export function OverlapTitle({
   const size = fit ?? wanted;
   const lines = splitLines(text);
   const lh = Math.round(size * 0.8); // строки наезжают
-  const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000', textAlign: 'center' } as const;
+  // запас по краям: из-за отрицательного интервала последняя буква шире своей строки, а маска на iOS режет по строке
+  const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000', textAlign: 'center', paddingHorizontal: Math.round(size * 0.1) } as const;
   // ширина строки на самом деле: если не влезает — уменьшаем кегль пропорционально (один раз)
   const measure = (w: number) => {
     if (!maxWidth || fit !== null) return;
     setFit(w <= maxWidth ? wanted : Math.floor((wanted * maxWidth) / w));
   };
-  const top = warm ? (['rgba(204,96,91,1)', 'rgba(247,213,194,0.55)', 'rgba(247,213,194,0)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
-  const topAt = warm ? ([0.1, 0.6, 1] as const) : ([0.25, 0.9] as const);
+  const top = warm ? (['rgba(204,96,91,1)', 'rgba(222,140,122,0.9)', 'rgba(240,184,164,0.75)'] as const) : ([`rgb(${rgb})`, `rgba(${rgb},0.12)`] as const);
+  const topAt = warm ? ([0.15, 0.6, 1] as const) : ([0.25, 0.9] as const);
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), '');
   return (
     <View accessibilityRole="header" accessibilityLabel={text} style={{ alignItems: 'center' }}>
@@ -264,7 +265,7 @@ export function OverlapTitle({
           // нижняя строка — сплошная (поверх верхней); в браузере маски нет — верхняя просто полупрозрачная
           return (
             <Reanimated.View key={i} entering={entering} style={{ zIndex: last ? 2 : 1 }}>
-              <Text style={[line, style, { color: last ? (warm ? colors.coralAction : `rgb(${rgb})`) : warm ? 'rgba(204,96,91,0.55)' : `rgba(${rgb},0.6)` }]}>
+              <Text style={[line, style, { color: last ? (warm ? colors.coralAction : `rgb(${rgb})`) : warm ? 'rgba(214,122,108,0.9)' : `rgba(${rgb},0.6)` }]}>
                 {l}
               </Text>
             </Reanimated.View>
