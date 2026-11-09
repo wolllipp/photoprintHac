@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Svg, { Circle } from 'react-native-svg';
-import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedProps, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,8 +23,6 @@ import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore, type CartItem } from '@/data/store';
 import { AnimatedNumber, duration, ease, enterItem } from '@/motion';
 import { colors, fonts } from '@/theme';
-
-const layout = LinearTransition.duration(260).easing(ease.smoothOut).reduceMotion(ReduceMotion.System);
 
 export default function Cart() {
   const insets = useSafeAreaInsets();
@@ -86,7 +84,7 @@ export default function Cart() {
           <>
             <View>
               {cart.map((it, i) => (
-                <Animated.View key={it.id} entering={enterItem(i)} layout={layout}>
+                <Animated.View key={it.id} entering={enterItem(i)}>
                   {pending.includes(it.id) ? (
                     <Ghost item={it} onRestore={() => restore(it.id)} onExpire={() => finalize(it.id)} />
                   ) : (
@@ -98,12 +96,12 @@ export default function Cart() {
               ))}
             </View>
             {live.length ? (
-              <>
-            <Animated.Text layout={layout} style={s.hint}>
+              <Animated.View exiting={FadeOut.duration(duration.fast)} style={{ gap: 14 }}>
+            <Animated.Text style={s.hint}>
               Потяните плитку влево, чтобы удалить
             </Animated.Text>
 
-            <Animated.View layout={layout} style={{ gap: 10 }}>
+            <Animated.View style={{ gap: 10 }}>
               <Text style={s.h2}>Добавить к заказу</Text>
               <View style={s.extras}>
                 {EXTRAS.map((e) => {
@@ -130,7 +128,7 @@ export default function Cart() {
               </View>
             </Animated.View>
 
-            <Animated.View layout={layout}>
+            <Animated.View>
               <Tap style={s.cta} onPress={checkout} accessibilityRole="button" accessibilityLabel={`Оформить, ${rub(total)}`}>
                 <Text style={s.ctaText}>Оформить</Text>
                 <View style={s.ctaSum}>
@@ -138,7 +136,7 @@ export default function Cart() {
                 </View>
               </Tap>
             </Animated.View>
-              </>
+              </Animated.View>
             ) : null}
           </>
         )}
@@ -405,8 +403,8 @@ const s = StyleSheet.create({
   emptyPrimary: { backgroundColor: colors.coralAction },
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  ghost: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 72, borderRadius: 22, backgroundColor: colors.card2, paddingLeft: 12, paddingRight: 8 },
-  ghostCover: { width: 44, height: 50, borderRadius: 10, opacity: 0.4 },
+  ghost: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 136, borderRadius: 26, backgroundColor: colors.card2, padding: 12, paddingRight: 14 },
+  ghostCover: { width: 84, height: '100%', borderRadius: 14, opacity: 0.35 },
   ghostText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   ghostSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   ghostBtn: { height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#fff', justifyContent: 'center' },
