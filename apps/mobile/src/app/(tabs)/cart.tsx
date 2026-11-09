@@ -349,13 +349,13 @@ const s = StyleSheet.create({
 
   extras: { flexDirection: 'row', gap: 10 },
   // выбранная — только рамкой, без значков и галочек
-  extra: { flex: 1, minHeight: 150, backgroundColor: colors.card, borderRadius: 26, paddingVertical: 16, paddingHorizontal: 14, gap: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  extra: { flex: 1, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 10, gap: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   extraOn: { borderColor: colors.coralAction },
-  extraTitle: { fontSize: 17, lineHeight: 21, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
-  extraSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
-  pricePill: { marginTop: 6, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: '#fff', justifyContent: 'center' },
+  extraTitle: { fontSize: 15, lineHeight: 19, fontFamily: fonts.bold, color: colors.fg, textAlign: 'center' },
+  extraSub: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center' },
+  pricePill: { marginTop: 6, height: 26, paddingHorizontal: 10, borderRadius: 13, backgroundColor: '#fff', justifyContent: 'center' },
   pricePillOn: { backgroundColor: colors.coralAction },
-  extraPrice: { fontSize: 14, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  extraPrice: { fontSize: 13, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
 
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8, marginTop: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
