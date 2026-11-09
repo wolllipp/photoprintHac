@@ -315,7 +315,7 @@ function TurnView({ turn }: { turn: Turn }) {
                 <Text style={s.foundMore}>+{p.photos - FOUND.length} фото</Text>
               </View>
 
-              <Tap style={s.cta} onPress={() => router.push('/build')} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
+              <Tap style={s.cta} onPress={() => router.push({ pathname: '/preview', params: { title: p.album, pages: String(p.pages), photos: String(p.photos) } })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
                 <Text style={s.ctaText}>Показать вариант</Text>
                 <View style={s.ctaSum}>
                   <Text style={s.ctaPrice}>от {rub(price)}</Text>
