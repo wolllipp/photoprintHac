@@ -213,7 +213,7 @@ function splitLines(text: string): string[] {
 
 /**
  * rgb — цвет букв «r,g,b»: белый на фото, тёмный на светлом фоне.
- * warm — двухцветный наплыв: верхняя строка коралловая и книзу растворяется в персиковый, нижняя — сплошная поверх.
+ * warm — коралловый наплыв: верхняя строка тает книзу в персиковый, нижняя — сплошным коралловым поверх.
  * enter — строки мягко поднимаются по очереди при появлении.
  * maxWidth — если строка на этом телефоне шире, заголовок сам уменьшается (замер после отрисовки).
  */
@@ -264,7 +264,7 @@ export function OverlapTitle({
           // нижняя строка — сплошная (поверх верхней); в браузере маски нет — верхняя просто полупрозрачная
           return (
             <Reanimated.View key={i} entering={entering} style={{ zIndex: last ? 2 : 1 }}>
-              <Text style={[line, style, { color: last ? `rgb(${rgb})` : warm ? 'rgba(204,96,91,0.85)' : `rgba(${rgb},0.6)` }]}>
+              <Text style={[line, style, { color: last ? (warm ? colors.coralAction : `rgb(${rgb})`) : warm ? 'rgba(204,96,91,0.55)' : `rgba(${rgb},0.6)` }]}>
                 {l}
               </Text>
             </Reanimated.View>
