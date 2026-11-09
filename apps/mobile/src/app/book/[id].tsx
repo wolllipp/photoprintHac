@@ -89,7 +89,7 @@ export default function BookScreen() {
           <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
         </Tap>
         <Text style={s.navTitle} numberOfLines={1}>{draft.title}</Text>
-        <Tap style={[s.round, s.edit]} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel="Править отбор фото">
+        <Tap style={[s.round, s.edit]} onPress={() => router.push({ pathname: '/editor', params: { id: id ?? 'karelia' } })} accessibilityRole="button" accessibilityLabel="Править в конструкторе">
           <Text style={s.editText}>Править</Text>
         </Tap>
       </View>
@@ -166,6 +166,8 @@ export default function BookScreen() {
 /** Книгу можно листать: развороты по одному, свайпом вбок; снизу — какой разворот из скольких. */
 function Pager({ pages }: { pages: number }) {
   const { width } = useWindowDimensions();
+  const { design } = useStore();
+  const book = design ?? spreads;
   const [page, setPage] = useState(0);
   const total = Math.round(pages / 2);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -175,9 +177,9 @@ function Pager({ pages }: { pages: number }) {
   return (
     <View style={{ width, gap: 12 }}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={32}>
-        {Array.from({ length: total }, (_, i) => spreads[i % spreads.length]).map((sp, i) => (
+        {Array.from({ length: total }, (_, i) => book[i % book.length]).map((sp, i) => (
           <View key={i} style={{ width, paddingHorizontal: 20 }} accessible accessibilityLabel={`Разворот ${i + 1} из ${total}`}>
-            <View style={s.spread}>
+            <View style={[s.spread, sp.bg ? { backgroundColor: sp.bg } : null]}>
               <Leaf layout={sp.left} shots={sp.photos.slice(0, count(sp.left))} side="left" />
               <Leaf layout={sp.right} shots={sp.photos.slice(count(sp.left))} side="right" />
             </View>
@@ -196,8 +198,9 @@ function Pager({ pages }: { pages: number }) {
 
 const count = (l: PageLayout) => (l === 'one' ? 1 : l === 'two' ? 2 : 3);
 
-function Leaf({ layout, shots, side }: { layout: PageLayout; shots: PhotoName[]; side: 'left' | 'right' }) {
-  const img = (k: PhotoName, flex = 1) => <Image key={k} source={photos[k]} style={{ flex, borderRadius: 3 }} contentFit="cover" />;
+function Leaf({ layout, shots, side }: { layout: PageLayout; shots: (PhotoName | null)[]; side: 'left' | 'right' }) {
+  const img = (k: PhotoName | null | undefined, flex = 1) =>
+    k ? <Image key={k} source={photos[k]} style={{ flex, borderRadius: 3 }} contentFit="cover" /> : <View style={{ flex, borderRadius: 3, backgroundColor: colors.card2 }} />;
   return (
     <View style={[s.leaf, side === 'left' ? s.leafLeft : s.leafRight]}>
       {layout === 'one' ? img(shots[0]) : null}
@@ -230,14 +233,14 @@ const s = StyleSheet.create({
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   spread: {
-    width: '100%', aspectRatio: 2 / 1.05, flexDirection: 'row',
+    width: '100%', aspectRatio: 2 / 1.05, flexDirection: 'row', backgroundColor: '#FFFDF9', borderRadius: 10,
     shadowColor: '#232B2A', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 0, height: 14 }, elevation: 8,
   },
   dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.card2 },
   dotOn: { width: 18, backgroundColor: colors.fg },
   pageNo: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, marginLeft: 6, fontVariant: ['tabular-nums'] },
-  leaf: { flex: 1, padding: 8, gap: 6, backgroundColor: '#FFFDF9' },
+  leaf: { flex: 1, padding: 8, gap: 6 },
   leafLeft: { borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
   leafRight: { borderTopRightRadius: 10, borderBottomRightRadius: 10 },
   okPill: {

@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { points as initialPoints } from '@/data/demo';
+import type { Spread } from '@/data/demo';
 import type { PhotoName } from '@/data/photos';
 
 export type TariffId = 'lite' | 'classic' | 'premium' | 'print';
@@ -46,6 +47,9 @@ type Store = {
   /** нижнее меню скрыто, пока на главной виден полноэкранный кадр */
   tabBarHidden: boolean;
   setTabBarHidden: (v: boolean) => void;
+  /** развороты, поправленные в конструкторе; null — книга как её собрал ИИ */
+  design: Spread[] | null;
+  setDesign: (d: Spread[]) => void;
   /** показывать приветственный экран на главной (настройка) */
   showIntro: boolean;
   setShowIntro: (v: boolean) => void;
@@ -61,6 +65,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [points, setPoints] = useState(initialPoints);
   const [tabBarHidden, setTabBarHidden] = useState(true);
   const [showIntro, setShowIntroState] = useState(true);
+  const [design, setDesign] = useState<Spread[] | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -90,6 +95,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setTabBarHidden,
       showIntro,
       setShowIntro,
+      design,
+      setDesign,
       markSeen: () => setOrders((o) => o.map((x) => (x.fresh ? { ...x, fresh: false } : x))),
       placeOrder: (total, spentPoints = 0) => {
         const item = cart[0];
@@ -109,7 +116,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro],
+    [cart, orders, points, tabBarHidden, showIntro, design],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

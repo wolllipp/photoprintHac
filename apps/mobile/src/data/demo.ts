@@ -91,7 +91,8 @@ export const drafts: Record<string, Draft> = {
 
 /** Развороты для листания книги: раскладка каждой страницы и кадры на ней. */
 export type PageLayout = 'one' | 'two' | 'three';
-export type Spread = { left: PageLayout; right: PageLayout; photos: PhotoName[] };
+/** photos — по рамкам слева направо; null — пустая рамка (в конструкторе). */
+export type Spread = { left: PageLayout; right: PageLayout; photos: (PhotoName | null)[]; bg?: string; caption?: string | null };
 export const spreads: Spread[] = [
   { left: 'three', right: 'two', photos: ['city-sunset', 'friends-night', 'cafe-dessert', 'night-window', 'friends-selfie'] },
   { left: 'one', right: 'two', photos: ['concert', 'roses', 'bouquet'] },
