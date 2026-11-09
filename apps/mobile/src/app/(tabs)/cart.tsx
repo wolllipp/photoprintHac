@@ -189,6 +189,9 @@ function Pending({ title, cover, onRestore }: { title: string; cover: CartItem['
   );
 }
 
+/** Пружина свайпа: едва заметный отскок, без «желе». */
+const SPRING = { damping: 30, stiffness: 260, mass: 1 };
+
 /**
  * Строка корзины. Удаление как в Telegram: плитка едет за пальцем, красная подложка растёт следом.
  * Короткий свайп оставляет кнопку «Удалить», дотянул почти до края экрана — щелчок вибрацией.
@@ -216,6 +219,7 @@ function CartRow({
   const { width } = useWindowDimensions();
   const OPEN = -96;
   const OPEN_R = 96; // вправо — кнопка «Изменить»
+  const PULL_R = width * 0.55; // дотянул вправо — сразу правка
   // удаление: палец проходит чуть больше половины экрана
   const PULL = -width * 0.55;
   // где при этом окажется плитка (после кнопки «Удалить» она слегка сопротивляется — едет на 80% от пальца)
@@ -247,8 +251,8 @@ function CartRow({
       const next = start.value + e.translationX;
       drag.value = next;
       // вправо до «Изменить» — за пальцем, дальше резина; влево до «Удалить» — за пальцем, дальше с сопротивлением
-      x.value = next > OPEN_R ? OPEN_R + (next - OPEN_R) * 0.2 : next > OPEN ? next : OPEN + (next - OPEN) * 0.8;
-      const a = next < PULL;
+      x.value = next > OPEN_R ? OPEN_R + (next - OPEN_R) * 0.8 : next > OPEN ? next : OPEN + (next - OPEN) * 0.8;
+      const a = next < PULL || next > PULL_R;
       if (a !== armed.value) {
         armed.value = a;
         scheduleOnRN(tick);
@@ -261,7 +265,10 @@ function CartRow({
       if (e.velocityX < -250) to = x.value > 0 ? 0 : OPEN;
       if (e.velocityX > 250) to = x.value < 0 ? 0 : OPEN_R;
       if (drag.value < PULL) commit();
-      else x.value = withSpring(to, { damping: 26, stiffness: 260, velocity: e.velocityX });
+      else if (drag.value > PULL_R) {
+        x.value = withSpring(0, SPRING);
+        scheduleOnRN(onEdit);
+      } else x.value = withSpring(to, { ...SPRING, velocity: Math.max(-1500, Math.min(1500, e.velocityX)) });
       armed.value = false;
     },
   });
@@ -286,10 +293,11 @@ function CartRow({
   const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
   const backL = useAnimatedStyle(() => ({ width: Math.max(0, x.value - 8), opacity: x.value > 4 ? 1 : 0 }));
   const edit = () => {
-    x.set(withSpring(0, { damping: 26, stiffness: 260 }));
+    x.set(withSpring(0, SPRING));
     onEdit();
   };
   const icon = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value < FULL ? 1.1 : 1, { duration: 150 }) }] }));
+  const iconR = useAnimatedStyle(() => ({ transform: [{ scale: withTiming(x.value > OPEN_R + (PULL_R - OPEN_R) * 0.8 ? 1.1 : 1, { duration: 150 }) }] }));
   const row = useAnimatedStyle(() => (shrink.value < 1 ? { height: h.value * shrink.value, opacity: shrink.value, overflow: 'hidden' } : {}));
 
   return (
@@ -308,8 +316,10 @@ function CartRow({
       </Animated.View>
       <Animated.View style={[s.editBack, backL]}>
         <Pressable style={s.deleteHit} onPress={edit} accessibilityRole="button" accessibilityLabel={`Изменить ${item.title}`}>
-          <PencilSimpleIcon size={22} color="#fff" weight="fill" />
-          <Text style={s.deleteText} numberOfLines={1}>Изменить</Text>
+          <Animated.View style={[{ alignItems: 'center', gap: 4 }, iconR]}>
+            <PencilSimpleIcon size={22} color="#fff" weight="fill" />
+            <Text style={s.deleteText} numberOfLines={1}>Изменить</Text>
+          </Animated.View>
         </Pressable>
       </Animated.View>
       <GestureDetector gesture={pan}>
@@ -369,7 +379,6 @@ function ItemTile({ item, onEdit, onQty }: { item: CartItem; onEdit: () => void;
               {item.tariff === 'print' ? `${item.finish.toLowerCase()} · будет ${item.readyBy}` : `${item.tariffName} ${item.format} · ${item.pages} стр.`}
             </Text>
           </View>
-          <PencilSimpleIcon size={16} color={colors.mut} weight="bold" />
         </View>
         <View style={s.infoBottom} pointerEvents="box-none">
           <View style={s.stepper}>
@@ -420,7 +429,7 @@ const s = StyleSheet.create({
   price: { fontSize: 18, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
   delete: { position: 'absolute', right: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: '#D9483B', overflow: 'hidden' },
-  editBack: { position: 'absolute', left: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: colors.ink2, overflow: 'hidden' },
+  editBack: { position: 'absolute', left: 0, top: 0, bottom: 10, borderRadius: 26, backgroundColor: colors.tealInk, overflow: 'hidden' },
   deleteHit: { flex: 1, minWidth: 88, alignItems: 'center', justifyContent: 'center' },
   deleteText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
   hint: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: -4 },
