@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   pikP: { fontFamily: fonts.logo, color: '#fff', textAlign: 'center' },
   sec: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  secTitle: { fontSize: 21, fontWeight: '700', letterSpacing: -0.4, color: colors.fg },
+  secTitle: { fontSize: 19, fontFamily: fonts.displayMedium, letterSpacing: -0.3, color: colors.fg },
   secAction: { fontSize: 16, fontWeight: '500', color: colors.coralLink },
   seg: { flex: 1, backgroundColor: colors.card2, overflow: 'hidden' },
   segNow: { width: '55%', height: '100%', backgroundColor: colors.coralAction },

@@ -126,17 +126,24 @@ export function HeroPager({
 
       {/* шапка на снимке: аватар · логотип · пики */}
       <View style={[s.top, { top: insets.top + 6 }]} pointerEvents="box-none">
-        <Tap onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel="Профиль и настройки">
-          <Glass tone="dark" style={s.avatar} interactive>
-            <Text style={s.avatarText}>И</Text>
-          </Glass>
-        </Tap>
-        {/* на приветствии большой логотип уже есть — маленький в шапке не дублируем */}
-        {current.kind === 'welcome' ? null : (
-          <View style={s.brand} pointerEvents="none" accessibilityRole="header">
-            <Logo width={92} color="#fff" />
+        <View style={s.who}>
+          <Tap onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel="Профиль и настройки">
+            <Glass tone="dark" style={s.avatar} interactive>
+              <Text style={s.avatarText}>И</Text>
+            </Glass>
+          </Tap>
+          {/* подпись слайда — справа от аватара, без стекла */}
+          <View style={{ flexShrink: 1 }}>
+            {current.kind === 'welcome' ? (
+              <Text style={s.whoTitle} numberOfLines={1}>Добро пожаловать!</Text>
+            ) : (
+              <>
+                <Text style={s.whoTitle} numberOfLines={1}>Собрали для вас</Text>
+                <Text style={s.whoSub} numberOfLines={1}>{current.item.meta}</Text>
+              </>
+            )}
           </View>
-        )}
+        </View>
         <Tap accessibilityRole="button" accessibilityLabel={`${points} пиков, пригласить друга`}>
           <Glass tone="dark" style={s.points} interactive>
             <AnimatedNumber value={points} format={String} style={s.pointsText} />
@@ -220,7 +227,7 @@ function SlideView({
     }
   }, [active, zoom]);
   const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
-  const titleSize = Math.max(34, Math.min(46, Math.round(width * 0.105)));
+  const titleSize = Math.max(28, Math.min(38, Math.round(width * 0.088)));
   const titleStyle = { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.07) };
   const photo = slide.kind === 'welcome' ? slide.photo : slide.item.photo;
   return (
@@ -240,14 +247,10 @@ function SlideView({
       <Animated.View style={[s.center, { opacity: uiOpacity }]} pointerEvents="none">
         {slide.kind === 'welcome' ? (
           <>
-            <Text style={s.kicker} accessibilityRole="header">Добро пожаловать!</Text>
             <Logo width={Math.round(width * 0.64)} color="#fff" />
           </>
         ) : (
           <>
-            <Glass tone="dark" style={s.eyebrow}>
-              <Text style={s.eyebrowText}>Собрали для вас · {slide.item.meta}</Text>
-            </Glass>
             <Text style={[s.title, titleStyle]} accessibilityRole="header">{slide.item.title}</Text>
           </>
         )}
@@ -398,6 +401,9 @@ const s = StyleSheet.create({
   plainPoints: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingLeft: 12, paddingRight: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(35,43,42,0.12)' },
   /* слайды */
   top: { position: 'absolute', left: 18, right: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  who: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, marginRight: 12 },
+  whoTitle: { fontSize: 15, fontFamily: fonts.semibold, color: '#fff' },
+  whoSub: { fontSize: 12.5, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 16, fontFamily: fonts.bold, color: '#fff' },
   brand: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: -1 },
@@ -406,7 +412,7 @@ const s = StyleSheet.create({
 
   center: { position: 'absolute', left: 0, right: 0, top: 112, alignItems: 'flex-start', paddingHorizontal: 22, gap: 8 },
   kicker: { fontSize: 17, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.88)', letterSpacing: 0.1 },
-  title: { fontSize: 44, lineHeight: 47, fontFamily: fonts.display, letterSpacing: -1.6, color: '#fff' },
+  title: { fontSize: 44, lineHeight: 50, fontFamily: fonts.display, letterSpacing: -1, color: '#fff' },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.88)', textAlign: 'center', maxWidth: 320 },
   eyebrow: { flexDirection: 'row', alignItems: 'center', height: 30, paddingHorizontal: 13, borderRadius: 15 },
   eyebrowText: { fontSize: 13, fontFamily: fonts.semibold, color: '#fff' },
@@ -427,7 +433,7 @@ const s = StyleSheet.create({
   tileTall: { flex: 1, height: 238, justifyContent: 'flex-end' },
   tileShort: { height: 114, justifyContent: 'space-between' },
   tilePhoto: { padding: 14 },
-  tileTitle: { fontSize: 22, fontFamily: fonts.heavy, letterSpacing: -0.6, color: colors.fg },
+  tileTitle: { fontSize: 19, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
   tileTitleSm: { fontSize: 16, fontFamily: fonts.bold, letterSpacing: -0.2, color: colors.fg },
   tileSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
   tileIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
@@ -449,5 +455,5 @@ const s = StyleSheet.create({
   albumBadge: { height: 28, paddingHorizontal: 11, borderRadius: 14, justifyContent: 'center' },
   more: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   albumTitleWrap: { position: 'absolute', left: 12, right: 0, bottom: -10, height: 76 },
-  albumTitle: { fontSize: 66, lineHeight: 76, fontFamily: fonts.display, letterSpacing: -3, color: '#000' },
+  albumTitle: { fontSize: 50, lineHeight: 76, fontFamily: fonts.display, letterSpacing: -1.5, color: '#000' },
 });

@@ -1,5 +1,6 @@
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { Pacifico_400Regular, useFonts } from '@expo-google-fonts/pacifico';
+import { Unbounded_600SemiBold, Unbounded_700Bold } from '@expo-google-fonts/unbounded';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +14,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   // Batica и Onehart: положить .ttf/.otf в assets/fonts и добавить сюда, затем сменить fonts.display/accent в theme.ts
-  const [loaded, error] = useFonts({ Pacifico_400Regular, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
+  const [loaded, error] = useFonts({ Pacifico_400Regular, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, Unbounded_600SemiBold, Unbounded_700Bold });
 
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync();

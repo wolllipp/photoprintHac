@@ -45,8 +45,9 @@ export const fonts = {
   semibold: 'Inter_600SemiBold',
   bold: 'Inter_700Bold',
   heavy: 'Inter_800ExtraBold',
-  /** крупные заголовки на фото — Batica, пока Inter ExtraBold */
-  display: 'Inter_800ExtraBold',
+  /** заголовки — Unbounded (кириллица, OFL) */
+  display: 'Unbounded_700Bold',
+  displayMedium: 'Unbounded_600SemiBold',
   /** акцентное слово/подзаголовок — Onehart, пока Inter Medium */
   accent: 'Inter_500Medium',
 } as const;
