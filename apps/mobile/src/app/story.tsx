@@ -185,8 +185,11 @@ export default function Story() {
         {empty ? (
           // пустой экран: крупный заголовок по центру — экран не пустует
           <Animated.View exiting={FadeOut.duration(duration.quick)} style={s.hero}>
-            <OverlapTitle text="Собрать книгу" size={Math.min(64, Math.round(width * 0.155))} rgb="29,33,32" />
-            <Text style={s.sub}>Опишите книгу словами или голосом — соберём её из ваших фото.</Text>
+            {/* «СОБРАТЬ» — 7 широких заглавных; буква Unbounded ≈ 0,92 кегля, поля по 28 — так слово всегда влезает */}
+            <OverlapTitle text="Собрать книгу" size={Math.min(64, Math.floor((width - 56) / (7 * 0.92)))} rgb="29,33,32" warm enter />
+            <Animated.Text entering={FadeInDown.delay(260).duration(520).easing(ease.smoothOut)} style={s.sub}>
+              Опишите книгу словами или голосом — соберём её из ваших фото.
+            </Animated.Text>
           </Animated.View>
         ) : (
           turns.map((t) => <TurnView key={t.id} turn={t} />)

@@ -26,7 +26,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, type SharedValue } from 'react-native-reanimated';
+import Reanimated, { Easing, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { BlurView } from 'expo-blur';
 
@@ -211,8 +211,12 @@ function splitLines(text: string): string[] {
   return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
 }
 
-/** rgb — цвет букв без прозрачности, «r,g,b»: белый на фото, тёмный на светлом фоне. */
-export function OverlapTitle({ text, size, rgb = '255,255,255' }: { text: string; size: number; rgb?: string }) {
+/**
+ * rgb — цвет букв «r,g,b»: белый на фото, тёмный на светлом фоне.
+ * warm — в наплыв подмешан коралловый: верхняя строка тает через него, нижняя к низу чуть теплеет.
+ * enter — строки мягко поднимаются по очереди при появлении.
+ */
+export function OverlapTitle({ text, size, rgb = '255,255,255', warm, enter }: { text: string; size: number; rgb?: string; warm?: boolean; enter?: boolean }) {
   const lines = splitLines(text);
   const lh = Math.round(size * 0.8); // строки наезжают
   const line = { fontSize: size, lineHeight: Math.round(size * 1.08), fontFamily: fonts.overlap, letterSpacing: -size * 0.04, color: '#000', textAlign: 'center' } as const;
@@ -222,18 +226,28 @@ export function OverlapTitle({ text, size, rgb = '255,255,255' }: { text: string
         const last = i === lines.length - 1;
         const style = { height: Math.round(size * 1.08), marginTop: i === 0 ? 0 : lh - Math.round(size * 1.08) };
         if (Platform.OS === 'web') {
-          return <Text key={i} style={[line, style, { color: last ? `rgb(${rgb})` : `rgba(${rgb},0.6)` }]}>{l}</Text>;
+          return (
+            <Reanimated.View key={i} entering={enter ? FadeInDown.delay(i * 110).duration(520).easing(Easing.out(Easing.cubic)) : undefined}>
+              <Text style={[line, style, { color: last ? `rgb(${rgb})` : warm ? 'rgba(184,79,75,0.7)' : `rgba(${rgb},0.6)` }]}>{l}</Text>
+            </Reanimated.View>
+          );
         }
+        const fade: [string, string, ...string[]] = last
+          ? warm
+            ? [`rgb(${rgb})`, `rgb(${rgb})`, 'rgba(150,62,48,0.95)']
+            : [`rgb(${rgb})`, `rgba(${rgb},0.86)`]
+          : warm
+            ? [`rgb(${rgb})`, 'rgba(184,79,75,0.6)', 'rgba(184,79,75,0.06)']
+            : [`rgb(${rgb})`, `rgba(${rgb},0.12)`];
+        const at: [number, number, ...number[]] = last ? (warm ? [0, 0.55, 1] : [0.4, 1]) : warm ? [0.15, 0.55, 0.95] : [0.25, 0.9];
         return (
-          <MaskedView key={i} style={style} maskElement={<Text style={line}>{l}</Text>}>
+          <Reanimated.View key={i} entering={enter ? FadeInDown.delay(i * 110).duration(520).easing(Easing.out(Easing.cubic)) : undefined}>
+          <MaskedView style={style} maskElement={<Text style={line}>{l}</Text>}>
             {/* невидимая копия задаёт маске ширину, иначе она схлопывается в ноль */}
             <Text style={[line, { opacity: 0 }]}>{l}</Text>
-            <LinearGradient
-              colors={last ? [`rgb(${rgb})`, `rgba(${rgb},0.86)`] : [`rgb(${rgb})`, `rgba(${rgb},0.12)`]}
-              locations={last ? [0.4, 1] : [0.25, 0.9]}
-              style={StyleSheet.absoluteFill}
-            />
+            <LinearGradient colors={fade} locations={at} style={StyleSheet.absoluteFill} />
           </MaskedView>
+          </Reanimated.View>
         );
       })}
     </View>
