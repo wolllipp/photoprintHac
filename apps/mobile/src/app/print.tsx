@@ -51,11 +51,10 @@ export default function Print() {
     Haptics.selectionAsync().catch(() => {});
     setQty((q) => ({ ...q, [k]: Math.max(0, Math.min(20, q[k] + d)) }));
   };
-  const all = (d: number) => {
+  const all = (n: number) => {
     Haptics.selectionAsync().catch(() => {});
-    setQty((q) => Object.fromEntries(Object.entries(q).map(([k, v]) => [k, Math.max(1, Math.min(20, v + d))])));
+    setQty(Object.fromEntries(SHOTS.map((k) => [k, n])));
   };
-  const every = Math.min(...SHOTS.map((k) => qty[k]));
 
   const added = useAdded();
   const onAdd = () => {
@@ -139,12 +138,17 @@ export default function Print() {
 
         {/* фото: у каждого — сколько копий */}
         <View style={s.section}>
-          <View style={s.photosHead}>
-            <Text style={s.label}>{SHOTS.length} фото · копий</Text>
-            <View style={s.allRow}>
-              <Text style={s.allLabel}>всем</Text>
-              <Stepper value={every} onMinus={() => all(-1)} onPlus={() => all(1)} min={1} />
-            </View>
+          <Text style={s.label}>{SHOTS.length} фото · копий каждого</Text>
+          {/* быстро задать всем сразу — пилюли; потом можно поправить у отдельных фото */}
+          <View style={s.row} accessibilityRole="radiogroup">
+            {[1, 2, 3, 5].map((n) => {
+              const on = SHOTS.every((k) => qty[k] === n);
+              return (
+                <Tap key={n} style={[s.allChip, on && s.allChipOn]} onPress={() => all(n)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`По ${n} копии каждого`}>
+                  <Text style={[s.allChipText, on && { color: '#fff' }]}>по {n}</Text>
+                </Tap>
+              );
+            })}
           </View>
           <View style={s.grid}>
             {SHOTS.map((k) => (
@@ -204,9 +208,9 @@ const s = StyleSheet.create({
   paperOn: { borderColor: colors.coralAction },
   paperName: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
   paperSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut },
-  photosHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  allRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  allLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
+  allChip: { flex: 1, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  allChipOn: { backgroundColor: colors.coralAction },
+  allChipText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   photo: { borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card2 },
   crop: { position: 'absolute', left: '14%', right: '14%', top: 0, bottom: 0, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderStyle: 'dashed', borderColor: '#fff' },
