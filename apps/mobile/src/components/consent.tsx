@@ -40,6 +40,7 @@ export function ConsentSheet({ visible, onAccept, onClose }: { visible: boolean;
             ))}
           </View>
 
+          <Text style={s.foot}>Нажимая «Согласен», вы принимаете политику обработки персональных данных</Text>
           <Tap
             style={s.cta}
             onPress={() => {
@@ -52,7 +53,6 @@ export function ConsentSheet({ visible, onAccept, onClose }: { visible: boolean;
           <Tap style={s.later} onPress={onClose} accessibilityRole="button">
             <Text style={s.laterText}>Не сейчас</Text>
           </Tap>
-          <Text style={s.foot}>Нажимая «Согласен», вы принимаете политику обработки персональных данных</Text>
         </Animated.View>
       </View>
     </Modal>
@@ -70,9 +70,9 @@ const s = StyleSheet.create({
   num: { width: 24, height: 24, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', textAlign: 'center', lineHeight: 24, fontSize: 13, fontFamily: fonts.display, color: colors.coralAction },
   pTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: colors.fg },
   pText: { fontSize: 13.5, lineHeight: 18, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
-  cta: { height: 56, borderRadius: 28, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  cta: { height: 56, borderRadius: 28, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
   later: { height: 44, alignItems: 'center', justifyContent: 'center' },
   laterText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.mut },
-  foot: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center' },
+  foot: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: 8 },
 });
