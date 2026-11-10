@@ -40,6 +40,7 @@ export default function Print() {
   const { width } = useWindowDimensions();
   const { addToCart } = useStore();
   const [format, setFormat] = useState(FORMATS[0]);
+  const [fit, setFit] = useState<'crop' | 'fields'>('crop');
   const [paper, setPaper] = useState<(typeof PAPERS)[number]['id']>('Глянец');
   const [qty, setQty] = useState<Record<string, number>>(() => Object.fromEntries(SHOTS.map((k) => [k, 1])));
   const count = SHOTS.reduce((a, k) => a + qty[k], 0);
@@ -105,10 +106,43 @@ export default function Print() {
               );
             })}
           </View>
+          {/* кадры другой пропорции — решение, а не предупреждение: обрезать или напечатать с полями */}
           {cropped ? (
-            <Text style={s.hint}>
-              {cropped} {cropped === 1 ? 'кадр' : 'кадра'} шире формата — обрежем края (пунктир). Без обрезки они лягут на 15×15.
-            </Text>
+            <View style={s.fit}>
+              <View style={s.fitHead}>
+                <View style={s.fitThumbs}>
+                  {SHOTS.filter((k) => SQUARE.has(k)).map((k, i) => (
+                    <Image key={k} source={pic(k)} style={[s.fitThumb, { marginLeft: i ? -12 : 0, zIndex: 3 - i }]} contentFit="cover" />
+                  ))}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.fitTitle}>
+                    {cropped} {cropped === 1 ? 'кадр' : 'кадра'} другой пропорции
+                  </Text>
+                  <Text style={s.fitSub}>{fit === 'crop' ? 'Обрежем края — снимок на весь лист' : 'Весь снимок, по бокам белые поля'}</Text>
+                </View>
+              </View>
+              <View style={s.row} accessibilityRole="radiogroup">
+                {(
+                  [
+                    ['crop', 'Обрезать края'],
+                    ['fields', 'С полями'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <Tap
+                    key={id}
+                    style={[s.fitChip, fit === id && s.fitChipOn]}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      setFit(id);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: fit === id }}>
+                    <Text style={[s.fitChipText, fit === id && { color: '#fff' }]}>{label}</Text>
+                  </Tap>
+                ))}
+              </View>
+            </View>
           ) : null}
         </View>
 
@@ -154,8 +188,15 @@ export default function Print() {
             {SHOTS.map((k) => (
               <View key={k} style={{ width: cell, gap: 6 }}>
                 <View style={[s.photo, { width: cell, height: cell }, qty[k] === 0 && { opacity: 0.35 }]}>
-                  <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
-                  {SQUARE.has(k) && qty[k] > 0 ? <View style={s.crop} pointerEvents="none" /> : null}
+                  {SQUARE.has(k) && fit === 'fields' ? (
+                    // с полями: весь снимок по центру, по бокам белое
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', paddingHorizontal: '14%' }]}>
+                      <Image source={pic(k)} style={{ flex: 1 }} contentFit="cover" />
+                    </View>
+                  ) : (
+                    <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  )}
+                  {SQUARE.has(k) && fit === 'crop' && qty[k] > 0 ? <View style={s.crop} pointerEvents="none" /> : null}
                 </View>
                 <Stepper value={qty[k]} onMinus={() => change(k, -1)} onPlus={() => change(k, 1)} min={0} small />
               </View>
@@ -203,7 +244,15 @@ const s = StyleSheet.create({
   fmtOn: { backgroundColor: colors.coralAction },
   fmtName: { fontSize: 17, fontFamily: fonts.display, color: colors.fg },
   fmtPrice: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
-  hint: { fontSize: 13, lineHeight: 18, fontFamily: fonts.medium, color: colors.warn },
+  fit: { backgroundColor: '#fff', borderRadius: 18, padding: 12, gap: 10 },
+  fitHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  fitThumbs: { flexDirection: 'row' },
+  fitThumb: { width: 40, height: 40, borderRadius: 10, borderWidth: 2, borderColor: '#fff' },
+  fitTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
+  fitSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  fitChip: { flex: 1, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  fitChipOn: { backgroundColor: colors.coralAction },
+  fitChipText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
   paper: { flex: 1, borderRadius: 18, backgroundColor: '#fff', padding: 12, gap: 2, borderWidth: 2, borderColor: 'transparent' },
   paperOn: { borderColor: colors.coralAction },
   paperName: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
