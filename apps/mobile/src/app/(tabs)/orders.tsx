@@ -6,6 +6,7 @@
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { XIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
@@ -135,7 +136,13 @@ function OrderCard({ order }: { order: PlacedOrder }) {
         </View>
       </View>
 
-      <View style={s.divider} />
+      {/* тонкая линия, к краям растворяется */}
+      <LinearGradient
+        colors={['rgba(60,40,30,0)', 'rgba(60,40,30,0.2)', 'rgba(60,40,30,0)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={s.divider}
+      />
 
       <View style={s.statusRow}>
         <Text style={s.stage}>{NOW[order.stage]}</Text>
@@ -252,7 +259,7 @@ const s = StyleSheet.create({
   cardSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
   statusRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   stage: { flexShrink: 1, fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(60,40,30,0.18)', marginHorizontal: -16 },
+  divider: { height: 1, marginHorizontal: -16 },
   eta: { fontSize: 16, fontFamily: fonts.bold, color: colors.coralAction },
 
 
