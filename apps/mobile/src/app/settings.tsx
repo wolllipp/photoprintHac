@@ -43,13 +43,7 @@ export default function Profile() {
     ]);
 
   return (
-    <View style={[s.screen, { paddingTop: insets.top + 8 }]}>
-      <View style={s.nav}>
-        <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
-          <XIcon size={16} color={colors.fg} weight="bold" />
-        </Tap>
-      </View>
-
+    <View style={[s.screen, { paddingTop: insets.top + 12 }]}>
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
         {/* кто вы */}
         <Animated.View entering={enter(0)} style={s.me}>
@@ -60,6 +54,9 @@ export default function Profile() {
             <Text style={s.name}>Иван</Text>
             <Text style={s.phone}>{phone}</Text>
           </View>
+          <Tap style={[s.round, { alignSelf: 'flex-start' }]} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+            <XIcon size={16} color={colors.fg} weight="bold" />
+          </Tap>
         </Animated.View>
 
         {/* переходы */}
@@ -150,7 +147,6 @@ function Toggle({ title, sub, value, onChange }: { title: string; sub: string; v
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  nav: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16 },
   round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: 16, gap: 10 },
   me: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8 },
