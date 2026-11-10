@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CaretLeftIcon, CheckIcon, PencilSimpleIcon } from 'phosphor-react-native';
+import { CaretLeftIcon, CheckIcon, MinusIcon, PencilSimpleIcon, PlusIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -14,19 +14,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
-import { drafts, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
+import { bookPrice, drafts, fitFormat, FORMATS_BY_TARIFF, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { type PhotoName, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { ease, flickSpring, sheetSpring } from '@/motion';
+import { AnimatedNumber, ease, flickSpring, sheetSpring } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function BookScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; format?: string; pages?: string; lam?: string }>();
+  const id = params.id;
   const draft = drafts[id ?? 'karelia'] ?? drafts.karelia;
   const insets = useSafeAreaInsets();
   const { addToCart } = useStore();
   const [tariff, setTariff] = useState<Tariff>(tariffs[1]);
-  const [finish, setFinish] = useState<'Глянец' | 'Зерно'>('Глянец');
+  const [finish, setFinish] = useState<'Глянец' | 'Зерно'>(params.lam === 'зернистая' ? 'Зерно' : 'Глянец');
+  // формат и развороты — из диалога, если пришли оттуда; цена пересчитывается от всего сразу
+  const [format, setFormat] = useState(params.format ?? draft.format);
+  const [spreadsN, setSpreadsN] = useState(Math.round(Number(params.pages ?? draft.pages) / 2));
+  const fmt = fitFormat(tariff.id, format);
+  const priceOf = (t: Tariff) => bookPrice(t.id, fitFormat(t.id, format), spreadsN, finish);
+  const price = priceOf(tariff);
+  const pagesN = spreadsN * 2;
 
   /* ---- шторка: тянется за пальцем 1:1, отпускание — по проекции скорости (apple-design) ---- */
   const ty = useSharedValue(0); // 0 — раскрыта, maxOffset — свёрнута до заголовка
@@ -34,7 +42,13 @@ export default function BookScreen() {
   const sheetH = useSharedValue(0);
   const headBottom = useSharedValue(0);
   const bottomInset = insets.bottom;
-  const onSheetLayout = (e: LayoutChangeEvent) => { sheetH.value = e.nativeEvent.layout.height; };
+  // разворот подстраивается под свободное место над шторкой — шторка выросла, разворот меньше
+  const [space, setSpace] = useState({ stage: 0, sheet: 0 });
+  const onSheetLayout = (e: LayoutChangeEvent) => {
+    sheetH.value = e.nativeEvent.layout.height;
+    const h = e.nativeEvent.layout.height;
+    setSpace((x) => (x.sheet === h ? x : { ...x, sheet: h }));
+  };
   const onHeadLayout = (e: LayoutChangeEvent) => {
     const { y, height } = e.nativeEvent.layout;
     headBottom.value = y + height;
@@ -75,10 +89,10 @@ export default function BookScreen() {
       title: draft.title,
       tariff: tariff.id,
       tariffName: tariff.name,
-      format: draft.format,
-      pages: draft.pages,
+      format: fmt,
+      pages: pagesN,
       finish,
-      price: tariff.price,
+      price,
       readyBy: tariff.readyBy,
       cover: draft.cover,
     });
@@ -99,8 +113,13 @@ export default function BookScreen() {
       </View>
 
       {/* сцена: разворот книги */}
-      <Animated.View style={[s.stage, stageStyle]}>
-        <Pager pages={draft.pages} />
+      <Animated.View
+        style={[s.stage, stageStyle]}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          setSpace((x) => (x.stage === h ? x : { ...x, stage: h }));
+        }}>
+        <Pager pages={pagesN} maxH={space.stage && space.sheet ? space.stage - space.sheet - 70 : 0} />
         {/* проверка качества — тихой строкой под разворотом, а не плашкой поверх */}
         <View style={s.ok} accessibilityRole="text">
           <CheckIcon size={14} color={colors.tealInk} weight="bold" />
@@ -118,7 +137,7 @@ export default function BookScreen() {
             <View style={s.sheetHead} onLayout={onHeadLayout}>
               <Text style={s.sheetTitle}>Фотокнига</Text>
               <View style={{ flexDirection: 'row' }}>
-                <Text style={s.sheetMeta}>{draft.format} · {draft.pages} стр.</Text>
+                <Text style={s.sheetMeta}>{fmt} · {pagesN} стр.</Text>
               </View>
             </View>
           </View>
@@ -126,10 +145,50 @@ export default function BookScreen() {
 
         <View style={s.tariffs} accessibilityRole="radiogroup">
           {tariffs.map((t) => (
-            <TariffTile key={t.id} t={t} on={t.id === tariff.id} onPick={() => setTariff(t)} />
+            <TariffTile key={t.id} t={t} price={priceOf(t)} on={t.id === tariff.id} onPick={() => setTariff(t)} />
           ))}
         </View>
         <Text style={s.about}>{tariff.about}</Text>
+
+        {/* формат — только те, что есть у тарифа */}
+        <View style={s.lam}>
+          <Text style={s.lamLabel}>Формат</Text>
+          <View style={s.lamRow} accessibilityRole="radiogroup">
+            {FORMATS_BY_TARIFF[tariff.id].map((f) => {
+              const on = f === fmt;
+              return (
+                <Tap
+                  key={f}
+                  style={[s.chip, on && s.chipOn]}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setFormat(f);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}>
+                  <Text style={[s.chipText, on && { color: '#fff' }]}>{f}</Text>
+                </Tap>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* развороты — степпер */}
+        <View style={[s.lam, s.spreadsRow]}>
+          <View>
+            <Text style={s.lamLabel}>Разворотов</Text>
+            <Text style={s.spreadsSub}>{pagesN} страниц</Text>
+          </View>
+          <View style={s.stepper}>
+            <Tap style={s.step} onPress={() => { Haptics.selectionAsync().catch(() => {}); setSpreadsN((n) => Math.max(5, n - 1)); }} disabled={spreadsN <= 5} accessibilityRole="button" accessibilityLabel="Меньше разворотов">
+              <MinusIcon size={15} color={spreadsN <= 5 ? colors.mut2 : colors.fg} weight="bold" />
+            </Tap>
+            <AnimatedNumber value={spreadsN} format={String} style={s.stepN} />
+            <Tap style={s.step} onPress={() => { Haptics.selectionAsync().catch(() => {}); setSpreadsN((n) => Math.min(30, n + 1)); }} disabled={spreadsN >= 30} accessibilityRole="button" accessibilityLabel="Больше разворотов">
+              <PlusIcon size={15} color={spreadsN >= 30 ? colors.mut2 : colors.fg} weight="bold" />
+            </Tap>
+          </View>
+        </View>
 
         {/* ламинация — пилюлями, как в вопросах ИИ */}
         <View style={s.lam}>
@@ -155,7 +214,7 @@ export default function BookScreen() {
         </View>
 
         {/* цена уже на выбранном тарифе — на кнопке без повтора */}
-        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`В корзину, ${tariff.name}, ${rub(tariff.price)}`}>
+        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`В корзину, ${tariff.name}, ${rub(price)}`}>
           <Text style={s.ctaText}>В корзину</Text>
         </Tap>
       </Animated.View>
@@ -165,7 +224,7 @@ export default function BookScreen() {
 }
 
 /** Тариф: выбор — обводка плавно проявляется, на миг вспыхивает свечение (как допуслуги в корзине). */
-function TariffTile({ t, on, onPick }: { t: Tariff; on: boolean; onPick: () => void }) {
+function TariffTile({ t, price, on, onPick }: { t: Tariff; price: number; on: boolean; onPick: () => void }) {
   const v = useSharedValue(on ? 1 : 0);
   const glow = useSharedValue(0);
   useEffect(() => {
@@ -188,13 +247,13 @@ function TariffTile({ t, on, onPick }: { t: Tariff; on: boolean; onPick: () => v
       }}
       accessibilityRole="radio"
       accessibilityState={{ selected: on }}
-      accessibilityLabel={`${t.name}, ${rub(t.price)}, будет ${t.readyBy}`}>
+      accessibilityLabel={`${t.name}, ${rub(price)}, будет ${t.readyBy}`}>
       <Animated.View style={[s.tariff, frame]}>
         <View style={s.bk}>
           <LinearGradient colors={t.cover} style={[s.bookIcon, t.tall && { width: 26, height: 38 }]} />
         </View>
         <Text style={s.tName}>{t.name}</Text>
-        <Text style={[s.tPrice, on && { color: colors.coralAction }]}>{rub(t.price)}</Text>
+        <AnimatedNumber value={price} format={rub} style={[s.tPrice, on && { color: colors.coralAction }]} />
         <Text style={s.tWhen}>будет {t.readyBy}</Text>
       </Animated.View>
     </Pressable>
@@ -202,8 +261,10 @@ function TariffTile({ t, on, onPick }: { t: Tariff; on: boolean; onPick: () => v
 }
 
 /** Книгу можно листать: развороты по одному, свайпом вбок; снизу — какой разворот из скольких. */
-function Pager({ pages }: { pages: number }) {
+function Pager({ pages, maxH }: { pages: number; maxH: number }) {
   const { width } = useWindowDimensions();
+  // ширина разворота: на всю ширину или меньше, если по высоте места мало
+  const spreadW = maxH > 0 ? Math.min(width - 40, maxH * (2 / 1.05)) : width - 40;
   const { design } = useStore();
   const book = design ?? spreads;
   const [page, setPage] = useState(0);
@@ -216,8 +277,8 @@ function Pager({ pages }: { pages: number }) {
     <View style={{ width, gap: 12 }}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={32}>
         {Array.from({ length: total }, (_, i) => book[i % book.length]).map((sp, i) => (
-          <View key={i} style={{ width, paddingHorizontal: 20 }} accessible accessibilityLabel={`Разворот ${i + 1} из ${total}`}>
-            <View style={[s.spread, sp.bg ? { backgroundColor: sp.bg } : null]}>
+          <View key={i} style={{ width, alignItems: 'center' }} accessible accessibilityLabel={`Разворот ${i + 1} из ${total}`}>
+            <View style={[s.spread, { width: spreadW }, sp.bg ? { backgroundColor: sp.bg } : null]}>
               <Leaf layout={sp.left} shots={sp.photos.slice(0, count(sp.left))} side="left" />
               <Leaf layout={sp.right} shots={sp.photos.slice(count(sp.left))} side="right" />
             </View>
@@ -305,6 +366,11 @@ const s = StyleSheet.create({
   lam: { paddingHorizontal: 18, gap: 6 },
   lamLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
   lamRow: { flexDirection: 'row', gap: 6 },
+  spreadsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  spreadsSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: 22, padding: 3 },
+  step: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  stepN: { minWidth: 28, textAlign: 'center', fontSize: 17, fontFamily: fonts.display, color: colors.fg },
   chip: { height: 38, paddingHorizontal: 16, borderRadius: 19, backgroundColor: colors.bg, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.coralAction },
   chipText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },

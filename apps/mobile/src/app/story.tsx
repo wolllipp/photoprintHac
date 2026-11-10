@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory, type ParsedStory } from '@/ai/story';
 import { Tap } from '@/components/ui';
-import { tariffs } from '@/data/demo';
+import { bookPrice, fitFormat, tariffs } from '@/data/demo';
 import { pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { OverlapTitle } from '@/components/home';
@@ -244,7 +244,7 @@ function TurnView({ turn, onConfirm, onShow }: { turn: Turn; onConfirm: (sp: Spe
     { label: 'Отбор', now: 'убираю дубли и смазанные', done: 'лучшие кадры' },
     { label: 'Шаблон', now: 'подбираю', done: p.themeLabel === 'Своя тема' ? 'Классика' : p.themeLabel },
   ];
-  const price = tariffs[1].price;
+  const price = sp ? bookPrice('lite', fitFormat('lite', sp.format), sp.spreads, sp.lam === 'зернистая' ? 'Зерно' : 'Глянец') : tariffs[0].price;
   return (
     <View style={s.turn}>
       <Animated.Text entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.q}>

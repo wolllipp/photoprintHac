@@ -77,6 +77,30 @@ export const tariffs: Tariff[] = [
 ];
 
 export type Draft = { title: string; pages: number; format: string; photos: number; cover: PhotoName };
+/**
+ * Цена книги: тариф × формат × развороты × ламинация. Опорные цены — нижняя (акционная) с сайта (notes/06):
+ * Lite 56,00 за 12 разворотов, Classic 72,90 за 10, Premium 70,35 за 5 — все 20×20.
+ * shortcut: шаг за разворот, надбавки за формат и зернистую ламинацию — условные; источник правды — справочник D14.
+ */
+export const FORMATS_BY_TARIFF: Record<Tariff['id'], string[]> = {
+  lite: ['20×20', '21×30', '25×25'],
+  classic: ['20×20', '21×30'],
+  premium: ['20×20', '21×30', '25×25', '30×20', '30×30'],
+};
+const BASE: Record<Tariff['id'], { price: number; spreads: number; step: number }> = {
+  lite: { price: 56, spreads: 12, step: 2.2 },
+  classic: { price: 72.9, spreads: 10, step: 3.4 },
+  premium: { price: 70.35, spreads: 5, step: 6.9 },
+};
+const FORMAT_K: Record<string, number> = { '20×20': 1, '21×30': 1.25, '25×25': 1.2, '30×20': 1.3, '30×30': 1.55 };
+export function bookPrice(tariff: Tariff['id'], format: string, spreads: number, finish: 'Глянец' | 'Зерно') {
+  const b = BASE[tariff];
+  const raw = (b.price + b.step * (spreads - b.spreads)) * (FORMAT_K[format] ?? 1) + (finish === 'Зерно' ? 3 : 0);
+  return Math.round(Math.max(raw, b.price * 0.6) * 100) / 100;
+}
+/** Какой формат взять, если у тарифа выбранного нет. */
+export const fitFormat = (tariff: Tariff['id'], format: string) => (FORMATS_BY_TARIFF[tariff].includes(format) ? format : '20×20');
+
 export const drafts: Record<string, Draft> = {
   minsk: { title: 'Октябрь в Минске', pages: 24, format: '20×20', photos: 38, cover: 'city-sunset' },
   birthday: { title: 'День рождения', pages: 20, format: '20×20', photos: 30, cover: 'birthday-cake' },

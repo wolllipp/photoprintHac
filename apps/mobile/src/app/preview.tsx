@@ -53,7 +53,7 @@ export default function Preview() {
   // книга уже собрана: дальше — выбрать тариф и в корзину
   const next = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    router.push({ pathname: '/book/[id]', params: { id: 'karelia' } });
+    router.push({ pathname: '/book/[id]', params: { id: 'karelia', format: p.format ?? '20×20', pages: String(pages), lam: p.lam ?? 'глянцевая' } });
   };
 
   return (
