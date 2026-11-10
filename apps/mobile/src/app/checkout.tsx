@@ -8,9 +8,9 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useRef, useState, type ComponentRef } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, SlideInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceTile } from '@/components/choice';
@@ -31,13 +31,6 @@ export default function Checkout() {
   const [code, setCode] = useState('');
   const [codeErr, setCodeErr] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  // правим номер — как только клавиатура поднялась, докручиваем к полю
-  useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidShow', () => {
-      if (phoneStep !== 'view') scroll.current?.scrollToEnd({ animated: true });
-    });
-    return () => sub.remove();
-  }, [phoneStep]);
   const [deliveryId, setDeliveryId] = useState<string>(delivery[0].id);
   const [payId, setPayId] = useState<string>(payments[0].id);
   const [usePiks, setUsePiks] = useState(false);
@@ -89,8 +82,6 @@ export default function Checkout() {
         ref={scroll}
         contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]}
         showsVerticalScrollIndicator={false}
-        // iOS сам поднимает поле ввода над клавиатурой и плавно прокручивает к нему
-        automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive">
         <Animated.Text entering={enter(0)} style={s.title}>
@@ -156,7 +147,6 @@ export default function Checkout() {
 
         <Animated.View entering={enter(4)} style={s.section}>
           <Text style={s.h2}>Получатель</Text>
-          {phoneStep === 'view' ? (
             <View style={s.row}>
               <View style={{ flex: 1 }}>
                 <Text style={s.rowTitle}>{phone}</Text>
@@ -166,65 +156,6 @@ export default function Checkout() {
                 <Text style={s.link}>Изменить</Text>
               </Tap>
             </View>
-          ) : phoneStep === 'edit' ? (
-            <Animated.View entering={FadeInDown.duration(260).easing(ease.smoothOut)} style={s.editBox}>
-              <TextInput
-                value={draftPhone}
-                onChangeText={(t) => setDraftPhone(formatPhone(t))}
-                placeholder="+375 __ ___-__-__"
-                placeholderTextColor={colors.mut2}
-                keyboardType="phone-pad"
-                autoFocus
-                style={s.input}
-                accessibilityLabel="Новый номер телефона"
-              />
-              <View style={s.editBtns}>
-                <Tap style={[s.small, s.smallPlain]} onPress={() => setPhoneStep('view')} accessibilityRole="button">
-                  <Text style={s.smallPlainText}>Отмена</Text>
-                </Tap>
-                <Tap
-                  style={[s.small, draftPhone.replace(/\D/g, '').length < 12 && { opacity: 0.4 }]}
-                  disabled={draftPhone.replace(/\D/g, '').length < 12}
-                  onPress={() => {
-                    setCode('');
-                    setCodeErr(false);
-                    setPhoneStep('code');
-                  }}
-                  accessibilityRole="button">
-                  <Text style={s.smallText}>Получить код</Text>
-                </Tap>
-              </View>
-            </Animated.View>
-          ) : (
-            <Animated.View entering={FadeInDown.duration(260).easing(ease.smoothOut)} style={s.editBox}>
-              <Text style={s.rowSub}>Код из SMS на {draftPhone} · в демо — 0000</Text>
-              <TextInput
-                value={code}
-                onChangeText={(t) => {
-                  const c = t.replace(/\D/g, '').slice(0, 4);
-                  setCode(c);
-                  setCodeErr(false);
-                  if (c.length === 4) {
-                    if (c === '0000') {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                      setPhone(draftPhone);
-                      setPhoneStep('view');
-                    } else {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-                      setCodeErr(true);
-                    }
-                  }
-                }}
-                placeholder="• • • •"
-                placeholderTextColor={colors.mut2}
-                keyboardType="number-pad"
-                autoFocus
-                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
-                accessibilityLabel="Код из SMS"
-              />
-              {codeErr ? <Text style={s.err}>Код не подошёл — проверьте SMS</Text> : null}
-            </Animated.View>
-          )}
         </Animated.View>
 
         <Animated.View entering={enter(5)} style={s.sums}>
@@ -264,6 +195,89 @@ export default function Checkout() {
           </View>
         </Tap>
       </View>
+
+      {/* смена телефона — окно снизу, поднимается над клавиатурой и ничего не закрывает */}
+      <Modal visible={phoneStep !== 'view'} transparent animationType="fade" onRequestClose={() => setPhoneStep('view')}>
+        <PhoneSheet onClose={() => setPhoneStep('view')}>
+          {phoneStep === 'edit' ? (
+            <Animated.View key={phoneStep} entering={FadeIn.duration(200)} style={s.sheetBody}>
+              <TextInput
+                value={draftPhone}
+                onChangeText={(t) => setDraftPhone(formatPhone(t))}
+                placeholder="+375 __ ___-__-__"
+                placeholderTextColor={colors.mut2}
+                keyboardType="phone-pad"
+                autoFocus
+                style={s.input}
+                accessibilityLabel="Новый номер телефона"
+              />
+              <View style={s.editBtns}>
+                <Tap style={[s.small, s.smallPlain]} onPress={() => setPhoneStep('view')} accessibilityRole="button">
+                  <Text style={s.smallPlainText}>Отмена</Text>
+                </Tap>
+                <Tap
+                  style={[s.small, draftPhone.replace(/\D/g, '').length < 12 && { opacity: 0.4 }]}
+                  disabled={draftPhone.replace(/\D/g, '').length < 12}
+                  onPress={() => {
+                    setCode('');
+                    setCodeErr(false);
+                    setPhoneStep('code');
+                  }}
+                  accessibilityRole="button">
+                  <Text style={s.smallText}>Получить код</Text>
+                </Tap>
+              </View>
+            </Animated.View>
+          ) : (
+            <Animated.View key={phoneStep} entering={FadeIn.duration(200)} style={s.sheetBody}>
+              <Text style={s.rowSub}>Код из SMS на {draftPhone} · в демо — 0000</Text>
+              <TextInput
+                value={code}
+                onChangeText={(t) => {
+                  const c = t.replace(/\D/g, '').slice(0, 4);
+                  setCode(c);
+                  setCodeErr(false);
+                  if (c.length === 4) {
+                    if (c === '0000') {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                      setPhone(draftPhone);
+                      setPhoneStep('view');
+                    } else {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                      setCodeErr(true);
+                    }
+                  }
+                }}
+                placeholder="• • • •"
+                placeholderTextColor={colors.mut2}
+                keyboardType="number-pad"
+                autoFocus
+                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
+                accessibilityLabel="Код из SMS"
+              />
+              {codeErr ? <Text style={s.err}>Код не подошёл — проверьте SMS</Text> : null}
+            </Animated.View>
+          )}
+        </PhoneSheet>
+      </Modal>
+    </View>
+  );
+}
+
+/** Окно снизу: затемнение (нажатие — закрыть), лист выезжает и едет за клавиатурой. */
+function PhoneSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const kb = useAnimatedKeyboard();
+  const bottom = insets.bottom;
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(kb.height.value, bottom) + 16 }));
+  return (
+    <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
+      <Animated.View entering={SlideInDown.springify().damping(22).stiffness(200)} style={[s.sheet, lift]}>
+        <View style={s.grab} />
+        <Text style={s.sheetTitle}>Номер телефона</Text>
+        {children}
+      </Animated.View>
     </View>
   );
 }
@@ -314,8 +328,13 @@ const s = StyleSheet.create({
   rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
   rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   link: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
+  scrim: { backgroundColor: 'rgba(20,16,14,0.35)' },
+  sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+  grab: { alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
+  sheetTitle: { fontSize: 22, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
+  sheetBody: { gap: 10 },
   editBox: { backgroundColor: colors.card, borderRadius: 22, padding: 12, gap: 10 },
-  input: { height: 50, borderRadius: 16, backgroundColor: '#fff', paddingHorizontal: 14, fontSize: 18, fontFamily: fonts.semibold, color: colors.fg, borderWidth: 2, borderColor: 'transparent' },
+  input: { height: 54, borderRadius: 18, backgroundColor: colors.card, paddingHorizontal: 14, fontSize: 18, fontFamily: fonts.semibold, color: colors.fg, borderWidth: 2, borderColor: 'transparent' },
   code: { textAlign: 'center', letterSpacing: 10, fontSize: 22 },
   err: { fontSize: 13, fontFamily: fonts.medium, color: colors.coralAction, textAlign: 'center' },
   editBtns: { flexDirection: 'row', gap: 8 },

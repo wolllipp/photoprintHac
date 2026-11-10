@@ -1,156 +1,228 @@
 /**
- * Ассистент picPac (экран 9): честно назван ассистентом, решения по правилам гарантии,
- * человек — в одно касание. Претензия по браку: фото дефекта → проверка → перепечатка без пересылки.
+ * «Помощь» — тот же помощник picPac, что и в «Собрать книгу», и тот же интерфейс:
+ * окно снизу, пустой экран с заголовком-наплывом, подсказки над полем, поле с голосом.
+ * Запрос встаёт крупным заголовком, под ним — шаги строками «подпись — итог», ниже плитка ответа.
+ * Брак: фото дефекта → проверка → перепечатка без возврата (A13). Решения — по правилам гарантии.
  */
-import { CameraIcon, PaperPlaneRightIcon } from 'phosphor-react-native';
-import { useRef, useState, type ComponentRef } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { XIcon } from 'phosphor-react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { checkDefect, quickAnswer, type ClaimVerdict } from '@/ai/assistant';
-import { NavBar } from '@/components/nav';
-import { Photo, Tap } from '@/components/ui';
-import { enterItem, SuccessCheck, ThinkingLine } from '@/motion';
+import { Composer } from '@/components/composer';
+import { OverlapTitle } from '@/components/home';
+import { Tap } from '@/components/ui';
+import { useStore } from '@/data/store';
+import { duration, ease, SuccessCheck, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-type Msg =
-  | { id: number; from: 'me'; text: string }
-  | { id: number; from: 'me'; photo: true }
-  | { id: number; from: 'bot'; text: string }
-  | { id: number; from: 'bot'; thinking: string }
-  | { id: number; from: 'bot'; reprint: ClaimVerdict; confirmed?: boolean };
+const HINTS = [
+  { label: 'Пришёл брак', text: 'Пришёл брак — на странице полоса через всё фото' },
+  { label: 'Где мой заказ', text: 'Где мой заказ и когда он приедет?' },
+  { label: 'Позвать человека', text: 'Позвать человека' },
+];
+const HEARD = 'На одной странице полоса через всю фотографию';
 
-let nextId = 1;
+type Step = { label: string; now: string; done: string };
+type Turn = {
+  id: number;
+  q: string;
+  kind: 'defect' | 'answer';
+  steps: Step[];
+  step: number;
+  answer: string;
+  verdict?: ClaimVerdict;
+  confirmed?: boolean;
+};
 
 export default function Assistant() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const { orders } = useStore();
+  const order = orders[0];
+  const [turns, setTurns] = useState<Turn[]>([]);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  const [text, setText] = useState('');
-  const [msgs, setMsgs] = useState<Msg[]>([
-    { id: nextId++, from: 'bot', text: 'Здравствуйте! Я ассистент picPac. Помогу со статусом заказа, сроками и браком. Если что-то пошло не так — пришлите фото.' },
-  ]);
+  const nextId = useRef(1);
+  const last = turns[turns.length - 1];
+  const busy = !!last && (last.step < last.steps.length || (last.kind === 'defect' && !last.verdict));
 
-  const push = (m: Msg) => setMsgs((x) => [...x, m]);
-  const replaceThinking = (m: Msg) => setMsgs((x) => [...x.filter((y) => !('thinking' in y)), m]);
+  // шаги — по очереди, как в «Собрать книгу»
+  const lastId = last?.id;
+  useEffect(() => {
+    if (lastId === undefined) return;
+    const t = setInterval(() => {
+      setTurns((ts) => ts.map((x) => (x.id === lastId && x.step < x.steps.length ? { ...x, step: x.step + 1 } : x)));
+      Haptics.selectionAsync().catch(() => {});
+    }, 520);
+    const stop = setTimeout(() => clearInterval(t), 520 * 4);
+    return () => {
+      clearInterval(t);
+      clearTimeout(stop);
+    };
+  }, [lastId]);
 
-  const sendDefect = async () => {
-    push({ id: nextId++, from: 'me', text: 'На одной странице полоса через всю фотографию' });
-    push({ id: nextId++, from: 'me', photo: true });
-    push({ id: nextId++, from: 'bot', thinking: 'Смотрю фото дефекта…' });
-    const v = await checkDefect();
-    replaceThinking({ id: nextId++, from: 'bot', text: `Похоже на производственный брак: ${v.label}. Перепечатаем книгу бесплатно — старую возвращать не нужно.` });
-    push({ id: nextId++, from: 'bot', reprint: v });
+  const send = async (q: string) => {
+    const id = nextId.current++;
+    const ord = order ? `№${order.id} · ${order.title}` : 'нет заказов';
+    if (/брак|полос|дефект|испорч|порван/i.test(q)) {
+      setTurns((ts) => [
+        ...ts,
+        {
+          id,
+          q,
+          kind: 'defect',
+          step: 0,
+          answer: '',
+          steps: [
+            { label: 'Заказ', now: 'ищу', done: ord },
+            { label: 'Фото дефекта', now: 'смотрю', done: 'полоса при печати' },
+            { label: 'Решение', now: 'сверяю с гарантией', done: 'перепечатка' },
+          ],
+        },
+      ]);
+      const v = await checkDefect();
+      setTurns((ts) =>
+        ts.map((x) => (x.id === id ? { ...x, verdict: v, answer: `Это производственный брак: ${v.label}. Перепечатаем книгу бесплатно — старую возвращать не нужно.` } : x)),
+      );
+    } else {
+      setTurns((ts) => [...ts, { id, q, kind: 'answer', step: 0, answer: quickAnswer(q), steps: [{ label: 'Заказ', now: 'смотрю', done: ord }] }]);
+    }
+  };
+  const confirm = (id: number) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, confirmed: true } : x)));
   };
 
-  const ask = (q: string) => {
-    if (!q.trim()) return;
-    push({ id: nextId++, from: 'me', text: q.trim() });
-    setText('');
-    setTimeout(() => push({ id: nextId++, from: 'bot', text: quickAnswer(q) }), 600);
-  };
-
-  const confirm = (id: number) => setMsgs((x) => x.map((m) => (m.id === id && 'reprint' in m ? { ...m, confirmed: true } : m)));
+  const empty = turns.length === 0;
 
   return (
-    <KeyboardAvoidingView style={[s.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <NavBar title="Ассистент picPac" />
-      <Text style={s.status}>● решения по правилам гарантии</Text>
-
-      <ScrollView ref={scroll} contentContainerStyle={s.list} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}>
-        {msgs.map((m) => (
-          <Animated.View key={m.id} entering={enterItem()} style={m.from === 'me' ? s.right : s.left}>
-            {'photo' in m ? (
-              <View style={s.photo}>
-                <Photo k="g3" style={StyleSheet.absoluteFill} />
-                <View style={s.stripe} />
-              </View>
-            ) : 'thinking' in m ? (
-              <View style={[s.bubble, s.bot]}><ThinkingLine text={m.thinking} /></View>
-            ) : 'reprint' in m ? (
-              <View style={s.card}>
-                <View style={s.cardHead}>
-                  <Text style={s.cardTitle}>Перепечать заказа №4792100</Text>
-                  <Text style={s.free}>бесплатно</Text>
-                </View>
-                <View style={s.kv}><Text style={s.k}>Доставка</Text><Text style={s.v}>тем же способом</Text></View>
-                <View style={s.kv}><Text style={s.k}>Будет у вас</Text><Text style={s.v}>{m.reprint.eta}</Text></View>
-                {m.confirmed ? (
-                  <Animated.View entering={FadeIn} style={s.done}>
-                    <SuccessCheck size={40} />
-                    <Text style={s.doneText}>Перепечать оформлена. Пришлю уведомление, когда книга уйдёт в печать.</Text>
-                  </Animated.View>
-                ) : (
-                  <Tap style={s.cta} onPress={() => confirm(m.id)} accessibilityRole="button">
-                    <Text style={s.ctaText}>Подтвердить</Text>
-                  </Tap>
-                )}
-              </View>
-            ) : (
-              <View style={[s.bubble, m.from === 'me' ? s.me : s.bot]}>
-                <Text style={[s.text, m.from === 'me' && { color: '#fff' }]}>{m.text}</Text>
-              </View>
-            )}
-          </Animated.View>
-        ))}
-      </ScrollView>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.chips} keyboardShouldPersistTaps="handled">
-        <Tap style={s.chip} onPress={sendDefect} accessibilityRole="button"><Text style={s.chipText}>Пришёл брак</Text></Tap>
-        <Tap style={s.chip} onPress={() => ask('Когда приедет новая?')} accessibilityRole="button"><Text style={s.chipText}>Когда приедет новая?</Text></Tap>
-        <Tap style={s.chip} onPress={() => ask('Позвать человека')} accessibilityRole="button"><Text style={s.chipText}>Позвать человека</Text></Tap>
-      </ScrollView>
-
-      <View style={[s.inputBar, { paddingBottom: insets.bottom + 10 }]}>
-        <Tap style={s.round} onPress={sendDefect} accessibilityRole="button" accessibilityLabel="Прислать фото">
-          <CameraIcon size={20} color={colors.fg} />
-        </Tap>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          onSubmitEditing={() => ask(text)}
-          placeholder="Сообщение"
-          placeholderTextColor={colors.mut}
-          style={s.input}
-          returnKeyType="send"
-          accessibilityLabel="Сообщение ассистенту"
-        />
-        <Tap style={[s.round, s.send]} onPress={() => ask(text)} accessibilityRole="button" accessibilityLabel="Отправить">
-          <PaperPlaneRightIcon size={18} color="#fff" weight="fill" />
+    <View style={s.screen}>
+      <View style={[s.head, { paddingTop: insets.top + 6 }]}>
+        <View style={{ width: 40 }} />
+        {empty ? <View /> : <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.headTitle}>Помощь</Animated.Text>}
+        <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+          <XIcon size={16} color={colors.fg} weight="bold" />
         </Tap>
       </View>
-    </KeyboardAvoidingView>
+
+      <ScrollView
+        ref={scroll}
+        style={{ flex: 1 }}
+        contentContainerStyle={[s.content, empty && { flexGrow: 1, justifyContent: 'center' }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => !empty && scroll.current?.scrollToEnd({ animated: true })}>
+        {empty ? (
+          <Animated.View exiting={FadeOut.duration(duration.quick)} style={s.hero}>
+            <OverlapTitle text="Чем помочь?" size={64} maxWidth={width - 56} rgb="29,33,32" warm enter />
+            <Animated.Text entering={FadeInDown.delay(260).duration(520).easing(ease.smoothOut)} style={s.sub}>
+              Статус заказа, сроки, брак. Решаю по правилам гарантии, человек — в одно касание.
+            </Animated.Text>
+          </Animated.View>
+        ) : (
+          turns.map((t) => <TurnView key={t.id} turn={t} onConfirm={() => confirm(t.id)} />)
+        )}
+      </ScrollView>
+
+      <Composer
+        placeholder={empty ? 'Опишите, что случилось' : 'Ещё вопрос'}
+        hints={empty ? HINTS : undefined}
+        heard={HEARD}
+        busy={busy}
+        processing={busy}
+        onSend={send}
+        onPlus={() => send(HINTS[0].text)}
+        plusLabel="Прислать фото дефекта"
+      />
+    </View>
+  );
+}
+
+function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: () => void }) {
+  const done = turn.step >= turn.steps.length && (turn.kind === 'answer' || !!turn.verdict);
+  return (
+    <View style={s.turn}>
+      <Animated.Text entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.q}>
+        {turn.q}
+      </Animated.Text>
+
+      <View style={{ gap: 6 }}>
+        {turn.steps.map((st, i) =>
+          i <= turn.step && i < turn.steps.length ? (
+            <Animated.View key={i} entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.step}>
+              <Text style={s.stepLabel}>{st.label}</Text>
+              {i < turn.step ? (
+                <Animated.Text entering={FadeIn.duration(duration.fast)} style={s.stepText} numberOfLines={1}>
+                  {st.done}
+                </Animated.Text>
+              ) : (
+                <ThinkingLine text={`${st.now}…`} style={s.stepNow} />
+              )}
+            </Animated.View>
+          ) : null,
+        )}
+      </View>
+
+      {done ? (
+        <Animated.View entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.answer}>
+          <Text style={s.answerLabel}>{turn.kind === 'defect' ? 'Перепечатка' : 'Ответ'}</Text>
+          <Text style={s.answerText}>{turn.answer}</Text>
+          {turn.verdict ? (
+            turn.confirmed ? (
+              <Animated.View entering={FadeIn} style={s.doneRow}>
+                <SuccessCheck size={36} />
+                <Text style={s.doneText}>Оформлено. Новая книга будет {turn.verdict.eta} — пришлю уведомление.</Text>
+              </Animated.View>
+            ) : (
+              <>
+                <View style={s.kv}>
+                  <Text style={s.k}>Доставка</Text>
+                  <Text style={s.v}>тем же способом</Text>
+                </View>
+                <View style={s.kv}>
+                  <Text style={s.k}>Будет у вас</Text>
+                  <Text style={s.v}>{turn.verdict.eta}</Text>
+                </View>
+                <Tap style={s.cta} onPress={onConfirm} accessibilityRole="button">
+                  <Text style={s.ctaText}>Перепечатать бесплатно</Text>
+                </Tap>
+              </>
+            )
+          ) : null}
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  status: { textAlign: 'center', fontSize: 12, fontFamily: fonts.regular, color: colors.tealInk, marginTop: -6, marginBottom: 6 },
-  list: { paddingHorizontal: 18, gap: 10, paddingBottom: 12 },
-  left: { alignSelf: 'flex-start', maxWidth: '86%' },
-  right: { alignSelf: 'flex-end', maxWidth: '80%' },
-  bubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20 },
-  me: { backgroundColor: colors.coralAction, borderBottomRightRadius: 6 },
-  bot: { backgroundColor: colors.card, borderBottomLeftRadius: 6 },
-  text: { fontSize: 15.5, fontFamily: fonts.regular, lineHeight: 21, color: colors.fg },
-  photo: { width: 150, height: 110, borderRadius: 16, overflow: 'hidden' },
-  stripe: { position: 'absolute', left: 0, right: 0, top: '46%', height: 6, backgroundColor: 'rgba(255,255,255,0.75)' },
-  card: { backgroundColor: colors.card, borderRadius: 20, padding: 14, gap: 8, width: 300 },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  cardTitle: { flex: 1, fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
-  free: { fontSize: 12, fontFamily: fonts.semibold, color: colors.tealInk, backgroundColor: colors.tealTint, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
+  headTitle: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
+  round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 28 },
+  hero: { alignItems: 'center', gap: 12, paddingHorizontal: 12 },
+  sub: { fontSize: 16, lineHeight: 22, fontFamily: fonts.regular, color: colors.mut, textAlign: 'center', maxWidth: 300 },
+
+  turn: { gap: 14 },
+  q: { fontSize: 23, lineHeight: 29, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
+  step: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: colors.card, borderRadius: 18, height: 50, paddingHorizontal: 16 },
+  stepLabel: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  stepText: { flexShrink: 1, fontSize: 15, fontFamily: fonts.bold, color: colors.fg, textAlign: 'right' },
+  stepNow: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut, textAlign: 'right' },
+
+  answer: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 10 },
+  answerLabel: { fontSize: 13, fontFamily: fonts.bold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.peachInk },
+  answerText: { fontSize: 16, lineHeight: 23, fontFamily: fonts.regular, color: colors.fg },
   kv: { flexDirection: 'row', justifyContent: 'space-between' },
   k: { fontSize: 14, fontFamily: fonts.regular, color: colors.mut },
-  v: { fontSize: 14, fontFamily: fonts.semibold, color: colors.fg },
-  cta: { height: 46, borderRadius: 23, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  ctaText: { fontSize: 16, fontFamily: fonts.semibold, color: '#fff' },
-  done: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  doneText: { flex: 1, fontSize: 14, fontFamily: fonts.regular, lineHeight: 19, color: colors.fg },
-  chips: { paddingHorizontal: 18, gap: 8, paddingVertical: 8 },
-  chip: { height: 34, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.card, justifyContent: 'center' },
-  chipText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 6 },
-  round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  send: { backgroundColor: colors.coralAction },
-  input: { flex: 1, height: 44, borderRadius: 26, backgroundColor: colors.card, paddingHorizontal: 16, fontSize: 15.5, fontFamily: fonts.regular, color: colors.fg },
+  v: { fontSize: 14, fontFamily: fonts.bold, color: colors.fg },
+  cta: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
+  doneRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  doneText: { flex: 1, fontSize: 14.5, lineHeight: 20, fontFamily: fonts.medium, color: colors.fg },
 });

@@ -5,18 +5,34 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, fonts, photoGradients, type PhotoKey } from '@/theme';
 
-/** Отклик на нажатие сразу: лёгкое сжатие (apple-design, emil-design-eng). */
-export function Tap({ style, children, ...rest }: PressableProps & { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+const APressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * Отклик на нажатие: сжатие начинается сразу на касании (90 мс), отпускание — мягкой пружиной
+ * с едва заметным отскоком назад (apple-design: отклик на касание, а не на отпускание).
+ */
+export function Tap({ style, children, onPressIn, onPressOut, ...rest }: PressableProps & { style?: StyleProp<ViewStyle>; children?: ReactNode }) {
+  const p = useSharedValue(0);
+  const a = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.035 * p.value }], opacity: 1 - 0.1 * p.value }));
   return (
-    <Pressable
+    <APressable
       {...rest}
-      style={({ pressed }) => [style, pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 }]}>
+      onPressIn={(e) => {
+        p.set(withTiming(1, { duration: 90 }));
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        p.set(withSpring(0, { damping: 15, stiffness: 320, mass: 0.6 }));
+        onPressOut?.(e);
+      }}
+      style={[style, a]}>
       {children}
-    </Pressable>
+    </APressable>
   );
 }
 

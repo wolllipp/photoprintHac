@@ -33,7 +33,7 @@ export default function RootLayout() {
         <Stack.Screen name="select" />
         <Stack.Screen name="book/[id]" />
         <Stack.Screen name="checkout" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="assistant" />
+        <Stack.Screen name="assistant" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="shared/index" />
         <Stack.Screen name="shared/new" />
         <Stack.Screen name="shared/[id]" />

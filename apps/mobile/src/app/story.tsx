@@ -10,10 +10,10 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowUpIcon, CheckIcon, MicrophoneIcon, PlusIcon, WaveformIcon, XIcon } from 'phosphor-react-native';
+import { XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { useWindowDimensions, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useWindowDimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { parseStory, type ParsedStory } from '@/ai/story';
@@ -22,7 +22,7 @@ import { tariffs } from '@/data/demo';
 import { pic, type PhotoName } from '@/data/photos';
 import { rub } from '@/data/store';
 import { OverlapTitle } from '@/components/home';
-import { VoiceGlow } from '@/components/voiceGlow';
+import { Composer, type ComposerHandle } from '@/components/composer';
 import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -64,52 +64,12 @@ export default function Story() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { voice } = useLocalSearchParams<{ voice?: string }>();
-  const [text, setText] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [listening, setListening] = useState(Boolean(voice));
-  const [heard, setHeard] = useState('');
-  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const composer = useRef<ComposerHandle>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const nextId = useRef(1);
   const busy = turns.some((t) => !t.done);
-  const root = useRef<ComponentRef<typeof View>>(null);
-  // поле едет за клавиатурой кадр за кадром, в её же темпе (стандартный подъём на новой архитектуре дёргается)
-  const keyboard = useAnimatedKeyboard();
-  const bottomInset = insets.bottom;
-  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(keyboard.height.value, bottomInset) + 8 }));
-  useEffect(() => {
-    // клавиатура поднимается вместе с окном — одно движение снизу
-    const t = voice ? undefined : setTimeout(() => input.current?.focus(), 60);
-    return () => {
-      if (t) clearTimeout(t);
-    };
-  }, [voice]);
   const last = turns[turns.length - 1];
-
-  // диктовка: слова появляются по ходу речи, свет внизу поднимается с каждым словом
-  const level = useSharedValue(0);
-  useEffect(() => {
-    if (!listening) {
-      level.value = withTiming(0, { duration: 300 });
-      return;
-    }
-    const words = HEARD.split(' ');
-    let i = 0;
-    const t = setInterval(() => {
-      i += 1;
-      setHeard(words.slice(0, i).join(' '));
-      if (i >= words.length) clearInterval(t);
-    }, 260);
-    // shortcut: громкость имитируется; в продукте — уровень с микрофона (expo-audio, metering)
-    const m = setInterval(() => {
-      const speaking = i < words.length;
-      level.value = withTiming(speaking ? 0.35 + Math.random() * 0.65 : 0.06 + Math.random() * 0.06, { duration: 110 });
-    }, 110);
-    return () => {
-      clearInterval(t);
-      clearInterval(m);
-    };
-  }, [listening, level]);
 
   // ход ответа на последний запрос: шаги по очереди, потом текст по словам
   const lastId = last?.id;
@@ -155,7 +115,6 @@ export default function Story() {
   const send = (value: string) => {
     const v = value.trim();
     if (!v || busy) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     // все запросы вместе: последние уточнения важнее (числа берутся из них первыми)
     const all = [v, ...turns.map((t) => t.q).reverse()].join('. ');
     const parsed = parseStory(all)!;
@@ -163,24 +122,11 @@ export default function Story() {
     // уточнение с числом страниц меняет развороты, остальное — как выбрали
     const spec = prev ? { ...prev, spreads: /\d{2,3}\s*(стр|страниц)/i.test(v) ? nearest(parsed.pages / 2) : prev.spreads } : null;
     setTurns((ts) => [...ts, { id: nextId.current++, q: v, parsed, step: 0, spec, text: '', done: false }]);
-    setText('');
-    input.current?.blur();
   };
-  const startVoice = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    input.current?.blur();
-    setHeard('');
-    setListening(true);
-  };
-  const stopVoice = (keep: boolean) => {
-    setListening(false);
-    if (keep && heard) send(heard);
-  };
-
   const empty = turns.length === 0;
 
   return (
-    <View ref={root} style={s.screen}>
+    <View style={s.screen}>
     <View style={{ flex: 1 }}>
       {/* шапка окна: ручка, закрыть; в диалоге — заголовок мелко по центру */}
       <View style={[s.head, { paddingTop: insets.top + 6 }]}>
@@ -214,70 +160,19 @@ export default function Story() {
         )}
       </ScrollView>
 
-      {/* свет снизу: поднимается с голосом, пока ИИ думает — ходит лучом */}
-      <VoiceGlow active={listening} processing={busy && !listening && !(last && last.step >= 3 && !last.spec)} level={level} />
-
-      {/* поле ввода у большого пальца; над ним — короткие подсказки, пока пусто */}
-      <Animated.View style={[s.composerWrap, lift]}>
-        {empty && !listening ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.hintsRow} contentContainerStyle={s.hints}>
-            {EXAMPLES.map((e) => (
-              <Tap key={e.label} style={s.hint} onPress={() => send(e.text)} accessibilityRole="button" accessibilityLabel={`Пример: ${e.text}`}>
-                <Text style={s.hintText}>{e.label}</Text>
-              </Tap>
-            ))}
-          </ScrollView>
-        ) : null}
-        <View style={[s.composer, listening && s.composerVoice]}>
-          {listening ? (
-            <Animated.View key="wave" entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={{ gap: 18 }}>
-              <Text style={[s.heard, !heard && { color: colors.mut2 }]} accessibilityLiveRegion="polite">
-                {heard || 'Слушаю…'}
-              </Text>
-              <View style={s.bar}>
-                <Tap style={s.ghost} onPress={() => stopVoice(false)} accessibilityRole="button" accessibilityLabel="Отменить запись">
-                  <XIcon size={18} color={colors.fg} weight="bold" />
-                </Tap>
-                <Timer />
-                <Tap style={s.send} onPress={() => stopVoice(true)} accessibilityRole="button" accessibilityLabel="Готово, отправить">
-                  <CheckIcon size={18} color="#fff" weight="bold" />
-                </Tap>
-              </View>
-            </Animated.View>
-          ) : (
-            <Animated.View key="text" entering={FadeIn.duration(duration.fast)} style={{ gap: 8 }}>
-              <TextInput
-                ref={input}
-                value={text}
-                onChangeText={setText}
-                multiline
-                placeholder={empty ? 'Какую книгу соберём?' : 'Уточните: «32 страницы», «меньше селфи»'}
-                placeholderTextColor={colors.mut2}
-                style={s.input}
-                accessibilityLabel="Описание книги"
-              />
-              <View style={s.bar}>
-                <Tap style={s.ghost} onPress={() => router.push('/select')} accessibilityRole="button" accessibilityLabel="Выбрать фото">
-                  <PlusIcon size={18} color={colors.fg} weight="bold" />
-                </Tap>
-                <View style={{ flex: 1 }} />
-                <Tap style={s.ghostFlat} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Надиктовать">
-                  <MicrophoneIcon size={20} color={colors.fg} />
-                </Tap>
-                {text.trim() ? (
-                  <Tap style={[s.send, busy && { opacity: 0.35 }]} onPress={() => send(text)} disabled={busy} accessibilityRole="button" accessibilityLabel="Отправить">
-                    <ArrowUpIcon size={18} color="#fff" weight="bold" />
-                  </Tap>
-                ) : (
-                  <Tap style={s.send} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Голосовой режим">
-                    <WaveformIcon size={18} color="#fff" weight="bold" />
-                  </Tap>
-                )}
-              </View>
-            </Animated.View>
-          )}
-        </View>
-      </Animated.View>
+      <Composer
+        ref={composer}
+        placeholder={empty ? 'Какую книгу соберём?' : 'Уточните: «32 страницы», «меньше селфи»'}
+        hints={empty ? EXAMPLES : undefined}
+        heard={HEARD}
+        busy={busy}
+        processing={busy && !(last && last.step >= 3 && !last.spec)}
+        startListening={Boolean(voice)}
+        autoFocus
+        onSend={send}
+        onPlus={() => router.push('/select')}
+        plusLabel="Выбрать фото"
+      />
     </View>
     </View>
   );
@@ -387,20 +282,6 @@ function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => vo
   );
 }
 
-function Timer() {
-  const [sec, setSec] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setSec((x) => x + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <View style={s.timer}>
-      <View style={s.rec} />
-      <Text style={s.timerText}>{`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`}</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   head: { paddingHorizontal: 16, paddingBottom: 6, alignItems: 'center', gap: 6 },
@@ -413,10 +294,6 @@ const s = StyleSheet.create({
   round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 28 },
 
-  hintsRow: { marginHorizontal: -12, flexGrow: 0, marginBottom: 8 },
-  hints: { paddingHorizontal: 12, gap: 6 },
-  hint: { height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: colors.card, justifyContent: 'center' },
-  hintText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
 
   turn: { gap: 14 },
   q: { fontSize: 23, lineHeight: 29, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
@@ -445,16 +322,4 @@ const s = StyleSheet.create({
   ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
   ctaPrice: { fontSize: 16, fontFamily: fonts.display, letterSpacing: -0.3, color: '#fff' },
 
-  composerWrap: { paddingHorizontal: 12, paddingTop: 6 },
-  composerVoice: { backgroundColor: 'transparent', paddingTop: 24 },
-  composer: { backgroundColor: colors.card, borderRadius: 26, padding: 12, paddingBottom: 10 },
-  input: { fontSize: 17, lineHeight: 23, fontFamily: fonts.medium, color: colors.fg, minHeight: 28, maxHeight: 120, padding: 0, paddingHorizontal: 4 },
-  heard: { fontSize: 22, lineHeight: 29, fontFamily: fonts.medium, letterSpacing: -0.3, color: colors.fg, textAlign: 'center', paddingHorizontal: 12, minHeight: 58 },
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ghost: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  ghostFlat: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  send: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
-  timer: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  rec: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
-  timerText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg, fontVariant: ['tabular-nums'] },
 });
