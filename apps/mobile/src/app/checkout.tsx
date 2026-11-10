@@ -152,12 +152,13 @@ export default function Checkout() {
 
         <Animated.View entering={enter(3)} style={s.section}>
           <Text style={s.h2}>Оплата</Text>
-          {/* карта: выбрана — нажатие открывает колесо карт, чтобы сменить или добавить */}
+          {/* карта: справа «Изменить», как у телефона — открывает колесо карт, чтобы сменить или добавить */}
           <ChoiceTile
             title={`${card.brand} •• ${card.last4}`}
-            sub={`${card.bank} · нажмите, чтобы сменить`}
+            sub={card.bank}
             on={payId === 'card'}
-            onPick={() => (payId === 'card' ? router.push('/cards') : setPayId('card'))}
+            onPick={() => setPayId('card')}
+            action={{ label: 'Изменить', onPress: () => router.push('/cards') }}
           />
           {payments
             .filter((x) => x.id !== 'card')

@@ -8,8 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { PlusIcon, XIcon } from 'phosphor-react-native';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeInDown, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeIn, interpolate, useAnimatedKeyboard, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,6 +33,10 @@ export default function Cards() {
   const [num, setNum] = useState('');
   const [exp, setExp] = useState('');
   const [cvc, setCvc] = useState('');
+  // кнопка «Сохранить» едет вместе с клавиатурой — её всегда видно и можно нажать
+  const kb = useAnimatedKeyboard();
+  const bottomPad = insets.bottom + 12;
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(kb.height.value + 12, bottomPad) }));
 
   const tick = (i: number) => {
     setAt(i);
@@ -73,7 +77,9 @@ export default function Cards() {
         </Tap>
       </View>
 
-      <View style={{ flex: adding ? 0 : 1, justifyContent: 'center' }}>
+      {/* при добавлении колесо уходит: форма и кнопка должны поместиться над клавиатурой */}
+      {adding ? null : (
+      <View style={{ flex: 1, justifyContent: 'center' }}>
       <Animated.ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -81,15 +87,13 @@ export default function Cards() {
         decelerationRate="fast"
         onScroll={onScroll}
         scrollEventThrottle={16}
-        contentOffset={{ x: start * STEP, y: 0 }}
+        contentOffset={{ x: at * STEP, y: 0 }}
         contentContainerStyle={{ paddingHorizontal: (width - STEP) / 2, height: H + 70, alignItems: 'center' }}
         style={{ flexGrow: 0 }}>
         {cards.map((c, i) => (
           <WheelCard key={c.id} i={i} x={x} step={STEP} w={W} h={H}>
-            {/* при открытии карты веером выезжают снизу */}
-            <Animated.View entering={FadeInDown.delay(80 * Math.abs(i - start)).springify().damping(16)}>
-              <CardFace card={c} w={W} h={H} />
-            </Animated.View>
+            {/* без отдельного входа: экран и так выезжает снизу, второй вход поверх давал прыжки и мерцание */}
+            <CardFace card={c} w={W} h={H} />
           </WheelCard>
         ))}
       </Animated.ScrollView>
@@ -100,9 +104,11 @@ export default function Cards() {
         ))}
       </View>
       </View>
+      )}
 
       {adding ? (
-        <Animated.View entering={FadeInDown.duration(320).easing(ease.smoothOut)} style={s.form}>
+        <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+        <Animated.View entering={FadeIn.duration(220).easing(ease.smoothOut)} style={s.form}>
           <Text style={s.formTitle}>Новая карта</Text>
           <TextInput
             value={num}
@@ -110,6 +116,7 @@ export default function Cards() {
             placeholder="Номер карты"
             placeholderTextColor={colors.mut2}
             keyboardType="number-pad"
+            autoFocus
             style={s.input}
             accessibilityLabel="Номер карты"
           />
@@ -138,6 +145,7 @@ export default function Cards() {
             />
           </View>
         </Animated.View>
+        </ScrollView>
       ) : (
         <View style={{ alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <Text style={s.cardInfo}>
@@ -151,8 +159,7 @@ export default function Cards() {
         </View>
       )}
 
-      {adding ? <View style={{ flex: 1 }} /> : null}
-      <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View style={[s.bottom, lift]}>
         <Tap style={[s.cta, adding && !ready && { opacity: 0.4 }]} onPress={choose} disabled={adding && !ready} accessibilityRole="button">
           <Text style={s.ctaText}>{adding ? 'Сохранить и выбрать' : 'Оплатить этой картой'}</Text>
         </Tap>
@@ -161,7 +168,7 @@ export default function Cards() {
             <Text style={s.cancelText}>Отмена</Text>
           </Tap>
         ) : null}
-      </View>
+      </Animated.View>
     </View>
   );
 }

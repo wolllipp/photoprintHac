@@ -10,7 +10,8 @@ import Animated, { Easing, interpolateColor, useAnimatedStyle, useSharedValue, w
 import { ease } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-export function ChoiceTile({ title, sub, right, on, onPick }: { title: string; sub: string; right?: string; on: boolean; onPick: () => void }) {
+/** action — ссылка справа («Изменить»), как в строке телефона: видно, куда нажимать, чтобы сменить. */
+export function ChoiceTile({ title, sub, right, action, on, onPick }: { title: string; sub: string; right?: string; action?: { label: string; onPress: () => void }; on: boolean; onPick: () => void }) {
   const v = useSharedValue(on ? 1 : 0);
   const glow = useSharedValue(0);
   useEffect(() => {
@@ -40,6 +41,11 @@ export function ChoiceTile({ title, sub, right, on, onPick }: { title: string; s
           <Text style={s.sub} numberOfLines={1}>{sub}</Text>
         </View>
         {right ? <Animated.Text style={[s.right, price]}>{right}</Animated.Text> : null}
+        {action ? (
+          <Pressable onPress={action.onPress} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${action.label}: ${title}`}>
+            <Text style={s.link}>{action.label}</Text>
+          </Pressable>
+        ) : null}
       </Animated.View>
     </Pressable>
   );
@@ -49,5 +55,6 @@ const s = StyleSheet.create({
   tile: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 2, borderColor: 'transparent' },
   title: { fontSize: 16, lineHeight: 20, fontFamily: fonts.bold, color: colors.fg },
   sub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut },
+  link: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
   right: { fontSize: 16, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 });

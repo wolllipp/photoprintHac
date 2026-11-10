@@ -14,7 +14,6 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
@@ -27,7 +26,6 @@ const NOW = ['Принят', 'Проверяем макет', 'Печатаем'
 export default function Orders() {
   const insets = useSafeAreaInsets();
   const { orders, markSeen, repeatOrder } = useStore();
-  const added = useAdded();
   const [lock, setLock] = useState(false);
   const [onLock, setOnLock] = useState<string | null>(null);
   const order = orders[0];
@@ -75,11 +73,14 @@ export default function Orders() {
                   <Tap
                     style={s.btn}
                     onPress={() => {
+                      // состав заказа — в корзину, и сразу туда: без плашки, которая висит и ничего не объясняет
                       repeatOrder(order.id);
-                      added.show(order.title, order.cover);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                      router.navigate('/cart');
                     }}
-                    accessibilityRole="button">
-                    <Text style={s.btnText}>Повторить</Text>
+                    accessibilityRole="button"
+                    accessibilityLabel="Заказать ещё: положить этот заказ в корзину">
+                    <Text style={s.btnText}>Заказать ещё</Text>
                   </Tap>
                 ) : null}
               </View>
@@ -103,8 +104,6 @@ export default function Orders() {
           </>
         )}
       </ScrollView>
-
-      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 90} />
 
       {/* превью статуса на экране блокировки (Live Activity) */}
       <Modal visible={lock} transparent animationType="fade" onRequestClose={() => setLock(false)}>
