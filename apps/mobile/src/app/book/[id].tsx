@@ -114,7 +114,8 @@ export default function BookScreen() {
 
       {/* сцена: разворот книги */}
       <Animated.View
-        style={[s.stage, stageStyle]}
+        pointerEvents="box-none"
+        style={[s.stage, { zIndex: 2 }, stageStyle]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
           setSpace((x) => (x.stage === h ? x : { ...x, stage: h }));
@@ -275,7 +276,14 @@ function Pager({ pages, maxH }: { pages: number; maxH: number }) {
   };
   return (
     <View style={{ width, gap: 12 }}>
-      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={32}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+        style={{ marginVertical: -28, overflow: 'visible' }}
+        contentContainerStyle={{ paddingVertical: 28 }}>
         {Array.from({ length: total }, (_, i) => book[i % book.length]).map((sp, i) => (
           <View key={i} style={{ width, alignItems: 'center' }} accessible accessibilityLabel={`Разворот ${i + 1} из ${total}`}>
             <View style={[s.spread, { width: spreadW }, sp.bg ? { backgroundColor: sp.bg } : null]}>
