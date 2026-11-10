@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -37,6 +38,10 @@ class PhotosIn(BaseModel):
 class SelectionPatch(BaseModel):
     include: list[uuid.UUID] = []
     exclude: list[uuid.UUID] = []
+
+
+class ChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
 
 
 def project_out(p: Project) -> dict:
@@ -103,7 +108,8 @@ async def create_project(body: ProjectIn, user: User = Depends(current_user), s:
 @router.post("/projects/story")
 async def create_story(body: StoryIn, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Путь Б: описание словами → «Поняли так» (разбор — модуль Марка)."""
-    parsed = ai.parse_story(body.text)
+    parsed = await asyncio.to_thread(ai.parse_story_llm, body.text[:500])
+    # Подбор фото по содержимому текста требует CLIP-класса модели — вне демо.
     product_id, option_id = await book_option(s, body.option_id)
     p = Project(owner_id=user.id, title=parsed["title"], theme=parsed["theme"], tone=parsed["tone"],
                 product_id=product_id, option_id=option_id, page_count=parsed["pages"], source=ProjectSource.story)
@@ -206,7 +212,7 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
                      for page in layouts for frame in page.layout["frames"] if frame.get("warning")}
     rows = (await s.execute(select(ProjectPhoto, Photo).join(
         Photo, Photo.id == ProjectPhoto.photo_id,
-    ).where(ProjectPhoto.project_id == p.id))).all()
+    ).where(ProjectPhoto.project_id == p.id).order_by(Photo.created_at, Photo.id))).all()
     rejected: dict[str, int] = {}
     for project_photo, _ in rows:
         if not project_photo.selected and project_photo.reject_reason:
@@ -238,3 +244,44 @@ async def patch_selection(project_id: uuid.UUID, body: SelectionPatch, user: Use
             rows[pid].selected, rows[pid].user_override = False, True
     await s.commit()
     return {"selected": sum(r.selected for r in rows.values()), "total": len(rows)}
+
+
+@router.post("/projects/{project_id}/chat")
+async def project_chat(project_id: uuid.UUID, body: ChatIn, bg: BackgroundTasks,
+                       user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
+    """Применяет короткую команду к выбору и пересобирает проект при необходимости."""
+    p = await own_project(s, project_id, user)
+    if p.status == ProjectStatus.ordered:
+        raise HTTPException(409, "проект уже заказан")
+    intent = await asyncio.to_thread(ai.parse_story_intent, body.message)
+    action = intent["action"]
+    if action not in ("remove_photo", "add_photo", "set_pages", "regenerate"):
+        raise HTTPException(422, "не удалось распознать команду")
+    photo_ids = [uuid.UUID(str(photo_id)) for photo_id in intent.get("photo_ids", [])]
+    # Н — позиция фото в том же порядке, что и в GET /selection.
+    if not photo_ids and intent.get("photo_number"):
+        numbered = (await s.execute(
+            select(Photo.id).join(ProjectPhoto, ProjectPhoto.photo_id == Photo.id)
+            .where(ProjectPhoto.project_id == p.id).order_by(Photo.created_at, Photo.id)
+        )).scalars().all()
+        number = intent["photo_number"]
+        if 1 <= number <= len(numbered):
+            photo_ids = [numbered[number - 1]]
+    if action in ("remove_photo", "add_photo"):
+        if not photo_ids:
+            raise HTTPException(404, "фото не найдено в проекте")
+        attached = set((await s.execute(
+            select(ProjectPhoto.photo_id).where(
+                ProjectPhoto.project_id == p.id, ProjectPhoto.photo_id.in_(photo_ids),
+            )
+        )).scalars())
+        if attached != set(photo_ids):
+            raise HTTPException(404, "фото не найдено в проекте")
+        patch = SelectionPatch(exclude=photo_ids) if action == "remove_photo" else SelectionPatch(include=photo_ids)
+        await patch_selection(project_id, patch, user, s)
+    elif action == "set_pages":
+        if intent.get("pages") is None:
+            raise HTTPException(422, "не указано число страниц")
+        p.page_count = intent["pages"]
+        await s.commit()
+    return await build(project_id, bg, user, s)

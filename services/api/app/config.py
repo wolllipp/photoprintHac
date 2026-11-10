@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     point_value_rub: float = 0.10    # 1 пик = 0,10 руб. (Алеся, #30, notes/16-points.md)
     points_max_share: float = 0.30   # пиками — не больше 30% стоимости товаров, доставка не входит
     jwt_ttl_days: int = 30
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "qwen2.5:7b-instruct"
+    ollama_timeout_s: float = 20
 
 
 settings = Settings()

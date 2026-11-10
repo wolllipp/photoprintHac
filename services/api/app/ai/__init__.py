@@ -1,11 +1,17 @@
 """Демо-парсинг истории, отбор фото и заглушки для остальных AI-этапов."""
 import hashlib
 import re
+from html import escape
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
+
+import httpx
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.quality import DPI_LIMITS, MONTHS_RU, crop_rect, quality_report
+from app.config import settings
 
 THEMES = {
     "travel": ("поездк", "путешеств", "карел", "отпуск", "море", "горы"),
@@ -29,6 +35,73 @@ def parse_story(text: str) -> dict:
     place = re.search(r"в\s+([А-ЯЁ][а-яё]+)", text)
     title = f"{place.group(1)}" if place else text.strip()[:40]
     return {"theme": theme, "tone": tone, "pages": pages, "emphasis": emphasis, "title": title}
+
+
+class StoryResult(BaseModel):
+    """Результат разбора описания книги."""
+
+    model_config = ConfigDict(extra="forbid")
+    theme: Literal["travel", "child", "wedding", "graduation", "newyear", "love", "family", "default"]
+    tone: Literal["warm", "bw", "bright"] | None
+    pages: int = Field(ge=1, le=200)
+    emphasis: str | None
+    title: str = Field(min_length=1, max_length=200)
+
+
+class StoryIntent(BaseModel):
+    """Проверенная команда пользователя для проекта."""
+
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["remove_photo", "add_photo", "set_pages", "regenerate"]
+    photo_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)
+    pages: int | None = Field(default=None, ge=1, le=200)
+
+
+def _ollama_json(text: str, schema: type[BaseModel]) -> dict:
+    """Запрашивает структурированный JSON у локальной Ollama."""
+    response = httpx.post(
+        f"{settings.ollama_url.rstrip('/')}/api/chat",
+        json={
+            "model": settings.ollama_model,
+            "messages": [
+                {"role": "system", "content": f"Отвечай только JSON по схеме: {schema.model_json_schema()}"},
+                {"role": "user", "content": f"<client_text>\n{escape(text, quote=False)}\n</client_text>"},
+            ],
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": 0},
+        },
+        timeout=settings.ollama_timeout_s,
+    )
+    response.raise_for_status()
+    content = response.json()["message"]["content"]
+    return schema.model_validate_json(content).model_dump(mode="json")
+
+
+def parse_story_llm(text: str) -> dict:
+    """Разбирает историю через Ollama; при любой ошибке использует regex."""
+    try:
+        return _ollama_json(text[:500], StoryResult)
+    except Exception:
+        return parse_story(text)
+
+
+def parse_story_intent(text: str) -> dict:
+    """Разбирает команду проекта через Ollama с безопасным regex-fallback."""
+    try:
+        return _ollama_json(text[:500], StoryIntent)
+    except Exception:
+        normalized = text.lower()
+        match = re.search(r"(?:убери|удали|добавь|верни)\s+фото\s+(\d+)", normalized)
+        if match:
+            action = "add_photo" if normalized.startswith(("добавь", "верни")) else "remove_photo"
+            return {"action": action, "photo_ids": [], "photo_number": int(match.group(1)), "pages": None}
+        match = re.search(r"сделай\s+(\d{1,3})\s+страниц", normalized)
+        if match and 1 <= int(match.group(1)) <= 200:
+            return {"action": "set_pages", "photo_ids": [], "pages": int(match.group(1))}
+        if "переделай" in normalized:
+            return {"action": "regenerate", "photo_ids": [], "pages": None}
+        return {"action": None, "photo_ids": [], "pages": None}
 
 
 def _h(photo_id: uuid.UUID) -> int:
@@ -173,10 +246,6 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
                            "warning": crop["warning"]})
         out.append({"position": pos, "chapter": chapters[pos], "frames": frames})
     return out
-
-
-def check_quality(selected: list[uuid.UUID]) -> dict:
-    return {"checked": len(selected), "faces_ok": True, "sharpness_ok": True}
 
 
 def captions(theme: str, pages: int) -> list[str]:
