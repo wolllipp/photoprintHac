@@ -1,38 +1,66 @@
 /**
- * Фотопечать: какие фото, какой формат, сколько копий — цена считается сразу, дальше обычное оформление.
+ * Фотопечать (A7): формат, бумага, сколько копий каждого фото — цена считается сразу.
+ * По умолчанию 10×15, глянец, по одной копии. Кадры, которые не совпадают с форматом по пропорции,
+ * отмечены пунктиром «обрежем края» — и подсказка, на какой формат они лягут без обрезки.
+ * Фото с количеством 0 в заказ не идут. Дальше — корзина, как у книг.
  */
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { MinusIcon, PlusIcon } from 'phosphor-react-native';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
 import { AddedToast, useAdded } from '@/components/added';
+import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { type PhotoName, photos, pic } from '@/data/photos';
+import { photos, pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { AnimatedNumber } from '@/motion';
+import { AnimatedNumber, ease } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-// цены иллюстративные, как у тарифов книг; источник правды — справочник D14
+// цены — с сайта (цифровая печать, от 0,49 р.); источник правды — справочник D14
 const FORMATS = [
   { id: '10×15', price: 0.49 },
   { id: '15×21', price: 1.2 },
   { id: '20×30', price: 2.9 },
 ];
+const PAPERS = [
+  { id: 'Глянец', title: 'глянцевая', sub: 'яркие цвета, насыщенный чёрный' },
+  { id: 'Мат', title: 'матовая', sub: 'без бликов и отпечатков пальцев' },
+] as const;
 const SHOTS = Object.keys(photos) as PhotoName[];
+// shortcut: «квадратные» кадры отмечены вручную; в продукте — пропорция файла против пропорции формата (A8)
+const SQUARE = new Set<PhotoName>(['cafe-dessert', 'birthday-cake']);
+const GAP = 8;
 
 export default function Print() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { addToCart } = useStore();
   const [format, setFormat] = useState(FORMATS[0]);
-  const [copies, setCopies] = useState(1);
-  const count = SHOTS.length * copies;
+  const [paper, setPaper] = useState<(typeof PAPERS)[number]['id']>('Глянец');
+  const [qty, setQty] = useState<Record<string, number>>(() => Object.fromEntries(SHOTS.map((k) => [k, 1])));
+  const count = SHOTS.reduce((a, k) => a + qty[k], 0);
   const total = Math.round(count * format.price * 100) / 100;
+  const cropped = SHOTS.filter((k) => qty[k] > 0 && SQUARE.has(k)).length;
+  const cell = Math.floor((width - 32 - 28 - GAP * 2) / 3);
+
+  const change = (k: string, d: number) => {
+    Haptics.selectionAsync().catch(() => {});
+    setQty((q) => ({ ...q, [k]: Math.max(0, Math.min(20, q[k] + d)) }));
+  };
+  const all = (d: number) => {
+    Haptics.selectionAsync().catch(() => {});
+    setQty((q) => Object.fromEntries(Object.entries(q).map(([k, v]) => [k, Math.max(1, Math.min(20, v + d))])));
+  };
+  const every = Math.min(...SHOTS.map((k) => qty[k]));
 
   const added = useAdded();
   const onAdd = () => {
+    if (!count) return;
+    const first = SHOTS.find((k) => qty[k] > 0) ?? SHOTS[0];
     addToCart({
       projectId: `print-${format.id}`,
       title: `Фотопечать ${format.id}`,
@@ -40,84 +68,154 @@ export default function Print() {
       tariffName: 'Фото',
       format: format.id,
       pages: count,
-      finish: 'Глянец',
+      finish: paper === 'Мат' ? 'Зерно' : 'Глянец',
       price: total,
       readyBy: 'завтра',
-      cover: SHOTS[0],
+      cover: first,
     });
-    added.show(`Фотопечать ${format.id} · ${count} фото`, SHOTS[0]);
+    added.show(`Фотопечать ${format.id} · ${count} фото`, first);
   };
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title="Фотопечать" />
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]}>
-        <View style={s.card}>
-          <Text style={s.label}>{SHOTS.length} фото из галереи</Text>
-          <View style={s.grid}>
-            {SHOTS.map((k) => (
-              <Image key={k} source={pic(k)} style={s.cell} contentFit="cover" />
-            ))}
-          </View>
-        </View>
+      <NavBar title="" />
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
+        <Animated.Text entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.title}>
+          Фотопечать
+        </Animated.Text>
 
-        <View style={s.card}>
+        {/* формат */}
+        <View style={s.section}>
           <Text style={s.label}>Формат</Text>
           <View style={s.row} accessibilityRole="radiogroup">
             {FORMATS.map((f) => {
               const on = f.id === format.id;
               return (
-                <Tap key={f.id} style={[s.fmt, on && s.fmtOn]} onPress={() => setFormat(f)} accessibilityRole="radio" accessibilityState={{ selected: on }}>
+                <Tap
+                  key={f.id}
+                  style={[s.fmt, on && s.fmtOn]}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setFormat(f);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}>
                   <Text style={[s.fmtName, on && { color: '#fff' }]}>{f.id}</Text>
                   <Text style={[s.fmtPrice, on && { color: 'rgba(255,255,255,0.8)' }]}>{rub(f.price)}</Text>
                 </Tap>
               );
             })}
           </View>
+          {cropped ? (
+            <Text style={s.hint}>
+              {cropped} {cropped === 1 ? 'кадр' : 'кадра'} шире формата — обрежем края (пунктир). Без обрезки они лягут на 15×15.
+            </Text>
+          ) : null}
+        </View>
 
-          <View style={[s.row, { justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }]}>
-            <Text style={s.copiesL}>Копий каждого</Text>
-            <View style={s.stepper}>
-              <Tap style={s.step} onPress={() => setCopies((c) => Math.max(1, c - 1))} disabled={copies === 1} accessibilityRole="button" accessibilityLabel="Меньше копий">
-                <MinusIcon size={16} color={copies === 1 ? colors.mut2 : colors.fg} weight="bold" />
-              </Tap>
-              <Text style={s.copies} accessibilityLiveRegion="polite">{copies}</Text>
-              <Tap style={s.step} onPress={() => setCopies((c) => Math.min(10, c + 1))} accessibilityRole="button" accessibilityLabel="Больше копий">
-                <PlusIcon size={16} color={colors.fg} weight="bold" />
-              </Tap>
+        {/* бумага */}
+        <View style={s.section}>
+          <Text style={s.label}>Бумага</Text>
+          <View style={s.row} accessibilityRole="radiogroup">
+            {PAPERS.map((p) => {
+              const on = p.id === paper;
+              return (
+                <Tap
+                  key={p.id}
+                  style={[s.paper, on && s.paperOn]}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setPaper(p.id);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}>
+                  <Text style={s.paperName}>{p.title}</Text>
+                  <Text style={s.paperSub}>{p.sub}</Text>
+                </Tap>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* фото: у каждого — сколько копий */}
+        <View style={s.section}>
+          <View style={s.photosHead}>
+            <Text style={s.label}>{SHOTS.length} фото · копий</Text>
+            <View style={s.allRow}>
+              <Text style={s.allLabel}>всем</Text>
+              <Stepper value={every} onMinus={() => all(-1)} onPlus={() => all(1)} min={1} />
             </View>
+          </View>
+          <View style={s.grid}>
+            {SHOTS.map((k) => (
+              <View key={k} style={{ width: cell, gap: 6 }}>
+                <View style={[s.photo, { width: cell, height: cell }, qty[k] === 0 && { opacity: 0.35 }]}>
+                  <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  {SQUARE.has(k) && qty[k] > 0 ? <View style={s.crop} pointerEvents="none" /> : null}
+                </View>
+                <Stepper value={qty[k]} onMinus={() => change(k, -1)} onPlus={() => change(k, 1)} min={0} small />
+              </View>
+            ))}
           </View>
         </View>
       </ScrollView>
 
       <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
-        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button">
-          <Text style={s.ctaText}>В корзину · {count} фото · </Text>
-          <AnimatedNumber value={total} format={rub} style={s.ctaText} />
+        <Tap style={[s.cta, !count && { opacity: 0.4 }]} onPress={onAdd} disabled={!count} accessibilityRole="button" accessibilityLabel={`В корзину, ${count} фото, ${rub(total)}`}>
+          <Text style={s.ctaText}>В корзину · {count} фото</Text>
+          <View style={s.ctaSum}>
+            <AnimatedNumber value={total} format={rub} style={s.ctaPrice} />
+          </View>
         </Tap>
       </View>
-      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 80} />
+      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 84} />
+    </View>
+  );
+}
+
+function Stepper({ value, onMinus, onPlus, min, small }: { value: number; onMinus: () => void; onPlus: () => void; min: number; small?: boolean }) {
+  const size = small ? 28 : 34;
+  return (
+    <View style={[s.stepper, small && { alignSelf: 'stretch', justifyContent: 'space-between' }]}>
+      <Tap style={[s.step, { width: size, height: size }]} onPress={onMinus} disabled={value <= min} accessibilityRole="button" accessibilityLabel="Меньше">
+        <MinusIcon size={13} color={value <= min ? colors.mut2 : colors.fg} weight="bold" />
+      </Tap>
+      <Text style={[s.stepN, value === 0 && { color: colors.mut2 }]}>{value}</Text>
+      <Tap style={[s.step, { width: size, height: size }]} onPress={onPlus} accessibilityRole="button" accessibilityLabel="Больше">
+        <PlusIcon size={13} color={colors.fg} weight="bold" />
+      </Tap>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: 16, gap: 10 },
-  card: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 10 },
+  content: { paddingHorizontal: 16, gap: 14 },
+  title: { fontSize: 32, lineHeight: 38, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
+  section: { backgroundColor: colors.card, borderRadius: 22, padding: 14, gap: 10 },
   label: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  cell: { width: '24%', aspectRatio: 1, borderRadius: 8 },
   row: { flexDirection: 'row', gap: 6 },
-  fmt: { flex: 1, borderRadius: 18, backgroundColor: colors.bg, paddingVertical: 12, alignItems: 'center', gap: 2 },
-  fmtOn: { backgroundColor: colors.fg },
+  fmt: { flex: 1, borderRadius: 18, backgroundColor: '#fff', paddingVertical: 12, alignItems: 'center', gap: 2 },
+  fmtOn: { backgroundColor: colors.coralAction },
   fmtName: { fontSize: 17, fontFamily: fonts.display, color: colors.fg },
   fmtPrice: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
-  copiesL: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.bg, borderRadius: 22, padding: 3 },
-  step: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  copies: { minWidth: 24, textAlign: 'center', fontSize: 17, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: colors.bg },
-  cta: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  hint: { fontSize: 13, lineHeight: 18, fontFamily: fonts.medium, color: colors.warn },
+  paper: { flex: 1, borderRadius: 18, backgroundColor: '#fff', padding: 12, gap: 2, borderWidth: 2, borderColor: 'transparent' },
+  paperOn: { borderColor: colors.coralAction },
+  paperName: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
+  paperSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut },
+  photosHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  allRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  allLabel: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  photo: { borderRadius: 12, overflow: 'hidden', backgroundColor: colors.card2 },
+  crop: { position: 'absolute', left: '14%', right: '14%', top: 0, bottom: 0, borderLeftWidth: 1.5, borderRightWidth: 1.5, borderStyle: 'dashed', borderColor: '#fff' },
+  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 18, padding: 2 },
+  step: { borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  stepN: { minWidth: 22, textAlign: 'center', fontSize: 14, fontFamily: fonts.bold, color: colors.fg, fontVariant: ['tabular-nums'] },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: 'rgba(255,255,255,0.94)' },
+  cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
+  ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
+  ctaPrice: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: '#fff' },
 });
