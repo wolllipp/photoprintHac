@@ -27,7 +27,7 @@ export function QualityCard({ checked, format }: { checked: number; format: stri
     <Animated.View layout={LinearTransition.duration(260).easing(ease.smoothOut)} style={s.card}>
       <View style={s.head}>
         <Text style={s.title}>Проверили {checked} кадров</Text>
-        <Text style={[s.badge, left ? s.badgeWarn : s.badgeOk]}>{left ? '1 нужно решить' : 'всё в порядке'}</Text>
+        <Text style={[s.status, { color: left ? colors.warn : colors.tealInk }]}>{left ? 'Одно нужно решить' : 'Всё в порядке'}</Text>
       </View>
 
       {/* мало пикселей — решает человек */}
@@ -109,11 +109,9 @@ function Frame({ label, position }: { label: string; position: 'left' | 'center'
 
 const s = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: 22, padding: 14, gap: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  head: { gap: 2 },
   title: { fontSize: 17, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
-  badge: { fontSize: 12.5, fontFamily: fonts.bold, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
-  badgeWarn: { color: colors.warn, backgroundColor: colors.warnTint },
-  badgeOk: { color: colors.tealInk, backgroundColor: colors.tealTint },
+  status: { fontSize: 13.5, fontFamily: fonts.semibold },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   thumb: { width: 48, height: 48, borderRadius: 12 },
   rowTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
