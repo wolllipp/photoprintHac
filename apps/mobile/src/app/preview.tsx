@@ -16,6 +16,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OverlapTitle } from '@/components/home';
+import { QualityCard } from '@/components/quality';
 import { Tap } from '@/components/ui';
 import { spreads, tariffs, type PageLayout, type Spread } from '@/data/demo';
 import { pic, type Pic } from '@/data/photos';
@@ -105,6 +106,8 @@ export default function Preview() {
                 `Тёплая книга о поездке: ${picked} лучших кадров из ${p.photos ?? 214}, без дублей и смазанных. Пейзажи — на целый разворот, люди — крупно, лица не попадут в обрез.`}
             </Text>
           </View>
+
+          <QualityCard checked={picked} format={p.format ?? '20×20'} />
 
           <Text style={s.h2}>Развороты</Text>
           <View style={s.grid}>
