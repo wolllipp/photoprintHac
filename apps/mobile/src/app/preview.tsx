@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OverlapTitle } from '@/components/home';
 import { QualityCard } from '@/components/quality';
+import { RefineCard } from '@/components/refine';
 import { Tap } from '@/components/ui';
 import { spreads, tariffs, type PageLayout, type Spread } from '@/data/demo';
 import { pic, type Pic } from '@/data/photos';
@@ -37,6 +38,9 @@ export default function Preview() {
   // цифры и описание — уже ниже края (название ~120, подпись и отступы ~50, кнопка 56, наплыв на снимок −0,2 ширины)
   const STAGE = Math.round(Math.max(width * 1.1, height - 64 - (226 - width * 0.2)));
   const [scrolled, setScrolled] = useState(false);
+  // развороты книги — меняются правкой словами; изменённые подсвечиваем
+  const [book, setBook] = useState(spreads);
+  const [changed, setChanged] = useState<number[]>([]);
   // блок с цифрами, описанием и разворотами до первой прокрутки спрятан и подлетает снизу, когда начали листать
   const reveal = useSharedValue(0);
   useEffect(() => {
@@ -109,19 +113,29 @@ export default function Preview() {
 
           <QualityCard checked={picked} format={p.format ?? '20×20'} />
 
+          <RefineCard
+            book={book}
+            onChange={(next, ch) => {
+              setBook(next);
+              setChanged(ch);
+            }}
+          />
+
           <Text style={s.h2}>Развороты</Text>
           <View style={s.grid}>
-            {spreads.map((sp, i) => (
+            {book.map((sp, i) => (
               <View key={i} style={s.cell}>
                 <Tap
                   onPress={() => cells.current[i]?.measureInWindow((x, y, w, h) => setOpen({ i, from: { x, y, w, h } }))}
                   accessibilityRole="button"
                   accessibilityLabel={`Открыть разворот ${i + 1} крупно`}>
-                  <View ref={(v) => { cells.current[i] = v; }} collapsable={false}>
-                    <MiniSpread sp={sp} />
+                  <View ref={(v) => { cells.current[i] = v; }} collapsable={false} style={changed.includes(i) && s.changed}>
+                    <MiniSpread key={sp.photos.join()} sp={sp} />
                   </View>
                 </Tap>
-                <Text style={s.cellLabel}>{i === 0 ? 'Обложка и начало' : `Разворот ${i + 1}`}</Text>
+                <Text style={[s.cellLabel, changed.includes(i) && { color: colors.coralAction, fontFamily: fonts.semibold }]}>
+                  {changed.includes(i) ? 'изменено' : i === 0 ? 'Обложка и начало' : `Разворот ${i + 1}`}
+                </Text>
               </View>
             ))}
           </View>
@@ -139,7 +153,7 @@ export default function Preview() {
 
       {/* разворот крупно: листаются соседние, закрыть — крестиком */}
       <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
-        {open !== null ? <Viewer start={open.i} from={open.from} onClose={() => setOpen(null)} /> : null}
+        {open !== null ? <Viewer book={book} start={open.i} from={open.from} onClose={() => setOpen(null)} /> : null}
       </Modal>
 
       {/* назад — стеклянная кнопка поверх сцены */}
@@ -202,7 +216,7 @@ type Rect = { x: number; y: number; w: number; h: number };
  * Просмотр разворотов крупно. Разворот вырастает из миниатюры, на которую нажали, и встаёт по центру;
  * свайпом — к соседним; нажатие мимо разворота или крестик — уменьшается обратно в своё место.
  */
-function Viewer({ start, from, onClose }: { start: number; from: Rect; onClose: () => void }) {
+function Viewer({ book, start, from, onClose }: { book: Spread[]; start: number; from: Rect; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [page, setPage] = useState(start);
@@ -245,7 +259,7 @@ function Viewer({ start, from, onClose }: { start: number; from: Rect; onClose: 
           onLayout={() => pager.current?.scrollTo({ x: start * width, animated: false })}
           onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
           style={{ flexGrow: 0 }}>
-          {spreads.map((sp, i) => (
+          {book.map((sp, i) => (
             <Pressable key={i} onPress={close} style={{ width, height: H + 80, paddingHorizontal: 12, justifyContent: 'center' }}>
               {/* сам разворот нажатия не закрывает */}
               <Pressable onPress={() => {}}>
@@ -256,7 +270,7 @@ function Viewer({ start, from, onClose }: { start: number; from: Rect; onClose: 
         </ScrollView>
       </Animated.View>
       <Animated.Text style={[s.viewerNo, { bottom: insets.bottom + 40 }, bg]}>
-        {page === 0 ? 'Обложка и начало' : `Разворот ${page + 1}`} · {page + 1} из {spreads.length}
+        {page === 0 ? 'Обложка и начало' : `Разворот ${page + 1}`} · {page + 1} из {book.length}
       </Animated.Text>
       <Animated.View style={[s.viewerClose, { top: insets.top + 8 }, bg]}>
         <Tap style={s.viewerCloseBtn} onPress={close} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
@@ -271,7 +285,7 @@ const count = (l: PageLayout) => (l === 'one' ? 1 : l === 'two' ? 2 : 3);
 function MiniSpread({ sp, big }: { sp: Spread; big?: boolean }) {
   const page = (layout: PageLayout, shots: Spread['photos']) => {
     const img = (k: Spread['photos'][number], flex = 1) =>
-      k ? <Image key={String(k)} source={pic(k)} style={{ flex, borderRadius: 2 }} contentFit="cover" /> : <View style={{ flex, backgroundColor: colors.card2 }} />;
+      k ? <Image key={`${String(k)}-${flex}`} source={pic(k)} style={{ flex, borderRadius: 2 }} contentFit="cover" /> : <View style={{ flex, backgroundColor: colors.card2 }} />;
     return (
       <View style={s.miniPage}>
         {layout === 'one' ? img(shots[0]) : null}
@@ -334,6 +348,7 @@ const s = StyleSheet.create({
   cell: { width: '48.5%', gap: 6 },
   hintBox: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 1 },
   scrollHintText: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  changed: { borderRadius: 12, borderWidth: 2, borderColor: colors.coralAction, padding: 2, margin: -4 },
   big: { padding: 8, gap: 8, borderRadius: 14, boxShadow: '0 20px 40px -18px rgba(60,40,30,0.5), 0 0 0 1px rgba(60,40,30,0.06)' },
   viewerBg: { backgroundColor: 'rgba(255,255,255,0.96)' },
   viewerClose: { position: 'absolute', right: 16 },
