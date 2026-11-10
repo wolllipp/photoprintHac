@@ -41,7 +41,7 @@ export default function Points() {
         <Animated.View entering={enterItem(1)} style={{ gap: 10 }}>
           <Text style={s.h2}>Как получить</Text>
           <View style={s.group}>
-            <Way icon={<UserPlusIcon size={20} color={colors.peachInk} weight="fill" />} title="Позвать друга" sub="когда друг сделает первый заказ" amount="+100" onPress={invite} />
+            <Way icon={<UserPlusIcon size={20} color={colors.peachInk} weight="fill" />} title="Позвать друга" sub="другу +100 сразу, вам — когда он получит первую книгу" amount="+100" onPress={invite} />
             <Way icon={<ChatCircleTextIcon size={20} color={colors.peachInk} weight="fill" />} title="Отзыв о книге" sub="после получения заказа" amount="+50" />
             <Way icon={<CakeIcon size={20} color={colors.peachInk} weight="fill" />} title="В день рождения" sub="подарок раз в год" amount="+200" />
           </View>
@@ -51,7 +51,7 @@ export default function Points() {
           <Text style={s.h2}>Как потратить</Text>
           <View style={[s.group, s.spend]}>
             <View style={s.ico}><ShoppingBagIcon size={20} color={colors.peachInk} weight="fill" /></View>
-            <Text style={s.spendText}>Списывайте при оформлении — переключатель «Списать пики» перед оплатой. 1 пик = {rub(PIK_RATE)}</Text>
+            <Text style={s.spendText}>Списывайте при оформлении — переключатель «Списать пики» перед оплатой. 1 пик = {rub(PIK_RATE)}, пиками — до 30% заказа</Text>
           </View>
         </Animated.View>
 

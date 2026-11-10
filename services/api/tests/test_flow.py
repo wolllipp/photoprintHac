@@ -60,15 +60,15 @@ async def test_full_path_guest_to_tracked_order(client):
     assert v["user"]["is_guest"] is False
     assert any(p["id"] == pid for p in (await client.get("/projects", headers=uh)).json())
 
-    # 7. пики и заказ
+    # 7. пики и заказ: 1 пик = 0,10 руб., списать можно до 30% книги (81,10 → 243 пика = 24,30)
     await client.post("/dev/points", headers=uh, params={"amount": 350})
     r = await client.post("/orders", headers=uh, json={**body, "points_to_spend": 350})
     assert r.status_code == 200, r.text
     o = r.json()
     assert o["stage"] == "accepted" and o["number"] >= 4792101
-    assert o["breakdown"] == {"book": "81.10", "delivery": "5.90", "points_discount": "3.50"}
-    assert o["total"] == "83.50"
-    assert (await client.get("/me", headers=uh)).json()["points"] == 0
+    assert o["breakdown"] == {"book": "81.10", "delivery": "5.90", "points_discount": "24.30", "points_spent": 243}
+    assert o["total"] == "62.70"
+    assert (await client.get("/me", headers=uh)).json()["points"] == 107  # остаток не сгорел
 
     # 8. отслеживание: этапы и «готово 6 из 12»
     for _ in range(2):

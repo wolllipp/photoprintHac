@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceTile } from '@/components/choice';
 import { Pik, Tap } from '@/components/ui';
-import { delivery, payments, pickupPoints, PIK_RATE } from '@/data/demo';
+import { delivery, payments, pickupPoints, PIK_RATE, piksUsable } from '@/data/demo';
 import { pic } from '@/data/photos';
 import { cartTotal, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease } from '@/motion';
@@ -66,8 +66,12 @@ export default function Checkout() {
   }
 
   const d = delivery.find((x) => x.id === deliveryId) ?? delivery[0];
-  const piksOff = usePiks ? Math.round(points * PIK_RATE * 100) / 100 : 0;
   const goods = cartTotal(cart, extras);
+  // пиками — до 30% товаров, доставка не входит; списываем только то, что ушло в скидку
+  const piksCan = piksUsable(points, goods);
+  const piksCapped = piksCan < points;
+  const piksSpent = usePiks ? piksCan : 0;
+  const piksOff = Math.round(piksSpent * PIK_RATE * 100) / 100;
   const total = Math.round((goods + d.price - piksOff) * 100) / 100;
   const pieces = cart.reduce((a, it) => a + it.qty, 0);
 
@@ -85,7 +89,7 @@ export default function Checkout() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    placeOrder(total, usePiks ? points : 0);
+    placeOrder(total, piksSpent);
     router.dismissAll();
     router.navigate('/orders');
   };
@@ -169,7 +173,11 @@ export default function Checkout() {
             <Pik size={28} />
             <View style={{ flex: 1 }}>
               <Text style={s.rowTitle}>Списать пики</Text>
-              <Text style={s.rowSub}>{points} пиков · −{rub(points * PIK_RATE)}</Text>
+              <Text style={s.rowSub}>
+                {piksCapped
+                  ? `${piksCan} из ${points} пиков · −${rub(piksCan * PIK_RATE)} · до 30% заказа`
+                  : `${points} пиков · −${rub(points * PIK_RATE)}`}
+              </Text>
             </View>
             <Switch
               value={usePiks}

@@ -70,12 +70,17 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
     if not n_selected:
         raise HTTPException(422, "в книге нет отобранных фото")
 
-    ship = delivery_cost(dm, price)
+    ship = delivery_cost(dm, price)  # порог бесплатной доставки — по цене до списания пиков
     gross = price + ship
     balance = await points_balance(s, user.id)
     if body.points_to_spend > balance:
         raise HTTPException(422, f"не хватает пиков: есть {balance}")
-    discount = min(Decimal(body.points_to_spend) * Decimal(str(settings.point_value_rub)), gross)
+    # пиками — не больше 30% стоимости товаров, доставку пиками не оплачивают;
+    # списываем только столько пиков, сколько реально ушло в скидку
+    value = Decimal(str(settings.point_value_rub))
+    max_points = int(price * Decimal(str(settings.points_max_share)) / value)
+    spent = min(body.points_to_spend, max_points)
+    discount = (Decimal(spent) * value).quantize(Decimal("0.01"))
     total = (gross - discount).quantize(Decimal("0.01"))
 
     point = None
@@ -86,22 +91,23 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
     ready = eta(opt, dm)
     from datetime import datetime, time, timezone
     order = Order(user_id=user.id, delivery_id=dm.id, pickup_point_id=point.id if point else None,
-                  payment=body.payment, points_spent=body.points_to_spend, total=total,
+                  payment=body.payment, points_spent=spent, total=total,
                   promised_at=datetime.combine(ready, time(18, 0), tzinfo=timezone.utc))
     s.add(order)
     await s.flush()
     s.add(OrderItem(order_id=order.id, project_id=project.id, product_id=product.id, price=price))
     st = OrderStage(order_id=order.id, stage=Stage.accepted, line=opt.print_line)
     s.add(st)
-    if body.points_to_spend:
-        s.add(PointsLedger(user_id=user.id, delta=-body.points_to_spend, reason="order_payment", order_id=order.id))
+    if spent:
+        s.add(PointsLedger(user_id=user.id, delta=-spent, reason="order_payment", order_id=order.id))
     project.status = ProjectStatus.ordered
     project.product_id, project.option_id = product.id, opt.id
     await s.commit()
     await s.refresh(order)
     await s.refresh(st)
     return {**order_out(order, [st], project.page_count),
-            "breakdown": {"book": str(price), "delivery": str(ship), "points_discount": str(discount)}}
+            "breakdown": {"book": str(price), "delivery": str(ship), "points_discount": str(discount),
+                          "points_spent": spent}}
 
 
 @router.get("/orders")
