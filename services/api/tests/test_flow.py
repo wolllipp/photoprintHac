@@ -66,16 +66,16 @@ async def test_full_path_guest_to_tracked_order(client):
     assert r.status_code == 200, r.text
     o = r.json()
     assert o["stage"] == "accepted" and o["number"] >= 4792101
-    assert o["breakdown"] == {"book": "81.10", "delivery": "5.90", "points_discount": "24.30", "points_spent": 243}
-    assert o["total"] == "62.70"
-    assert (await client.get("/me", headers=uh)).json()["points"] == 107  # остаток не сгорел
+    assert o["breakdown"] == {"book": "72.90", "delivery": "5.90", "points_discount": "21.80", "points_spent": 218}
+    assert o["total"] == "57.00"
+    assert (await client.get("/me", headers=uh)).json()["points"] == 132  # остаток не сгорел
 
-    # 8. отслеживание: этапы и «готово 6 из 12»
+    # 8. отслеживание: этапы и «готово 2 из 4 разворотов»
     for _ in range(2):
         await client.post(f"/dev/orders/{o['id']}/advance", headers=uh)
-    await client.post(f"/dev/orders/{o['id']}/advance", headers=uh, params={"done": 6})
+    await client.post(f"/dev/orders/{o['id']}/advance", headers=uh, params={"done": 2})
     t = (await client.get(f"/orders/{o['id']}", headers=uh)).json()
-    assert t["stage"] == "printing" and t["progress"] == {"done": 6, "total": 12}
+    assert t["stage"] == "printing" and t["progress"] == {"done": 2, "total": 4}
     assert [x["stage"] for x in t["timeline"]][:3] == ["accepted", "layout_checked", "printing"]
 
     # 9. главная
@@ -252,8 +252,8 @@ async def test_cancelled_build_cannot_apply_results_or_overwrite_newer_build(cli
             first_started.set()
             if not allow_first.wait(2):
                 raise TimeoutError("test did not release cancelled selection")
-            return [{"photo_id": pid, "selected": False, "reject_reason": "capacity"}
-                    for pid, _ in args[0]]
+            return [{"photo_id": photo["photo_id"], "selected": False, "reject_reason": "capacity"}
+                    for photo in args[0]]
         return original(*args, **kwargs)
 
     monkeypatch.setattr(ai, "select_photos", first_build_is_stale)

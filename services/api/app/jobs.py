@@ -5,8 +5,9 @@ import uuid
 from sqlalchemy import case, select
 
 from app import ai, db
+from app.ai.quality import add_crop_warning, dpi_limit_for_format, page_aspect_for_format, quality_report
 from app.config import settings
-from app.models import BuildJob, Photo, Project, ProjectPage, ProjectPhoto, ProjectStatus
+from app.models import BuildJob, Photo, ProductOption, Project, ProjectPage, ProjectPhoto, ProjectStatus
 
 STAGES = ["selecting", "layout", "faces", "captions"]
 
@@ -41,23 +42,32 @@ async def run_build(job_id: uuid.UUID) -> None:
         project.status = ProjectStatus.building
         await s.commit()
         pages = project.page_count or 24
+        option = await s.get(ProductOption, project.option_id) if project.option_id else None
+        format = option.format if option else None
+        dpi_limit = dpi_limit_for_format(format)
+        page_aspect = page_aspect_for_format(format)
+        min_pages = option.min_pages if option and option.min_pages else 2
         try:
             rows = (await s.execute(
                 select(
                     ProjectPhoto.photo_id, Photo.id,
                     case((Photo.owner_id == Project.owner_id, Photo.path)),
-                    Photo.owner_id, Project.owner_id,
+                    Photo.owner_id, Project.owner_id, Photo.width, Photo.height,
+                    Photo.sharpness, Photo.faces, Photo.taken_at,
                 )
                 .join(Project, Project.id == ProjectPhoto.project_id)
                 .outerjoin(Photo, Photo.id == ProjectPhoto.photo_id)
                 .where(Project.id == project_id)
             )).all()
             photos = []
-            for project_photo_id, photo_id, path, photo_owner_id, current_owner_id in rows:
+            for row in rows:
+                (project_photo_id, photo_id, path, photo_owner_id, current_owner_id,
+                 width, height, sharpness, faces, taken_at) = row
                 if photo_id is None or photo_owner_id != current_owner_id:
                     raise ValueError(f"Project photo {project_photo_id} is missing or has mismatched ownership")
-                photos.append((photo_id, path))
-            ids = [photo_id for photo_id, _ in photos]
+                photos.append({"photo_id": photo_id, "path": path, "width": width, "height": height,
+                               "sharpness": sharpness, "faces": faces or [], "taken_at": taken_at})
+            ids = [photo["photo_id"] for photo in photos]
             selected: list[uuid.UUID] = []
             for stage in STAGES:
                 await s.refresh(job)
@@ -71,7 +81,8 @@ async def run_build(job_id: uuid.UUID) -> None:
                 if stage == "selecting":
                     hashes = {}
                     # Hashing may take time; cancellation and manual edits must remain unblocked here.
-                    await asyncio.to_thread(ai.select_photos, photos, pages, hashes=hashes)
+                    await asyncio.to_thread(ai.select_photos, photos, pages, hashes=hashes,
+                                            dpi_limit=dpi_limit)
 
                 project, job = await _lock_project_job(s, job_id, project_id)
                 if job.status != "running":
@@ -93,7 +104,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                     excluded_ids = {pp.photo_id for pp in pps if pp.user_override and not pp.selected}
                     included_ids = {pp.photo_id for pp in pps if pp.user_override and pp.selected}
                     decisions = ai.select_photos(
-                        photos, pages, excluded_ids, included_ids, hashes=hashes
+                        photos, pages, excluded_ids, included_ids, hashes=hashes, dpi_limit=dpi_limit,
                     )
                     decided = {d["photo_id"]: d for d in decisions}
                     for pp in pps:
@@ -111,17 +122,33 @@ async def run_build(job_id: uuid.UUID) -> None:
                         .execution_options(populate_existing=True)
                     )).scalars().all()
                     selected = [pp.photo_id for pp in pps if pp.selected]
+                    selected_ids = set(selected)
+                    selected_photos = [photo for photo in photos if photo["photo_id"] in selected_ids]
                     for old in (await s.execute(select(ProjectPage).where(
                         ProjectPage.project_id == project.id,
                     ))).scalars():
                         await s.delete(old)
-                    for pg in ai.layout(selected, pages):
+                    layouts = ai.layout(selected_photos, pages, min_pages, page_aspect,
+                                        source=project.source.value, theme=project.theme)
+                    if len(layouts) < pages:
+                        project.page_count = len(layouts)
+                        prog["suggested_pages"] = len(layouts)
+                    for pg in layouts:
                         s.add(ProjectPage(project_id=project.id, position=pg["position"], layout=pg))
-                    prog["layout"] = [pages, pages]
+                    prog["layout"] = [len(layouts), pages]
                 elif stage == "faces":
-                    q = ai.check_quality(selected)
-                    prog["faces"] = [q["checked"], len(selected)]
-                    prog["quality"] = q
+                    by_id = {photo["photo_id"]: photo for photo in photos}
+                    layouts = (await s.execute(select(ProjectPage).where(
+                        ProjectPage.project_id == project_id,
+                    ))).scalars().all()
+                    crop_warnings = {frame["photo_id"]: frame["warning"]
+                                     for page in layouts for frame in page.layout["frames"]
+                                     if frame.get("warning")}
+                    reports = {str(photo_id): add_crop_warning(
+                        quality_report(by_id[photo_id], dpi_limit), crop_warnings.get(str(photo_id)))
+                        for photo_id in selected if photo_id in by_id}
+                    prog["faces"] = [len(reports), len(selected)]
+                    prog["quality"] = reports
                 job.progress = prog
                 await s.commit()
 

@@ -3,6 +3,11 @@ import uuid
 from app.ai import select_photos
 
 
+def photo(photo_id, path):
+    return {"photo_id": photo_id, "path": str(path), "width": 1205, "height": 1795,
+            "sharpness": 100, "faces": [], "taken_at": None}
+
+
 def test_select_photos_reports_only_exact_duplicates_and_capacity(tmp_path):
     first, duplicate, unique, capacity = (uuid.UUID(int=n) for n in (1, 2, 3, 4))
     same_a, same_b, other, extra = (tmp_path / name for name in ("a.png", "b.png", "c.png", "d.png"))
@@ -12,7 +17,7 @@ def test_select_photos_reports_only_exact_duplicates_and_capacity(tmp_path):
     extra.write_bytes(b"one more different image")
 
     result = select_photos(
-        [(first, str(same_a)), (duplicate, same_b), (unique, other), (capacity, extra)], pages=1
+        [photo(first, same_a), photo(duplicate, same_b), photo(unique, other), photo(capacity, extra)], pages=1
     )
 
     by_id = {item["photo_id"]: item for item in result}
@@ -31,7 +36,7 @@ def test_manual_exclusion_does_not_consume_capacity_or_duplicate_representative(
     other.write_bytes(b"different")
 
     result = select_photos(
-        [(excluded, duplicate_a), (alternate, duplicate_b), (unique, other)],
+        [photo(excluded, duplicate_a), photo(alternate, duplicate_b), photo(unique, other)],
         pages=1,
         excluded_ids={excluded},
     )
@@ -49,7 +54,7 @@ def test_manual_include_is_preferred_duplicate_representative(tmp_path):
     a.write_bytes(b"same")
     b.write_bytes(b"same")
 
-    result = select_photos([(ordinary, a), (included, b)], pages=1, included_ids={included})
+    result = select_photos([photo(ordinary, a), photo(included, b)], pages=1, included_ids={included})
 
     by_id = {item["photo_id"]: item for item in result}
     assert by_id[included]["selected"] is True

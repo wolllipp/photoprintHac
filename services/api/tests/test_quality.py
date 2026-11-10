@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from app.ai.quality import DPI_LIMITS, analyze_image, crop_rect, quality_report
+from app.ai.quality import page_aspect_for_format
 from app import db
 from app.models import Photo
 from tests.conftest import png
@@ -16,6 +17,19 @@ def test_quality_report_flags_resolution_and_blur():
 
     assert report["ok"] is False
     assert {warning["code"] for warning in report["warnings"]} == {"low_res", "blur"}
+
+
+def test_quality_report_accepts_the_same_resolution_in_landscape_orientation():
+    photo = Photo(width=1795, height=1205, sharpness=500, faces=[])
+
+    report = quality_report(photo, DPI_LIMITS["10x15"])
+
+    assert "low_res" not in {warning["code"] for warning in report["warnings"]}
+
+
+def test_page_crop_uses_single_page_aspect_not_spread_aspect():
+    assert page_aspect_for_format("20x20") == 1
+    assert page_aspect_for_format("21x30") == 0.7
 
 
 def test_crop_shifts_to_keep_face_inside_frame():

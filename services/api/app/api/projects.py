@@ -6,9 +6,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import ai
+from app.ai.quality import add_crop_warning, dpi_limit_for_format, quality_report
 from app.db import get_session
 from app.jobs import run_build
-from app.models import BuildJob, Photo, Project, ProjectPhoto, ProjectSource, ProjectStatus, User
+from app.models import (BuildJob, Photo, Product, ProductOption, Project, ProjectPage, ProjectPhoto,
+                        ProjectSource, ProjectStatus, User)
 from app.security.auth import current_user
 
 router = APIRouter(tags=["projects"])
@@ -19,11 +21,13 @@ class ProjectIn(BaseModel):
     photo_ids: list[uuid.UUID] = Field(min_length=1)
     theme: str | None = None
     pages: int = 24
+    option_id: uuid.UUID | None = None
 
 
 class StoryIn(BaseModel):
     text: str = Field(min_length=3)
     photo_ids: list[uuid.UUID] = []
+    option_id: uuid.UUID | None = None
 
 
 class PhotosIn(BaseModel):
@@ -37,7 +41,22 @@ class SelectionPatch(BaseModel):
 
 def project_out(p: Project) -> dict:
     return {"id": str(p.id), "title": p.title, "theme": p.theme, "tone": p.tone, "status": p.status.value,
-            "source": p.source.value, "page_count": p.page_count, "created_at": p.created_at.isoformat()}
+            "source": p.source.value, "page_count": p.page_count,
+            "option_id": str(p.option_id) if p.option_id else None,
+            "created_at": p.created_at.isoformat()}
+
+
+async def book_option(s: AsyncSession, option_id: uuid.UUID | None) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+    """Проверяет опцию фотокниги и возвращает ID продукта и опции."""
+    if option_id is None:
+        return None, None
+    option = await s.get(ProductOption, option_id)
+    product = await s.get(Product, option.product_id) if option else None
+    if option is None or product is None:
+        raise HTTPException(404, "формат не найден")
+    if product.kind != "photobook":
+        raise HTTPException(422, "нужен формат фотокниги")
+    return product.id, option.id
 
 
 async def own_project(s: AsyncSession, project_id: uuid.UUID, user: User) -> Project:
@@ -71,8 +90,9 @@ async def attach(s: AsyncSession, project: Project, photo_ids: list[uuid.UUID], 
 @router.post("/projects")
 async def create_project(body: ProjectIn, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Путь А: человек сам выбрал фото и создал проект."""
+    product_id, option_id = await book_option(s, body.option_id)
     p = Project(owner_id=user.id, title=body.title, theme=body.theme, page_count=body.pages,
-                source=ProjectSource.picked)
+                product_id=product_id, option_id=option_id, source=ProjectSource.picked)
     s.add(p)
     await s.flush()
     await attach(s, p, body.photo_ids, user)
@@ -84,8 +104,9 @@ async def create_project(body: ProjectIn, user: User = Depends(current_user), s:
 async def create_story(body: StoryIn, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Путь Б: описание словами → «Поняли так» (разбор — модуль Марка)."""
     parsed = ai.parse_story(body.text)
+    product_id, option_id = await book_option(s, body.option_id)
     p = Project(owner_id=user.id, title=parsed["title"], theme=parsed["theme"], tone=parsed["tone"],
-                page_count=parsed["pages"], source=ProjectSource.story)
+                product_id=product_id, option_id=option_id, page_count=parsed["pages"], source=ProjectSource.story)
     s.add(p)
     await s.flush()
     if body.photo_ids:
@@ -178,14 +199,26 @@ async def job_cancel(job_id: uuid.UUID, user: User = Depends(current_user), s: A
 async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Экран «Лучшие 38 из 214»: что взяли, что отсеяли и почему."""
     p = await own_project(s, project_id, user)
-    rows = (await s.execute(select(ProjectPhoto).where(ProjectPhoto.project_id == p.id))).scalars().all()
+    option = await s.get(ProductOption, p.option_id) if p.option_id else None
+    dpi_limit = dpi_limit_for_format(option.format if option else None)
+    layouts = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id))).scalars().all()
+    crop_warnings = {frame["photo_id"]: frame["warning"]
+                     for page in layouts for frame in page.layout["frames"] if frame.get("warning")}
+    rows = (await s.execute(select(ProjectPhoto, Photo).join(
+        Photo, Photo.id == ProjectPhoto.photo_id,
+    ).where(ProjectPhoto.project_id == p.id))).all()
     rejected: dict[str, int] = {}
-    for r in rows:
-        if not r.selected and r.reject_reason:
-            rejected[r.reject_reason] = rejected.get(r.reject_reason, 0) + 1
-    return {"selected": sum(r.selected for r in rows), "total": len(rows), "rejected": rejected,
-            "photos": [{"photo_id": str(r.photo_id), "selected": r.selected, "reject_reason": r.reject_reason,
-                        "user_override": r.user_override} for r in rows]}
+    for project_photo, _ in rows:
+        if not project_photo.selected and project_photo.reject_reason:
+            rejected[project_photo.reject_reason] = rejected.get(project_photo.reject_reason, 0) + 1
+    return {"selected": sum(project_photo.selected for project_photo, _ in rows), "total": len(rows),
+            "rejected": rejected,
+            "photos": [{"photo_id": str(project_photo.photo_id), "selected": project_photo.selected,
+                        "reject_reason": project_photo.reject_reason, "user_override": project_photo.user_override,
+                        "warnings": add_crop_warning(
+                            quality_report(photo, dpi_limit), crop_warnings.get(str(project_photo.photo_id)),
+                        )["warnings"]}
+                       for project_photo, photo in rows]}
 
 
 @router.patch("/projects/{project_id}/selection")

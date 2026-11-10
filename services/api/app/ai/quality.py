@@ -1,5 +1,6 @@
 """Локальная оценка качества фотографий и геометрия кадрирования."""
 from functools import lru_cache
+import re
 
 import cv2
 import numpy as np
@@ -11,6 +12,34 @@ WARNING_TEXT = {
     "blur": "Смазанное фото",
     "face_edge": "Лицо у края — сдвинули кадр",
 }
+MONTHS_RU = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа",
+            "сентября", "октября", "ноября", "декабря")
+
+
+def dpi_limit_for_format(format: str | None) -> tuple[int, int]:
+    """Возвращает DPI-порог разворота для формата из каталога."""
+    if format == "10x15":
+        return DPI_LIMITS["10x15"]
+    if format == "20x20":
+        return DPI_LIMITS["20x20_spread"]
+    dimensions = _format_dimensions(format)
+    if dimensions:
+        width_cm, height_cm = dimensions
+        return round(width_cm * 2 * 300 / 2.54), round(height_cm * 300 / 2.54)
+    return DPI_LIMITS["20x20_spread"]
+
+
+def page_aspect_for_format(format: str | None) -> float:
+    """Возвращает пропорцию страницы; без формата — квадрат 20×20."""
+    dimensions = _format_dimensions(format)
+    return dimensions[0] / dimensions[1] if dimensions else 1.0
+
+
+def _format_dimensions(format: str | None) -> tuple[float, float] | None:
+    if not format:
+        return None
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*", format)
+    return tuple(map(float, match.groups())) if match else None
 
 
 @lru_cache(maxsize=1)
@@ -35,17 +64,22 @@ def analyze_image(data: bytes) -> tuple[float, list[dict]]:
 
 def quality_report(photo, dpi_limit: tuple[int, int]) -> dict:
     """Строит предупреждения и score по метрикам загруженного фото."""
+    value = photo.get if isinstance(photo, dict) else lambda key, default=None: getattr(photo, key, default)
     warnings = []
-    width, height = photo.width or 0, photo.height or 0
+    width, height = value("width") or 0, value("height") or 0
     target_width, target_height = dpi_limit
-    resolution = min(width / target_width if target_width else 0,
-                     height / target_height if target_height else 0)
+    resolution = max(
+        min(width / target_width if target_width else 0,
+            height / target_height if target_height else 0),
+        min(width / target_height if target_height else 0,
+            height / target_width if target_width else 0),
+    )
     if resolution < 1:
         warnings.append({"code": "low_res", "text": WARNING_TEXT["low_res"]})
-    sharpness = photo.sharpness
+    sharpness = value("sharpness")
     if sharpness is not None and sharpness < 100:
         warnings.append({"code": "blur", "text": WARNING_TEXT["blur"]})
-    faces = photo.faces or []
+    faces = value("faces") or []
     if width and height and any(
         min(face["x"] * width, face["y"] * height,
             (1 - face["x"] - face["w"]) * width,
@@ -56,6 +90,14 @@ def quality_report(photo, dpi_limit: tuple[int, int]) -> dict:
     sharpness_score = min((sharpness or 0) / ((sharpness or 0) + 100), 1)
     score = 0.5 * min(resolution, 1) + 0.4 * sharpness_score + (0.1 if faces else 0)
     return {"ok": not warnings, "score": float(score), "warnings": warnings}
+
+
+def add_crop_warning(report: dict, warning: str | None) -> dict:
+    """Добавляет предупреждение, если рамку нельзя безопасно сдвинуть от лица."""
+    if warning == "face_edge" and not any(item["code"] == warning for item in report["warnings"]):
+        report["warnings"].append({"code": warning, "text": WARNING_TEXT[warning]})
+        report["ok"] = False
+    return report
 
 
 def crop_rect(width: int, height: int, faces: list[dict], frame_aspect: float,
