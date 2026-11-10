@@ -25,7 +25,7 @@ export default function BookScreen() {
   const id = params.id;
   const draft = drafts[id ?? 'karelia'] ?? drafts.karelia;
   const insets = useSafeAreaInsets();
-  const { addToCart } = useStore();
+  const { addToCart, setLastBook } = useStore();
   const [tariff, setTariff] = useState<Tariff>(tariffs[1]);
   const [finish, setFinish] = useState<'Глянец' | 'Зерно'>(params.lam === 'зернистая' ? 'Зерно' : 'Глянец');
   // формат и развороты — из диалога, если пришли оттуда; цена пересчитывается от всего сразу
@@ -97,6 +97,7 @@ export default function BookScreen() {
       cover: draft.cover,
     });
     // в корзину — и остаёмся здесь: человек сам решит, когда оформлять
+    setLastBook(null);
     added.show(draft.title, draft.cover);
   };
 

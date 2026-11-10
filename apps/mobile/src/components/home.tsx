@@ -9,7 +9,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MicrophoneIcon, QrCodeIcon, SlidersHorizontalIcon } from 'phosphor-react-native';
+import { ArrowDownIcon, BookOpenTextIcon, CaretRightIcon, DotsThreeIcon, ImagesIcon, MicrophoneIcon, QrCodeIcon, SlidersHorizontalIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   Animated,
@@ -502,10 +502,27 @@ export function ActionTiles({
   onOrder: () => void;
 }) {
   const iconPeach = colors.peachInk;
-  const { cart } = useStore();
+  const { cart, lastBook, setLastBook } = useStore();
   const drafts = suggestions.filter((d) => !cart.some((c) => c.projectId === d.id));
   return (
     <View style={{ gap: TILE_GAP }}>
+      {/* брошенная сборка: книга собрана, но не в корзине — вернуться одним касанием (A11) */}
+      {lastBook ? (
+        <Reanimated.View entering={FadeInDown.duration(380)} style={[s.tile, s.resume]}>
+          <Photo source={photos[lastBook.cover as keyof typeof photos] ?? photos['night-window']} style={s.resumeCover} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.resumeLabel}>Продолжить книгу</Text>
+            <Text style={s.resumeTitle} numberOfLines={1}>{lastBook.title}</Text>
+            <Text style={s.tSub} numberOfLines={1}>собрана · осталось выбрать тариф</Text>
+          </View>
+          <Tap style={s.resumeBtn} onPress={() => router.push({ pathname: '/preview', params: lastBook.params })} accessibilityRole="button" accessibilityLabel={`Продолжить книгу «${lastBook.title}»`}>
+            <Text style={s.resumeBtnText}>Открыть</Text>
+          </Tap>
+          <Tap style={s.resumeX} onPress={() => setLastBook(null)} accessibilityRole="button" accessibilityLabel="Скрыть" hitSlop={10}>
+            <XIcon size={13} color={colors.mut} weight="bold" />
+          </Tap>
+        </Reanimated.View>
+      ) : null}
       {/* действие: собрать книгу */}
       <View style={[s.tile, s.clear, { gap: 12 }]}>
         <TileBg kind="peach" />
@@ -671,6 +688,13 @@ const s = StyleSheet.create({
   tIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tIconPhoto: { width: 36, height: 36 },
   clear: { backgroundColor: 'transparent' },
+  resume: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, paddingVertical: 12, paddingRight: 34 },
+  resumeCover: { width: 52, height: 60, borderRadius: 12 },
+  resumeLabel: { fontSize: 12, fontFamily: fonts.bold, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.peachInk },
+  resumeTitle: { fontSize: 18, lineHeight: 23, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
+  resumeBtn: { height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: colors.coralAction, justifyContent: 'center' },
+  resumeBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: '#fff' },
+  resumeX: { position: 'absolute', top: 10, right: 10, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   drafts: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   covers: { flexDirection: 'row', alignItems: 'center', paddingRight: 4 },
   coverMini: { width: 40, height: 52, borderRadius: 8, borderWidth: 2, borderColor: '#fff' },

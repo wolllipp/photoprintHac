@@ -37,6 +37,8 @@ export type ExtraId = (typeof EXTRAS)[number]['id'];
 export const cartTotal = (cart: CartItem[], extras: ExtraId[]) =>
   Math.round((cart.reduce((a, it) => a + it.price * it.qty, 0) + EXTRAS.filter((e) => extras.includes(e.id)).reduce((a, e) => a + e.price, 0)) * 100) / 100;
 
+export type LastBook = { title: string; cover: Pic; params: Record<string, string>; at: number };
+
 export type PlacedOrder = {
   id: string;
   title: string;
@@ -89,6 +91,9 @@ type Store = {
   addCard: (c: Card) => void;
   phone: string;
   /** согласие на обработку фото ИИ (A14) */
+  /** брошенная сборка: книга дошла до превью, но не попала в корзину (A11) */
+  lastBook: LastBook | null;
+  setLastBook: (b: LastBook | null) => void;
   aiConsent: boolean;
   setAiConsent: (v: boolean) => void;
   setPhone: (p: string) => void;
@@ -130,6 +135,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cardId, setCardId] = useState(demoCards[0].id);
   const [phone, setPhone] = useState(phoneMasked);
   const [aiConsent, setAiConsent] = useState(false);
+  const [lastBook, setLastBook] = useState<LastBook | null>(null);
 
   // восстановить всё после перезапуска; пока не прочитали — не перезаписываем сохранённое
   const [loaded, setLoaded] = useState(false);
@@ -146,6 +152,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (typeof v.cardId === 'string') setCardId(v.cardId);
         if (typeof v.phone === 'string') setPhone(v.phone);
         if (typeof v.aiConsent === 'boolean') setAiConsent(v.aiConsent);
+        if (v.lastBook) setLastBook(v.lastBook);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -154,8 +161,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -199,6 +206,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       phone,
       setPhone,
       aiConsent,
+      lastBook,
+      setLastBook,
       setAiConsent,
       cartCount: cart.filter((x) => !pending.includes(x.id)).reduce((a, x) => a + x.qty, 0),
       extras,
@@ -250,7 +259,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

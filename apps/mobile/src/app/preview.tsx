@@ -21,7 +21,7 @@ import { RefineCard } from '@/components/refine';
 import { Tap } from '@/components/ui';
 import { spreads, tariffs, type PageLayout, type Spread } from '@/data/demo';
 import { pic, type Pic } from '@/data/photos';
-import { rub } from '@/data/store';
+import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -49,6 +49,14 @@ export default function Preview() {
   const fly = useAnimatedStyle(() => ({ opacity: reveal.value, transform: [{ translateY: (1 - reveal.value) * 120 }] }));
   const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
   const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
+
+  // книга собрана — запоминаем: если не дойдёт до корзины, главная предложит продолжить (A11)
+  const { setLastBook } = useStore();
+  useEffect(() => {
+    setLastBook({ title, cover: 'night-window', params: { ...p } as Record<string, string>, at: Date.now() });
+    // запоминаем один раз при открытии
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // книга уже собрана: дальше — выбрать тариф и в корзину
   const next = () => {
