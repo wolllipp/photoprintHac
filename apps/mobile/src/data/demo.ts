@@ -143,11 +143,18 @@ export const pikHistory = [
 /* ---------- оформление ---------- */
 /** Цены доставки — с сайта (notes/06): Европочта ПВЗ и курьер, Белпочта, EMS. */
 export const delivery = [
-  { id: 'evropochta', title: 'Европочта · пункт выдачи', sub: 'ПВЗ №112, Притыцкого, 29 · от 2 дней', price: 5.9 },
+  { id: 'evropochta', title: 'Европочта · пункт выдачи', sub: 'от 2 дней', price: 5.9 },
   { id: 'courier', title: 'Курьер по Минску', sub: 'в выбранный день, до 22:00', price: 14.9 },
   { id: 'belpochta', title: 'Белпочта', sub: 'в отделение · 3–5 дней', price: 6.9 },
   { id: 'ems', title: 'EMS', sub: 'до двери по Беларуси · 1–2 дня', price: 20.9 },
 ] as const;
+
+/** Пункты выдачи Европочты рядом (демо). */
+export const pickupPoints = [
+  { id: 'p112', title: 'ПВЗ №112', address: 'Притыцкого, 29', hours: 'до 21:00', dist: '450 м' },
+  { id: 'p87', title: 'ПВЗ №87', address: 'Пушкина, 15', hours: 'до 20:00', dist: '1,2 км' },
+  { id: 'p203', title: 'ПВЗ №203', address: 'Тимирязева, 65Б, ТЦ «Замок»', hours: 'до 22:00', dist: '2,8 км' },
+];
 
 export const payments = [
   { id: 'card', title: 'Карта', sub: 'сохранённая' },

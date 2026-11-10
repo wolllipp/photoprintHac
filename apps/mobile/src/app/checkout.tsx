@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceTile } from '@/components/choice';
 import { Pik, Tap } from '@/components/ui';
-import { delivery, payments, PIK_RATE } from '@/data/demo';
+import { delivery, payments, pickupPoints, PIK_RATE } from '@/data/demo';
 import { pic } from '@/data/photos';
 import { cartTotal, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease } from '@/motion';
@@ -38,6 +38,21 @@ export default function Checkout() {
   const [agree, setAgree] = useState({ offer: false, print: false });
   const [nudge, setNudge] = useState(false);
   const agreed = agree.offer && agree.print;
+  // куда везти: пункт выдачи или адрес (для курьера, Белпочты и EMS)
+  const [pointId, setPointId] = useState(pickupPoints[0].id);
+  const point = pickupPoints.find((x) => x.id === pointId) ?? pickupPoints[0];
+  const [pickOpen, setPickOpen] = useState(false);
+  type Addr = { street: string; flat: string; entrance: string; note: string };
+  const [address, setAddress] = useState<Addr | null>(null);
+  const [draftAddr, setDraftAddr] = useState<Addr>({ street: '', flat: '', entrance: '', note: '' });
+  const [addrOpen, setAddrOpen] = useState(false);
+  const [nudgeAddr, setNudgeAddr] = useState(false);
+  const toDoor = deliveryId !== 'evropochta';
+  const addrLine = address ? `г. Минск, ${address.street}` : '';
+  const openAddr = () => {
+    setDraftAddr(address ?? { street: '', flat: '', entrance: '', note: '' });
+    setAddrOpen(true);
+  };
 
   if (!cart.length) {
     return (
@@ -57,6 +72,12 @@ export default function Checkout() {
   const pieces = cart.reduce((a, it) => a + it.qty, 0);
 
   const onPay = () => {
+    if (toDoor && !address) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setNudgeAddr(true);
+      openAddr();
+      return;
+    }
     if (!agreed) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       setNudge(true);
@@ -109,6 +130,24 @@ export default function Checkout() {
           {delivery.map((x) => (
             <ChoiceTile key={x.id} title={x.title} sub={x.sub} right={rub(x.price)} on={x.id === deliveryId} onPick={() => setDeliveryId(x.id)} />
           ))}
+          {/* куда: пункт выдачи — выбрать из ближайших; на дом — адрес */}
+          {toDoor ? (
+            <Tap style={[s.row, nudgeAddr && !address && s.rowWarn]} onPress={() => openAddr()} accessibilityRole="button" accessibilityLabel={address ? `Адрес: ${addrLine}` : 'Указать адрес доставки'}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.rowTitle, !address && { color: colors.coralAction }]}>{address ? addrLine : 'Указать адрес'}</Text>
+                <Text style={s.rowSub}>{address ? [address.flat && `кв. ${address.flat}`, address.entrance, address.note].filter(Boolean).join(' · ') || 'адрес доставки' : 'нужен для доставки на дом'}</Text>
+              </View>
+              <Text style={s.link}>{address ? 'Изменить' : 'Указать'}</Text>
+            </Tap>
+          ) : deliveryId === 'evropochta' ? (
+            <Tap style={s.row} onPress={() => setPickOpen(true)} accessibilityRole="button" accessibilityLabel={`Пункт выдачи: ${point.title}, ${point.address}`}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowTitle}>{point.title} · {point.address}</Text>
+                <Text style={s.rowSub}>{point.hours} · {point.dist}</Text>
+              </View>
+              <Text style={s.link}>Сменить</Text>
+            </Tap>
+          ) : null}
         </Animated.View>
 
         <Animated.View entering={enter(3)} style={s.section}>
@@ -260,12 +299,87 @@ export default function Checkout() {
           )}
         </PhoneSheet>
       </Modal>
+
+      {/* адрес доставки на дом */}
+      <Modal visible={addrOpen} transparent animationType="fade" onRequestClose={() => setAddrOpen(false)}>
+        <PhoneSheet title="Адрес доставки" onClose={() => setAddrOpen(false)}>
+          <View style={s.sheetBody}>
+            <TextInput
+              value={draftAddr.street}
+              onChangeText={(t) => setDraftAddr((a) => ({ ...a, street: t }))}
+              placeholder="Улица и дом"
+              placeholderTextColor={colors.mut2}
+              autoFocus
+              style={s.input}
+              accessibilityLabel="Улица и дом"
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TextInput
+                value={draftAddr.flat}
+                onChangeText={(t) => setDraftAddr((a) => ({ ...a, flat: t }))}
+                placeholder="Квартира"
+                placeholderTextColor={colors.mut2}
+                keyboardType="number-pad"
+                style={[s.input, { flex: 1, minWidth: 0 }]}
+                accessibilityLabel="Квартира"
+              />
+              <TextInput
+                value={draftAddr.entrance}
+                onChangeText={(t) => setDraftAddr((a) => ({ ...a, entrance: t }))}
+                placeholder="Подъезд, этаж"
+                placeholderTextColor={colors.mut2}
+                style={[s.input, { flex: 1.4, minWidth: 0 }]}
+                accessibilityLabel="Подъезд и этаж"
+              />
+            </View>
+            <TextInput
+              value={draftAddr.note}
+              onChangeText={(t) => setDraftAddr((a) => ({ ...a, note: t }))}
+              placeholder="Комментарий курьеру — необязательно"
+              placeholderTextColor={colors.mut2}
+              style={s.input}
+              accessibilityLabel="Комментарий курьеру"
+            />
+            <Tap
+              style={[s.save, draftAddr.street.trim().length < 4 && { opacity: 0.4 }]}
+              disabled={draftAddr.street.trim().length < 4}
+              onPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                setAddress({ ...draftAddr, street: draftAddr.street.trim() });
+                setAddrOpen(false);
+              }}
+              accessibilityRole="button">
+              <Text style={s.smallText}>Сохранить адрес</Text>
+            </Tap>
+          </View>
+        </PhoneSheet>
+      </Modal>
+
+      {/* пункт выдачи */}
+      <Modal visible={pickOpen} transparent animationType="fade" onRequestClose={() => setPickOpen(false)}>
+        <PhoneSheet title="Пункт выдачи" onClose={() => setPickOpen(false)}>
+          <View style={s.sheetBody}>
+            {pickupPoints.map((x) => (
+              <ChoiceTile
+                key={x.id}
+                title={`${x.title} · ${x.address}`}
+                sub={`${x.hours} · ${x.dist}`}
+                on={x.id === pointId}
+                onPick={() => {
+                  setPointId(x.id);
+                  setTimeout(() => setPickOpen(false), 250);
+                }}
+              />
+            ))}
+          </View>
+        </PhoneSheet>
+      </Modal>
     </View>
   );
 }
 
 /** Окно снизу: затемнение (нажатие — закрыть), лист выезжает и едет за клавиатурой. */
-function PhoneSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+function PhoneSheet({ title = 'Номер телефона', onClose, children }: { title?: string; onClose: () => void; children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const kb = useAnimatedKeyboard();
   const bottom = insets.bottom;
@@ -275,7 +389,7 @@ function PhoneSheet({ onClose, children }: { onClose: () => void; children: Reac
       <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
       <Animated.View entering={SlideInDown.duration(340).easing(Easing.out(Easing.cubic))} style={[s.sheet, lift]}>
         <View style={s.grab} />
-        <Text style={s.sheetTitle}>Номер телефона</Text>
+        <Text style={s.sheetTitle}>{title}</Text>
         {children}
       </Animated.View>
     </View>
@@ -327,6 +441,8 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 16 },
   rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
   rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  save: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  rowWarn: { borderWidth: 2, borderColor: colors.coralAction },
   link: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
   scrim: { backgroundColor: 'rgba(20,16,14,0.35)' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 16, paddingTop: 8, gap: 12 },
