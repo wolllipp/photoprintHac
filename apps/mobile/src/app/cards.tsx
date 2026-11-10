@@ -29,6 +29,9 @@ export default function Cards() {
   const start = Math.max(0, cards.findIndex((c) => c.id === cardId));
   const x = useSharedValue(start * STEP);
   const [at, setAt] = useState(start); // какая карта по центру
+  // с какой карты колесо открывается (в т.ч. после «Отмены» в форме). Не `at`: смена contentOffset
+  // посреди прокрутки на iOS дёргает ScrollView на эту позицию — карты «застревали».
+  const [openAt, setOpenAt] = useState(start);
   const [adding, setAdding] = useState(false); // форма новой карты
   const [num, setNum] = useState('');
   const [exp, setExp] = useState('');
@@ -87,7 +90,7 @@ export default function Cards() {
         decelerationRate="fast"
         onScroll={onScroll}
         scrollEventThrottle={16}
-        contentOffset={{ x: at * STEP, y: 0 }}
+        contentOffset={{ x: openAt * STEP, y: 0 }}
         contentContainerStyle={{ paddingHorizontal: (width - STEP) / 2, height: H + 70, alignItems: 'center' }}
         style={{ flexGrow: 0 }}>
         {cards.map((c, i) => (
@@ -152,7 +155,11 @@ export default function Cards() {
             {cards[at]?.brand} •• {cards[at]?.last4} · {cards[at]?.bank}
             {cards[at]?.id === cardId ? ' · сейчас выбрана' : ''}
           </Text>
-          <Tap style={s.addBtn} onPress={() => setAdding(true)} accessibilityRole="button">
+          <Tap style={s.addBtn} onPress={() => {
+              setOpenAt(at);
+              setAdding(true);
+            }}
+            accessibilityRole="button">
             <PlusIcon size={16} color={colors.fg} weight="bold" />
             <Text style={s.addBtnText}>Добавить карту</Text>
           </Tap>
