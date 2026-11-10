@@ -63,7 +63,7 @@ export default function Orders() {
             <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={{ gap: 8 }}>
               <Tap style={[s.btnMain, onLock === order.id && s.btnDone]} onPress={() => setLock(true)} accessibilityRole="button">
                 <Text style={[s.btnText, { color: onLock === order.id ? colors.tealInk : '#fff' }]}>
-                  {onLock === order.id ? 'Статус на экране блокировки ✓' : 'Показывать на экране блокировки'}
+                  {onLock === order.id ? 'Статус на экране блокировки' : 'Показывать на экране блокировки'}
                 </Text>
               </Tap>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -134,6 +134,8 @@ function OrderCard({ order }: { order: PlacedOrder }) {
           <Text style={s.cardSub}>№{order.id} · {order.tariffName} · {rub(order.total)}</Text>
         </View>
       </View>
+
+      <View style={s.divider} />
 
       <View style={s.statusRow}>
         <Text style={s.stage}>{NOW[order.stage]}</Text>
@@ -249,7 +251,8 @@ const s = StyleSheet.create({
   cardTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.fg },
   cardSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
   statusRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  stage: { flexShrink: 1, fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
+  stage: { flexShrink: 1, fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(60,40,30,0.18)', marginHorizontal: -16 },
   eta: { fontSize: 16, fontFamily: fonts.bold, color: colors.coralAction },
 
 
