@@ -47,6 +47,8 @@ export type PlacedOrder = {
   /** только что оплачен — экран заказов показывает подтверждение */
   fresh: boolean;
   cover: Pic;
+  /** что было в заказе — для «Повторить» */
+  items?: CartItem[];
   /** этап: 0 принят · 1 проверен · 2 печать · 3 в пути · 4 готов */
   stage: number;
   /** что сейчас происходит на этапе — одной строкой */
@@ -65,6 +67,7 @@ const DEMO_ORDER: PlacedOrder = {
   cover: 'bouquet',
   stage: 3,
   live: 'Европочта · ПВЗ №112, Притыцкого, 29',
+  items: [{ id: 'mama-classic-20×20-Глянец', projectId: 'mama', title: 'Юбилей мамы', tariff: 'classic', tariffName: 'Classic', format: '20×20', pages: 24, finish: 'Глянец', price: 72.9, readyBy: '14 ноя', cover: 'bouquet', qty: 1 }],
 };
 
 type Store = {
@@ -91,6 +94,8 @@ type Store = {
   clearCart: () => void;
   orders: PlacedOrder[];
   placeOrder: (total: number, spentPoints?: number) => PlacedOrder | null;
+  /** «Повторить»: положить состав заказа в корзину */
+  repeatOrder: (id: string) => number;
   points: number;
   markSeen: () => void;
   /** нижнее меню скрыто, пока на главной виден полноэкранный кадр */
@@ -105,6 +110,7 @@ type Store = {
 };
 
 const INTRO_KEY = 'picpac.showIntro';
+const STATE_KEY = 'picpac.state.v1';
 
 const Ctx = createContext<Store | null>(null);
 
@@ -120,6 +126,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cardList, setCardList] = useState<Card[]>(demoCards);
   const [cardId, setCardId] = useState(demoCards[0].id);
   const [phone, setPhone] = useState(phoneMasked);
+
+  // восстановить всё после перезапуска; пока не прочитали — не перезаписываем сохранённое
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(STATE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const v = JSON.parse(raw);
+        if (Array.isArray(v.cart)) setCart(v.cart);
+        if (Array.isArray(v.orders) && v.orders.length) setOrders(v.orders.map((o: PlacedOrder) => ({ ...o, placedAt: new Date(o.placedAt), fresh: false })));
+        if (typeof v.points === 'number') setPoints(v.points);
+        if (Array.isArray(v.extras)) setExtras(v.extras);
+        if (Array.isArray(v.cards) && v.cards.length) setCardList(v.cards);
+        if (typeof v.cardId === 'string') setCardId(v.cardId);
+        if (typeof v.phone === 'string') setPhone(v.phone);
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+  useEffect(() => {
+    if (!loaded) return;
+    // удалённые в ожидании отмены не сохраняем
+    const keep = cart.filter((x) => !pending.includes(x.id));
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -175,6 +206,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       design,
       setDesign,
       markSeen: () => setOrders((o) => o.map((x) => (x.fresh ? { ...x, fresh: false } : x))),
+      repeatOrder: (id) => {
+        const o = orders.find((x) => x.id === id);
+        const items = o?.items ?? [];
+        setCart((c) => {
+          const next = [...c];
+          for (const it of items) {
+            const at = next.findIndex((x) => x.id === it.id);
+            if (at >= 0) next[at] = { ...next[at], qty: Math.min(20, next[at].qty + it.qty) };
+            else next.push(it);
+          }
+          return next;
+        });
+        return items.length;
+      },
       placeOrder: (total, spentPoints = 0) => {
         const item = cart[0];
         if (!item) return null;
@@ -189,6 +234,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           cover: item.cover,
           stage: 1,
           live: 'макет проверен — ставим в очередь печати',
+          items: cart,
         };
         setOrders((o) => [order, ...o]);
         setCart([]);

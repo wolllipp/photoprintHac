@@ -13,6 +13,7 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
@@ -24,7 +25,8 @@ const NOW = ['Принят', 'Проверяем макет', 'Печатаем'
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
-  const { orders, markSeen } = useStore();
+  const { orders, markSeen, repeatOrder } = useStore();
+  const added = useAdded();
   const [lock, setLock] = useState(false);
   const [onLock, setOnLock] = useState<string | null>(null);
   const order = orders[0];
@@ -66,6 +68,17 @@ export default function Orders() {
                 <Text style={s.btnText}>Помощь</Text>
               </Tap>
             </Animated.View>
+            {order.items?.length ? (
+              <Tap
+                style={s.repeat}
+                onPress={() => {
+                  repeatOrder(order.id);
+                  added.show(order.title, order.cover);
+                }}
+                accessibilityRole="button">
+                <Text style={s.repeatText}>Повторить заказ</Text>
+              </Tap>
+            ) : null}
 
             {orders.length > 1 ? (
               <Animated.View entering={FadeInDown.delay(180).duration(420).easing(ease.smoothOut)} style={{ gap: 8 }}>
@@ -85,6 +98,8 @@ export default function Orders() {
           </>
         )}
       </ScrollView>
+
+      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 90} />
 
       {/* превью статуса на экране блокировки (Live Activity) */}
       <Modal visible={lock} transparent animationType="fade" onRequestClose={() => setLock(false)}>
@@ -241,6 +256,8 @@ const s = StyleSheet.create({
   btnMain: { flex: 1.5, backgroundColor: colors.coralAction },
   btnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
+  repeat: { height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: colors.card2, alignItems: 'center', justifyContent: 'center' },
+  repeatText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, padding: 10, paddingRight: 16 },
   rowCover: { width: 44, height: 52, borderRadius: 10 },
   rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
