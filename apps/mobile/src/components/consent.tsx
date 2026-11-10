@@ -5,7 +5,7 @@
  */
 import * as Haptics from 'expo-haptics';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
@@ -23,7 +23,7 @@ export function ConsentSheet({ visible, onAccept, onClose }: { visible: boolean;
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
-        <Animated.View entering={SlideInDown.springify().damping(22).stiffness(200)} style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        <Animated.View entering={SlideInDown.duration(340).easing(Easing.out(Easing.cubic))} style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={s.grab} />
           <Text style={s.title}>Ваши фото остаются у нас</Text>
           <Text style={s.lead}>Чтобы собрать книгу, ИИ посмотрит ваши фото: отберёт лучшие и проверит, чтобы лица не попали в обрез.</Text>

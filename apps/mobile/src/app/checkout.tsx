@@ -10,7 +10,7 @@ import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, SlideInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceTile } from '@/components/choice';
@@ -273,7 +273,7 @@ function PhoneSheet({ onClose, children }: { onClose: () => void; children: Reac
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
       <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
-      <Animated.View entering={SlideInDown.springify().damping(22).stiffness(200)} style={[s.sheet, lift]}>
+      <Animated.View entering={SlideInDown.duration(340).easing(Easing.out(Easing.cubic))} style={[s.sheet, lift]}>
         <View style={s.grab} />
         <Text style={s.sheetTitle}>Номер телефона</Text>
         {children}
