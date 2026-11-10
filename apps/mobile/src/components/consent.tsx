@@ -74,5 +74,5 @@ const s = StyleSheet.create({
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
   later: { height: 44, alignItems: 'center', justifyContent: 'center' },
   laterText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.mut },
-  foot: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut2, textAlign: 'center', marginTop: 8 },
+  foot: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut2, marginTop: 8 },
 });
