@@ -1,70 +1,170 @@
 /**
- * Профиль и настройки (открывается по аватару). Пока одна настройка — приветственный экран на главной.
+ * Профиль (по аватару на главной): кто вы, переходы к пикам, дизайнам и заказам, уведомления,
+ * настройки приложения, приватность (обработка фото ИИ, удалить мои фото) и выход.
+ * Удаление фото и выход — необратимы, поэтому с подтверждением (apple-design: подтверждать только такое).
  */
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { XIcon } from 'phosphor-react-native';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { CaretRightIcon, XIcon } from 'phosphor-react-native';
+import { useState, type ReactNode } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Tap } from '@/components/ui';
+import { Pik, Tap } from '@/components/ui';
+import { suggestions } from '@/data/demo';
 import { useStore } from '@/data/store';
+import { ease } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-export default function Settings() {
+export default function Profile() {
   const insets = useSafeAreaInsets();
-  const { showIntro, setShowIntro, aiConsent, setAiConsent } = useStore();
+  const { showIntro, setShowIntro, aiConsent, setAiConsent, phone, points, orders } = useStore();
+  const [notify, setNotify] = useState({ status: true, promo: false });
+  const [deleted, setDeleted] = useState(false);
+  const enter = (i: number) => FadeInDown.delay(50 * i).duration(380).easing(ease.smoothOut);
+
+  const deletePhotos = () =>
+    Alert.alert('Удалить все ваши фото?', 'Фото удалятся с наших серверов. Черновики книг пропадут, оформленные заказы допечатаются как есть.', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          setDeleted(true);
+        },
+      },
+    ]);
+  const logout = () =>
+    Alert.alert('Выйти из аккаунта?', 'Корзина и черновики останутся в аккаунте — вернутся, когда войдёте снова.', [
+      { text: 'Отмена', style: 'cancel' },
+      { text: 'Выйти', style: 'destructive', onPress: () => router.back() },
+    ]);
+
   return (
     <View style={[s.screen, { paddingTop: insets.top + 8 }]}>
       <View style={s.nav}>
-        <View style={{ width: 36 }} />
-        <Text style={s.navTitle}>Настройки</Text>
         <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
           <XIcon size={16} color={colors.fg} weight="bold" />
         </Tap>
       </View>
-      <View style={s.group}>
-        <View style={s.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.title}>Приветственный экран</Text>
-            <Text style={s.sub}>Фото на весь экран при открытии. Выключите — главная откроется сразу с плитками</Text>
+
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
+        {/* кто вы */}
+        <Animated.View entering={enter(0)} style={s.me}>
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>И</Text>
           </View>
-          <Switch
-            value={showIntro}
-            onValueChange={setShowIntro}
-            trackColor={{ true: colors.coralAction, false: colors.card2 }}
-            thumbColor="#fff"
-            ios_backgroundColor={colors.card2}
-            accessibilityLabel="Приветственный экран"
-          />
-        </View>
-      </View>
-      <View style={s.group}>
-        <View style={s.row}>
           <View style={{ flex: 1 }}>
-            <Text style={s.title}>Обработка фото ИИ</Text>
-            <Text style={s.sub}>Внутри «Фотопринта», никому не передаём. Выключите — спросим снова перед следующей сборкой</Text>
+            <Text style={s.name}>Иван</Text>
+            <Text style={s.phone}>{phone}</Text>
           </View>
-          <Switch
-            value={aiConsent}
-            onValueChange={setAiConsent}
-            trackColor={{ true: colors.coralAction, false: colors.card2 }}
-            thumbColor="#fff"
-            ios_backgroundColor={colors.card2}
-            accessibilityLabel="Обработка фото ИИ"
+        </Animated.View>
+
+        {/* переходы */}
+        <Animated.View entering={enter(1)} style={s.group}>
+          <Row title="Пики" sub="баллы за друзей и отзывы" onPress={() => router.push('/points')} right={<View style={s.pts}><Text style={s.ptsText}>{points}</Text><Pik size={18} /></View>} />
+          <Row title="Мои дизайны" sub={`${suggestions.length} черновика книг`} onPress={() => router.push('/drafts')} />
+          <Row
+            title="Заказы"
+            sub={orders.length ? `${orders.length} · последний «${orders[0].title}»` : 'пока нет'}
+            onPress={() => {
+              router.back();
+              router.navigate('/orders');
+            }}
           />
-        </View>
+        </Animated.View>
+
+        {/* уведомления */}
+        <Text style={s.h2}>Уведомления</Text>
+        <Animated.View entering={enter(2)} style={s.group}>
+          <Toggle title="Статус заказа" sub="печать, отправка, «можно забирать»" value={notify.status} onChange={(v) => setNotify((n) => ({ ...n, status: v }))} />
+          <Toggle title="Скидки и идеи книг" sub="не чаще раза в неделю" value={notify.promo} onChange={(v) => setNotify((n) => ({ ...n, promo: v }))} />
+        </Animated.View>
+
+        {/* приложение */}
+        <Text style={s.h2}>Приложение</Text>
+        <Animated.View entering={enter(3)} style={s.group}>
+          <Toggle title="Приветственный экран" sub="фото на весь экран при открытии" value={showIntro} onChange={setShowIntro} />
+        </Animated.View>
+
+        {/* приватность */}
+        <Text style={s.h2}>Ваши фото</Text>
+        <Animated.View entering={enter(4)} style={s.group}>
+          <Toggle title="Обработка фото ИИ" sub="внутри «Фотопринта», никому не передаём" value={aiConsent} onChange={setAiConsent} />
+          {deleted ? (
+            <Animated.View entering={FadeIn} style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.rowTitle, { color: colors.tealInk }]}>Фото удалены</Text>
+                <Text style={s.rowSub}>с наших серверов, без возможности восстановить</Text>
+              </View>
+            </Animated.View>
+          ) : (
+            <Row title="Удалить мои фото" sub="сразу, не дожидаясь 30 дней после заказа" danger onPress={deletePhotos} />
+          )}
+        </Animated.View>
+
+        <Tap style={s.logout} onPress={logout} accessibilityRole="button">
+          <Text style={s.logoutText}>Выйти</Text>
+        </Tap>
+      </ScrollView>
+    </View>
+  );
+}
+
+function Row({ title, sub, right, danger, onPress }: { title: string; sub?: string; right?: ReactNode; danger?: boolean; onPress: () => void }) {
+  return (
+    <Tap style={s.row} onPress={onPress} accessibilityRole="button" accessibilityLabel={[title, sub].filter(Boolean).join(', ')}>
+      <View style={{ flex: 1 }}>
+        <Text style={[s.rowTitle, danger && { color: colors.coralAction }]}>{title}</Text>
+        {sub ? <Text style={s.rowSub}>{sub}</Text> : null}
       </View>
+      {right}
+      <CaretRightIcon size={15} color={colors.mut2} weight="bold" />
+    </Tap>
+  );
+}
+
+function Toggle({ title, sub, value, onChange }: { title: string; sub: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <View style={s.row}>
+      <View style={{ flex: 1 }}>
+        <Text style={s.rowTitle}>{title}</Text>
+        <Text style={s.rowSub}>{sub}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={(v) => {
+          Haptics.selectionAsync().catch(() => {});
+          onChange(v);
+        }}
+        trackColor={{ true: colors.coralAction, false: colors.card2 }}
+        thumbColor="#fff"
+        ios_backgroundColor={colors.card2}
+        accessibilityLabel={title}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 16, gap: 16 },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  navTitle: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
-  round: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  group: { backgroundColor: colors.card, borderRadius: 26 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
-  title: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
-  sub: { fontSize: 13, lineHeight: 18, fontFamily: fonts.regular, color: colors.mut, marginTop: 3 },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  nav: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16 },
+  round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: 16, gap: 10 },
+  me: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8 },
+  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 26, fontFamily: fonts.display, color: colors.peachInk },
+  name: { fontSize: 28, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
+  phone: { fontSize: 15, fontFamily: fonts.medium, color: colors.mut },
+  h2: { fontSize: 20, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg, marginTop: 12 },
+  group: { backgroundColor: colors.card, borderRadius: 22, paddingVertical: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
+  rowSub: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  pts: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  ptsText: { fontSize: 15, fontFamily: fonts.display, color: colors.fg },
+  logout: { height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: colors.card2, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  logoutText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.mut },
 });
