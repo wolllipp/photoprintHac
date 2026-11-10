@@ -63,8 +63,8 @@ const s = StyleSheet.create({
   scrim: { backgroundColor: 'rgba(20,16,14,0.35)' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 16, paddingTop: 8, gap: 12 },
   grab: { alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
-  title: { fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
-  lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut },
+  title: { fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg, paddingHorizontal: 14 },
+  lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut, paddingHorizontal: 14 },
   points: { backgroundColor: colors.card, borderRadius: 22, padding: 14, gap: 14 },
   point: { flexDirection: 'row', gap: 12 },
   num: { width: 24, height: 24, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', textAlign: 'center', lineHeight: 24, fontSize: 13, fontFamily: fonts.display, color: colors.coralAction },
@@ -74,5 +74,5 @@ const s = StyleSheet.create({
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
   later: { height: 44, alignItems: 'center', justifyContent: 'center' },
   laterText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.mut },
-  foot: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut2, marginTop: 8 },
+  foot: { fontSize: 12, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut2, paddingHorizontal: 14, marginTop: -4 },
 });
