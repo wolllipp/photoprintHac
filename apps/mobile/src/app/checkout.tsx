@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
-import { useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -240,14 +240,13 @@ export default function Checkout() {
         <PhoneSheet onClose={() => setPhoneStep('view')}>
           {phoneStep === 'edit' ? (
             <Animated.View key={phoneStep} entering={FadeIn.duration(200)} style={s.sheetBody}>
-              <TextInput
+              <LateInput
                 value={draftPhone}
                 onChangeText={(t) => setDraftPhone(formatPhone(t))}
                 placeholder="+375 __ ___-__-__"
                 placeholderTextColor={colors.mut2}
                 keyboardType="phone-pad"
-                autoFocus
-                style={s.input}
+                                style={s.input}
                 accessibilityLabel="Новый номер телефона"
               />
               <View style={s.editBtns}>
@@ -270,7 +269,7 @@ export default function Checkout() {
           ) : (
             <Animated.View key={phoneStep} entering={FadeIn.duration(200)} style={s.sheetBody}>
               <Text style={s.rowSub}>Код из SMS на {draftPhone} · в демо — 0000</Text>
-              <TextInput
+              <LateInput
                 value={code}
                 onChangeText={(t) => {
                   const c = t.replace(/\D/g, '').slice(0, 4);
@@ -290,8 +289,7 @@ export default function Checkout() {
                 placeholder="• • • •"
                 placeholderTextColor={colors.mut2}
                 keyboardType="number-pad"
-                autoFocus
-                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
+                                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
                 accessibilityLabel="Код из SMS"
               />
               {codeErr ? <Text style={s.err}>Код не подошёл — проверьте SMS</Text> : null}
@@ -304,13 +302,12 @@ export default function Checkout() {
       <Modal visible={addrOpen} transparent animationType="fade" onRequestClose={() => setAddrOpen(false)}>
         <PhoneSheet title="Адрес доставки" onClose={() => setAddrOpen(false)}>
           <View style={s.sheetBody}>
-            <TextInput
+            <LateInput
               value={draftAddr.street}
               onChangeText={(t) => setDraftAddr((a) => ({ ...a, street: t }))}
               placeholder="Улица и дом"
               placeholderTextColor={colors.mut2}
-              autoFocus
-              style={s.input}
+                            style={s.input}
               accessibilityLabel="Улица и дом"
             />
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -376,6 +373,17 @@ export default function Checkout() {
       </Modal>
     </View>
   );
+}
+
+/** Поле в окне снизу: клавиатура поднимается, когда окно уже доехало, — без рывка. */
+function LateInput(props: React.ComponentProps<typeof TextInput>) {
+  const ref = useRef<ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    // окно выезжает 340 мс — клавиатура сразу за ним
+    const t = setTimeout(() => ref.current?.focus(), 360);
+    return () => clearTimeout(t);
+  }, []);
+  return <TextInput ref={ref} {...props} />;
 }
 
 /** Окно снизу: затемнение (нажатие — закрыть), лист выезжает и едет за клавиатурой. */
