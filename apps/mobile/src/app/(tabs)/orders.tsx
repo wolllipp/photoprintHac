@@ -7,14 +7,14 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { CaretRightIcon, CheckIcon, XIcon } from 'phosphor-react-native';
+import { XIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AddedToast, useAdded } from '@/components/added';
-import { SegmentBar, Tap } from '@/components/ui';
+import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
 import { ease, SuccessCheck } from '@/motion';
@@ -60,24 +60,28 @@ export default function Orders() {
               <OrderCard order={order} />
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={s.actions}>
-              <Action
-                title={onLock === order.id ? 'Статус на экране блокировки' : 'Показывать на экране блокировки'}
-                sub="этап и срок — без открытия приложения"
-                on={onLock === order.id}
-                onPress={() => setLock(true)}
-              />
-              <Action title="Проблема с заказом" sub="брак, сроки, доставка — решим сразу" onPress={() => router.push('/assistant')} />
-              {order.items?.length ? (
-                <Action
-                  title="Повторить заказ"
-                  sub="положим в корзину ещё раз"
-                  onPress={() => {
-                    repeatOrder(order.id);
-                    added.show(order.title, order.cover);
-                  }}
-                />
-              ) : null}
+            <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={{ gap: 8 }}>
+              <Tap style={[s.btnMain, onLock === order.id && s.btnDone]} onPress={() => setLock(true)} accessibilityRole="button">
+                <Text style={[s.btnText, { color: onLock === order.id ? colors.tealInk : '#fff' }]}>
+                  {onLock === order.id ? 'Статус на экране блокировки ✓' : 'Показывать на экране блокировки'}
+                </Text>
+              </Tap>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
+                  <Text style={s.btnText}>Проблема с заказом</Text>
+                </Tap>
+                {order.items?.length ? (
+                  <Tap
+                    style={s.btn}
+                    onPress={() => {
+                      repeatOrder(order.id);
+                      added.show(order.title, order.cover);
+                    }}
+                    accessibilityRole="button">
+                    <Text style={s.btnText}>Повторить</Text>
+                  </Tap>
+                ) : null}
+              </View>
             </Animated.View>
 
             {orders.length > 1 ? (
@@ -136,41 +140,55 @@ function OrderCard({ order }: { order: PlacedOrder }) {
         <Text style={s.eta}>будет {order.readyBy}</Text>
       </View>
 
-      <Track stage={order.stage} />
-
-      <View style={s.live}>
-        <Text style={s.liveLabel}>Сейчас</Text>
-        <Text style={s.liveText} numberOfLines={2}>{order.live}</Text>
-      </View>
+      <Timeline order={order} />
     </View>
   );
 }
 
-/** Действие с заказом: что делает — жирно, зачем — мелко, справа стрелка. */
-function Action({ title, sub, on, onPress }: { title: string; sub: string; on?: boolean; onPress: () => void }) {
-  return (
-    <Tap style={s.action} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}, ${sub}`}>
-      <View style={{ flex: 1 }}>
-        <Text style={s.actionTitle}>{title}</Text>
-        <Text style={s.actionSub}>{sub}</Text>
-      </View>
-      {on ? <CheckIcon size={18} color={colors.tealInk} weight="bold" /> : <CaretRightIcon size={16} color={colors.mut} weight="bold" />}
-    </Tap>
-  );
-}
+const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const day = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+const time = (d: Date) => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-/** Шкала — та же полоса из сегментов, что в плитке заказа на главной; под каждым сегментом подпись. */
-function Track({ stage }: { stage: number }) {
+/**
+ * Путь заказа сверху вниз, как в Ozon: слева линия с точками, пройденное — коралловое,
+ * текущая точка крупнее; у каждого этапа — где заказ, справа — когда он там был (или когда ожидаем).
+ */
+function Timeline({ order }: { order: PlacedOrder }) {
+  const t0 = new Date(order.placedAt);
+  const at = (days: number, h: number, m: number) => new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + days, h, m);
+  const steps = [
+    { title: 'Принят и оплачен', place: 'picPac · заказ №' + order.id, when: at(0, 14, 20) },
+    { title: 'Макет проверен', place: 'лица в кадре, резкость в норме', when: at(0, 14, 32) },
+    { title: 'Напечатан', place: 'Производство «Фотопринт», Минск', when: at(1, 11, 5) },
+    { title: 'В пути', place: 'Европочта · сортировочный центр Минск', when: at(2, 9, 40) },
+    { title: 'Можно забирать', place: order.live.includes('ПВЗ') ? order.live : 'Европочта · ПВЗ №112, Притыцкого, 29', when: at(3, 12, 0) },
+  ];
   return (
-    <View style={{ gap: 8 }}>
-      <SegmentBar total={STAGES.length} done={stage} height={8} />
-      <View style={s.labels}>
-        {STAGES.map((st, i) => (
-          <Text key={st} style={[s.label, i === stage && s.labelNow, i < stage && { color: colors.fg }]} numberOfLines={1}>
-            {st}
-          </Text>
-        ))}
-      </View>
+    <View style={s.tl}>
+      {steps.map((st, i) => {
+        const past = i < order.stage;
+        const now = i === order.stage;
+        const last = i === steps.length - 1;
+        return (
+          <View key={st.title} style={s.tlRow}>
+            <View style={s.tlRail}>
+              <View style={[s.tlDot, (past || now) && s.tlDotDone, now && s.tlDotNow]} />
+              {!last ? <View style={[s.tlLine, past && s.tlLineDone]} /> : null}
+            </View>
+            <View style={[s.tlBody, !last && { paddingBottom: 18 }]}>
+              <View style={s.tlHead}>
+                <Text style={[s.tlTitle, !past && !now && { color: colors.mut2 }, now && { color: colors.coralAction }]}>{st.title}</Text>
+                <Text style={[s.tlWhen, now && { color: colors.coralAction }]}>
+                  {past || now ? `${day(st.when)}, ${time(st.when)}` : `ожид. ${day(st.when)}`}
+                </Text>
+              </View>
+              <Text style={[s.tlPlace, !past && !now && { color: colors.mut2 }]} numberOfLines={2}>
+                {st.place}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -234,19 +252,26 @@ const s = StyleSheet.create({
   stage: { flexShrink: 1, fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
   eta: { fontSize: 16, fontFamily: fonts.bold, color: colors.coralAction },
 
-  labels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  label: { flex: 1, textAlign: 'center', fontSize: 12, fontFamily: fonts.medium, color: colors.mut2 },
-  labelNow: { color: colors.coralAction, fontFamily: fonts.bold },
 
-  live: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.bg, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12 },
-  liveLabel: { fontSize: 13, fontFamily: fonts.bold, color: colors.coralAction },
-  liveText: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
 
-  actions: { backgroundColor: colors.card, borderRadius: 26, paddingVertical: 4 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  actionTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
-  actionSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
 
+  btn: { flex: 1, height: 52, borderRadius: 26, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  btnMain: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  btnDone: { backgroundColor: colors.tealTint },
+  btnText: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
+  tl: { paddingTop: 2 },
+  tlRow: { flexDirection: 'row', gap: 12 },
+  tlRail: { width: 18, alignItems: 'center' },
+  tlDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.card2, marginTop: 4 },
+  tlDotDone: { backgroundColor: colors.coralAction },
+  tlDotNow: { width: 18, height: 18, borderRadius: 9, marginTop: 1, borderWidth: 4, borderColor: '#fff', boxShadow: '0 0 0 1.5px rgba(184,79,75,0.35)' },
+  tlLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: colors.card2, marginVertical: 2 },
+  tlLineDone: { backgroundColor: colors.coralAction },
+  tlBody: { flex: 1, gap: 2 },
+  tlHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
+  tlTitle: { flexShrink: 1, fontSize: 15.5, fontFamily: fonts.bold, color: colors.fg },
+  tlWhen: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, fontVariant: ['tabular-nums'] },
+  tlPlace: { fontSize: 13.5, lineHeight: 18, fontFamily: fonts.regular, color: colors.mut },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, padding: 10, paddingRight: 16 },
   rowCover: { width: 44, height: 52, borderRadius: 10 },
   rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
