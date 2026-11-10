@@ -80,17 +80,7 @@ export default function Cart() {
         ) : (
           <>
             {/* один раз: первая плитка сама показывает жесты, сверху — что они значат */}
-            {!gesturesSeen ? (
-              <Animated.View entering={FadeInDown.delay(300).duration(380).easing(ease.smoothOut)} exiting={FadeOut.duration(200)} style={s.coach}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.coachTitle}>Плитку можно потянуть</Text>
-                  <Text style={s.coachText}>Влево — удалить, вправо — изменить</Text>
-                </View>
-                <Tap style={s.coachBtn} onPress={() => setGesturesSeen(true)} accessibilityRole="button">
-                  <Text style={s.coachBtnText}>Понятно</Text>
-                </Tap>
-              </Animated.View>
-            ) : null}
+            {!gesturesSeen ? <Coach onDone={() => setGesturesSeen(true)} /> : null}
             <View>
               {cart.map((it, i) => (
                 <Animated.View key={it.id} entering={enterItem(i)}>
@@ -182,6 +172,50 @@ function Pending({ title, cover, onRestore }: { title: string; cover: CartItem['
 
 /** Пружина свайпа: едва заметный отскок, без «желе». */
 const SPRING = { damping: 30, stiffness: 260, mass: 1 };
+
+/**
+ * Подсказка жестов. «Понятно» — карточка улетает вверх и гаснет, затем схлопывается по высоте,
+ * и плитки под ней плавно подъезжают на её место.
+ */
+function Coach({ onDone }: { onDone: () => void }) {
+  const h = useSharedValue(0);
+  const out = useSharedValue(0); // 0 — на месте, 1 — улетела
+  const shrink = useSharedValue(1);
+  const close = () => {
+    Haptics.selectionAsync().catch(() => {});
+    out.set(
+      withTiming(1, { duration: 260, easing: Easing.in(Easing.cubic) }, (d) => {
+        if (!d) return;
+        shrink.value = withTiming(0, { duration: 280, easing: ease.smoothOut }, (e) => {
+          if (e) scheduleOnRN(onDone);
+        });
+      }),
+    );
+  };
+  const a = useAnimatedStyle(() => ({
+    opacity: 1 - out.value,
+    transform: [{ translateY: -24 * out.value }, { scale: 1 - 0.06 * out.value }],
+    ...(shrink.value < 1 ? { height: h.value * shrink.value, marginBottom: -14 * (1 - shrink.value) } : {}),
+  }));
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(300).duration(380).easing(ease.smoothOut)}
+      style={a}
+      onLayout={(e) => {
+        if (shrink.value === 1) h.value = e.nativeEvent.layout.height;
+      }}>
+      <View style={s.coach}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.coachTitle}>Плитку можно потянуть</Text>
+          <Text style={s.coachText}>Влево — удалить, вправо — изменить</Text>
+        </View>
+        <Tap style={s.coachBtn} onPress={close} accessibilityRole="button">
+          <Text style={s.coachBtnText}>Понятно</Text>
+        </Tap>
+      </View>
+    </Animated.View>
+  );
+}
 
 /**
  * Строка корзины. Удаление как в Telegram: плитка едет за пальцем, красная подложка растёт следом.
