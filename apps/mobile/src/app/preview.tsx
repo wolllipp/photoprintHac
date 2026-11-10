@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDownIcon, CaretLeftIcon, PencilSimpleIcon, XIcon } from 'phosphor-react-native';
+import { ArrowDownIcon, CaretLeftIcon, ExportIcon, PencilSimpleIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OverlapTitle } from '@/components/home';
 import { QualityCard } from '@/components/quality';
 import { RefineCard } from '@/components/refine';
+import { ShareBookSheet } from '@/components/shareBook';
 import { Tap } from '@/components/ui';
 import { spreads, tariffs, type PageLayout, type Spread } from '@/data/demo';
 import { pic, type Pic } from '@/data/photos';
@@ -38,6 +39,7 @@ export default function Preview() {
   // цифры и описание — уже ниже края (название ~120, подпись и отступы ~50, кнопка 56, наплыв на снимок −0,2 ширины)
   const STAGE = Math.round(Math.max(width * 1.1, height - 64 - (226 - width * 0.2)));
   const [scrolled, setScrolled] = useState(false);
+  const [sharing, setSharing] = useState(false);
   // развороты книги — меняются правкой словами; изменённые подсвечиваем
   const [book, setBook] = useState(spreads);
   const [changed, setChanged] = useState<number[]>([]);
@@ -101,6 +103,9 @@ export default function Preview() {
             <Tap style={s.edit} onPress={() => router.push({ pathname: '/editor', params: { id: 'karelia' } })} accessibilityRole="button" accessibilityLabel="Править">
               <PencilSimpleIcon size={20} color={colors.fg} weight="bold" />
             </Tap>
+            <Tap style={s.edit} onPress={() => setSharing(true)} accessibilityRole="button" accessibilityLabel="Поделиться книгой">
+              <ExportIcon size={20} color={colors.fg} weight="bold" />
+            </Tap>
           </Animated.View>
 
           <Animated.View style={[{ gap: 14 }, fly]}>
@@ -158,6 +163,8 @@ export default function Preview() {
           <Bob />
         </Animated.View>
       ) : null}
+
+      <ShareBookSheet visible={sharing} title={title} cover="night-window" meta={`${pages} страниц · ${picked} фото`} onClose={() => setSharing(false)} />
 
       {/* разворот крупно: листаются соседние, закрыть — крестиком */}
       <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
