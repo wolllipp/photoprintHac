@@ -12,7 +12,7 @@ import { colors, fonts } from '@/theme';
 
 export default function Settings() {
   const insets = useSafeAreaInsets();
-  const { showIntro, setShowIntro } = useStore();
+  const { showIntro, setShowIntro, aiConsent, setAiConsent } = useStore();
   return (
     <View style={[s.screen, { paddingTop: insets.top + 8 }]}>
       <View style={s.nav}>
@@ -35,6 +35,22 @@ export default function Settings() {
             thumbColor="#fff"
             ios_backgroundColor={colors.card2}
             accessibilityLabel="Приветственный экран"
+          />
+        </View>
+      </View>
+      <View style={s.group}>
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.title}>Обработка фото ИИ</Text>
+            <Text style={s.sub}>Внутри «Фотопринта», никому не передаём. Выключите — спросим снова перед следующей сборкой</Text>
+          </View>
+          <Switch
+            value={aiConsent}
+            onValueChange={setAiConsent}
+            trackColor={{ true: colors.coralAction, false: colors.card2 }}
+            thumbColor="#fff"
+            ios_backgroundColor={colors.card2}
+            accessibilityLabel="Обработка фото ИИ"
           />
         </View>
       </View>

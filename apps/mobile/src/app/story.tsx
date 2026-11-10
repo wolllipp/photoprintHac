@@ -20,9 +20,10 @@ import { parseStory, type ParsedStory } from '@/ai/story';
 import { Tap } from '@/components/ui';
 import { tariffs } from '@/data/demo';
 import { pic, type PhotoName } from '@/data/photos';
-import { rub } from '@/data/store';
+import { rub, useStore } from '@/data/store';
 import { OverlapTitle } from '@/components/home';
 import { Composer, type ComposerHandle } from '@/components/composer';
+import { ConsentSheet } from '@/components/consent';
 import { duration, ease, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -123,6 +124,11 @@ export default function Story() {
     const spec = prev ? { ...prev, spreads: /\d{2,3}\s*(стр|страниц)/i.test(v) ? nearest(parsed.pages / 2) : prev.spreads } : null;
     setTurns((ts) => [...ts, { id: nextId.current++, q: v, parsed, step: 0, spec, text: '', done: false }]);
   };
+  // перед первой сборкой — согласие на обработку фото ИИ (A14), один раз
+  const { aiConsent, setAiConsent } = useStore();
+  const [ask, setAsk] = useState<Record<string, string> | null>(null);
+  const show = (params: Record<string, string>) => (aiConsent ? router.push({ pathname: '/build', params }) : setAsk(params));
+
   const empty = turns.length === 0;
 
   return (
@@ -156,9 +162,20 @@ export default function Story() {
             </Animated.Text>
           </Animated.View>
         ) : (
-          turns.map((t) => <TurnView key={t.id} turn={t} onConfirm={(sp) => confirm(t.id, sp)} />)
+          turns.map((t) => <TurnView key={t.id} turn={t} onConfirm={(sp) => confirm(t.id, sp)} onShow={show} />)
         )}
       </ScrollView>
+
+      <ConsentSheet
+        visible={!!ask}
+        onClose={() => setAsk(null)}
+        onAccept={() => {
+          setAiConsent(true);
+          const params = ask!;
+          setAsk(null);
+          router.push({ pathname: '/build', params });
+        }}
+      />
 
       <Composer
         ref={composer}
@@ -219,7 +236,7 @@ function AskRow<T extends string | number>({ label, items, value, show, hint, on
 }
 
 /** Один запрос: крупный заголовок → шаги ИИ → плитка ответа. */
-function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => void }) {
+function TurnView({ turn, onConfirm, onShow }: { turn: Turn; onConfirm: (sp: Spec) => void; onShow: (params: Record<string, string>) => void }) {
   const p = turn.parsed;
   const sp = turn.spec;
   const steps: { label: string; now: string; done: string }[] = [
@@ -268,7 +285,7 @@ function TurnView({ turn, onConfirm }: { turn: Turn; onConfirm: (sp: Spec) => vo
                 <Text style={s.foundMore}>+{p.photos - FOUND.length} фото</Text>
               </View>
 
-              <Tap style={s.cta} onPress={() => router.push({ pathname: '/build', params: { title: p.album, pages: String(sp.spreads * 2), photos: String(p.photos), format: sp.format, lam: sp.lam } })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
+              <Tap style={s.cta} onPress={() => onShow({ title: p.album, pages: String(sp.spreads * 2), photos: String(p.photos), format: sp.format, lam: sp.lam })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
                 <Text style={s.ctaText}>Показать вариант</Text>
                 <View style={s.ctaSum}>
                   <Text style={s.ctaPrice}>от {rub(price)}</Text>

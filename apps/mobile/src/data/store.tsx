@@ -88,6 +88,9 @@ type Store = {
   setCardId: (id: string) => void;
   addCard: (c: Card) => void;
   phone: string;
+  /** согласие на обработку фото ИИ (A14) */
+  aiConsent: boolean;
+  setAiConsent: (v: boolean) => void;
   setPhone: (p: string) => void;
   extras: ExtraId[];
   toggleExtra: (id: ExtraId) => void;
@@ -126,6 +129,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cardList, setCardList] = useState<Card[]>(demoCards);
   const [cardId, setCardId] = useState(demoCards[0].id);
   const [phone, setPhone] = useState(phoneMasked);
+  const [aiConsent, setAiConsent] = useState(false);
 
   // восстановить всё после перезапуска; пока не прочитали — не перезаписываем сохранённое
   const [loaded, setLoaded] = useState(false);
@@ -141,6 +145,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(v.cards) && v.cards.length) setCardList(v.cards);
         if (typeof v.cardId === 'string') setCardId(v.cardId);
         if (typeof v.phone === 'string') setPhone(v.phone);
+        if (typeof v.aiConsent === 'boolean') setAiConsent(v.aiConsent);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -149,8 +154,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -193,6 +198,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       phone,
       setPhone,
+      aiConsent,
+      setAiConsent,
       cartCount: cart.filter((x) => !pending.includes(x.id)).reduce((a, x) => a + x.qty, 0),
       extras,
       toggleExtra: (id) => setExtras((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id])),
@@ -243,7 +250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
