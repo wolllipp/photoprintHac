@@ -92,6 +92,9 @@ type Store = {
   phone: string;
   /** согласие на обработку фото ИИ (A14) */
   /** брошенная сборка: книга дошла до превью, но не попала в корзину (A11) */
+  /** подсказка жестов в корзине уже показана */
+  gesturesSeen: boolean;
+  setGesturesSeen: (v: boolean) => void;
   lastBook: LastBook | null;
   setLastBook: (b: LastBook | null) => void;
   aiConsent: boolean;
@@ -136,6 +139,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [phone, setPhone] = useState(phoneMasked);
   const [aiConsent, setAiConsent] = useState(false);
   const [lastBook, setLastBook] = useState<LastBook | null>(null);
+  const [gesturesSeen, setGesturesSeen] = useState(false);
 
   // восстановить всё после перезапуска; пока не прочитали — не перезаписываем сохранённое
   const [loaded, setLoaded] = useState(false);
@@ -153,6 +157,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (typeof v.phone === 'string') setPhone(v.phone);
         if (typeof v.aiConsent === 'boolean') setAiConsent(v.aiConsent);
         if (v.lastBook) setLastBook(v.lastBook);
+        if (v.gesturesSeen) setGesturesSeen(true);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -161,8 +166,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, gesturesSeen })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -207,6 +212,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPhone,
       aiConsent,
       lastBook,
+      gesturesSeen,
+      setGesturesSeen,
       setLastBook,
       setAiConsent,
       cartCount: cart.filter((x) => !pending.includes(x.id)).reduce((a, x) => a + x.qty, 0),
@@ -259,7 +266,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

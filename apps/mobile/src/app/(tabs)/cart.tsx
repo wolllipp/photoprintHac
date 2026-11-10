@@ -13,7 +13,7 @@ import { ArrowCounterClockwiseIcon, BookOpenTextIcon, ImagesIcon, MinusIcon, Pen
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, interpolateColor, SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,7 +25,7 @@ import { colors, fonts } from '@/theme';
 
 export default function Cart() {
   const insets = useSafeAreaInsets();
-  const { cart, removeFromCart, setQty, extras, toggleExtra, pending, setPending, cartCount: pieces } = useStore();
+  const { cart, removeFromCart, setQty, extras, toggleExtra, pending, setPending, cartCount: pieces, gesturesSeen, setGesturesSeen } = useStore();
   // удалённые, но ещё отменяемые: на их месте серая «Удалено · Вернуть»
   const live = cart.filter((it) => !pending.includes(it.id));
   const total = cartTotal(live, extras);
@@ -79,6 +79,18 @@ export default function Cart() {
           </Animated.View>
         ) : (
           <>
+            {/* один раз: первая плитка сама показывает жесты, сверху — что они значат */}
+            {!gesturesSeen ? (
+              <Animated.View entering={FadeInDown.delay(300).duration(380).easing(ease.smoothOut)} exiting={FadeOut.duration(200)} style={s.coach}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.coachTitle}>Плитку можно потянуть</Text>
+                  <Text style={s.coachText}>Влево — удалить, вправо — изменить</Text>
+                </View>
+                <Tap style={s.coachBtn} onPress={() => setGesturesSeen(true)} accessibilityRole="button">
+                  <Text style={s.coachBtnText}>Понятно</Text>
+                </Tap>
+              </Animated.View>
+            ) : null}
             <View>
               {cart.map((it, i) => (
                 <Animated.View key={it.id} entering={enterItem(i)}>
@@ -88,7 +100,8 @@ export default function Cart() {
                     onEdit={() => edit(it)}
                     onDelete={() => remove(it)}
                     onRestore={() => restore(it.id)}
-                    onExpire={() => finalize(it.id)}>
+                    onExpire={() => finalize(it.id)}
+                    demo={i === 0 && !gesturesSeen}>
                     <ItemTile item={it} onEdit={() => edit(it)} onQty={(q) => setQty(it.id, q)} />
                   </CartRow>
                 </Animated.View>
@@ -184,6 +197,7 @@ function CartRow({
   onDelete,
   onRestore,
   onExpire,
+  demo,
   children,
 }: {
   item: CartItem;
@@ -192,6 +206,8 @@ function CartRow({
   onDelete: () => void;
   onRestore: () => void;
   onExpire: () => void;
+  /** показать жесты: плитка сама отъезжает влево и вправо */
+  demo?: boolean;
   children: React.ReactNode;
 }) {
   const { width } = useWindowDimensions();
@@ -268,6 +284,18 @@ function CartRow({
   }, [deleted, shrink]);
 
   const tile = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  // показ жестов: плитка сама отъезжает влево и вправо, один раз
+  useEffect(() => {
+    if (!demo) return;
+    const ease2 = { duration: 420, easing: Easing.inOut(Easing.cubic) };
+    x.set(
+      withDelay(
+        700,
+        withSequence(withTiming(OPEN * 0.85, ease2), withDelay(450, withTiming(0, ease2)), withDelay(250, withTiming(OPEN_R * 0.85, ease2)), withDelay(450, withTiming(0, ease2))),
+      ),
+    );
+  }, [demo, x, OPEN, OPEN_R]);
+
   const back = useAnimatedStyle(() => ({ width: Math.max(0, -x.value - 8), opacity: x.value < -4 ? 1 : 0 }));
   const backL = useAnimatedStyle(() => ({ width: Math.max(0, x.value - 8), opacity: x.value > 4 ? 1 : 0 }));
   const edit = () => {
@@ -471,6 +499,11 @@ const s = StyleSheet.create({
   emptyPrimary: { backgroundColor: colors.coralAction },
   emptyBtnText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
+  coach: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 22, paddingVertical: 12, paddingLeft: 16, paddingRight: 8 },
+  coachTitle: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
+  coachText: { fontSize: 13, fontFamily: fonts.medium, color: colors.peachInk, marginTop: 1 },
+  coachBtn: { height: 38, paddingHorizontal: 14, borderRadius: 19, backgroundColor: '#fff', justifyContent: 'center' },
+  coachBtnText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
   ghost: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 26, backgroundColor: colors.card2, padding: 12, paddingRight: 14, overflow: 'hidden' },
   ghostCoverWrap: { width: 84, height: '100%', borderRadius: 14, overflow: 'hidden' },
   ghostCoverVeil: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(230,220,210,0.72)', alignItems: 'center', justifyContent: 'center' },
