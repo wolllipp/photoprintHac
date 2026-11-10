@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import points_balance
-from app.api.projects import own_project
+from app.api.projects import locked_owned_project
 from app.config import settings
 from app.db import get_session
 from app.models import (DeliveryMethod, Order, OrderItem, OrderStage, PickupPoint, PointsLedger, Product,
@@ -50,7 +50,7 @@ def order_out(o: Order, stages: list[OrderStage], pages: int | None = None) -> d
 
 @router.post("/orders")
 async def create_order(body: OrderIn, user: User = Depends(registered_user), s: AsyncSession = Depends(get_session)):
-    project = await own_project(s, body.project_id, user)
+    project = await locked_owned_project(s, body.project_id, user)
     if project.status != ProjectStatus.ready:
         raise HTTPException(409, "сначала соберите книгу")
     row = (await s.execute(select(Product, ProductOption).join(ProductOption, ProductOption.product_id == Product.id)

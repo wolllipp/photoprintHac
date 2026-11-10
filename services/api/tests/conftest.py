@@ -20,7 +20,7 @@ import app.models  # noqa: E402,F401
 settings.build_stage_delay = 0
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session")
 async def database(tmp_path_factory):
     settings.storage_dir = str(tmp_path_factory.mktemp("storage"))
     engine = create_async_engine(TEST_URL)

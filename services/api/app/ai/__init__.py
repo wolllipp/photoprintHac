@@ -1,10 +1,8 @@
-"""Интерфейс к ИИ-модулям Марка. Сейчас — детерминированные заглушки (DEMO_MODE).
-
-Марк подменяет функции реальными с теми же сигнатурами; остальной код не меняется.
-"""
+"""Демо-парсинг истории, отбор фото и заглушки для остальных AI-этапов."""
 import hashlib
 import re
 import uuid
+from pathlib import Path
 
 THEMES = {
     "travel": ("поездк", "путешеств", "карел", "отпуск", "море", "горы"),
@@ -34,16 +32,47 @@ def _h(photo_id: uuid.UUID) -> int:
     return int(hashlib.md5(str(photo_id).encode()).hexdigest(), 16)
 
 
-def select_photos(photo_ids: list[uuid.UUID], pages: int) -> list[dict]:
-    """Оставляет ~1.6 фото на страницу, остальным ставит причину отсева."""
-    target = min(len(photo_ids), round(pages * 1.6))
-    ranked = sorted(photo_ids, key=_h)
-    keep = set(ranked[:target])
-    reasons = ["duplicate", "blurry", "screenshot"]
+def _file_hash(path: Path) -> bytes:
+    digest = hashlib.sha256()
+    with path.open("rb") as image:
+        for chunk in iter(lambda: image.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.digest()
+
+
+def select_photos(
+    photos: list[tuple[uuid.UUID, str | Path]],
+    pages: int,
+    excluded_ids: set[uuid.UUID] | None = None,
+    included_ids: set[uuid.UUID] | None = None,
+    *,
+    hashes: dict[uuid.UUID, bytes] | None = None,
+) -> list[dict]:
+    """Выбирает уникальные фото; исключения и включения пользователя приоритетны."""
+    excluded_ids = excluded_ids or set()
+    included_ids = included_ids or set()
+    hashes = hashes if hashes is not None else {}
+    groups: dict[bytes, list[uuid.UUID]] = {}
+    for photo_id, path in photos:
+        content_hash = hashes.get(photo_id)
+        if content_hash is None:
+            content_hash = _file_hash(Path(path))
+            hashes[photo_id] = content_hash
+        if photo_id not in excluded_ids:
+            groups.setdefault(content_hash, []).append(photo_id)
+    duplicates = {
+        photo_id
+        for group in groups.values() if len(group) > 1
+        for photo_id in sorted(group, key=lambda pid: (pid not in included_ids, _h(pid)))[1:]
+    }
+    unique_ids = [photo_id for photo_id, _ in photos if photo_id not in excluded_ids | duplicates]
+    target = min(len(photos) - len(excluded_ids), round(pages * 1.6))
+    keep = set(sorted(unique_ids, key=lambda pid: (pid not in included_ids, _h(pid)))[:target])
     return [
-        {"photo_id": p, "selected": p in keep,
-         "reject_reason": None if p in keep else reasons[_h(p) % 3]}
-        for p in photo_ids
+        {"photo_id": photo_id, "selected": photo_id in keep,
+         "reject_reason": None if photo_id in excluded_ids or photo_id in keep else
+         "duplicate" if photo_id in duplicates else "capacity"}
+        for photo_id, _ in photos
     ]
 
 

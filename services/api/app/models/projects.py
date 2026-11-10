@@ -60,7 +60,7 @@ class ProjectPhoto(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), primary_key=True)
     photo_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("photos.id"), primary_key=True)
     selected: Mapped[bool] = mapped_column(default=False)
-    reject_reason: Mapped[str | None] = mapped_column(String(20))  # duplicate | blurry | screenshot
+    reject_reason: Mapped[str | None] = mapped_column(String(20))  # duplicate | capacity; legacy rows may have old reasons
     user_override: Mapped[bool] = mapped_column(default=False)  # пользователь вернул/убрал
 
 

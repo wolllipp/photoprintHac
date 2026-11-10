@@ -1,0 +1,57 @@
+import uuid
+
+from app.ai import select_photos
+
+
+def test_select_photos_reports_only_exact_duplicates_and_capacity(tmp_path):
+    first, duplicate, unique, capacity = (uuid.UUID(int=n) for n in (1, 2, 3, 4))
+    same_a, same_b, other, extra = (tmp_path / name for name in ("a.png", "b.png", "c.png", "d.png"))
+    same_a.write_bytes(b"identical image bytes")
+    same_b.write_bytes(b"identical image bytes")
+    other.write_bytes(b"different image bytes")
+    extra.write_bytes(b"one more different image")
+
+    result = select_photos(
+        [(first, str(same_a)), (duplicate, same_b), (unique, other), (capacity, extra)], pages=1
+    )
+
+    by_id = {item["photo_id"]: item for item in result}
+    duplicate_results = [by_id[first], by_id[duplicate]]
+    assert sum(item["reject_reason"] == "duplicate" for item in duplicate_results) == 1
+    assert sum(item["selected"] for item in duplicate_results) == 1
+    assert sorted(item["reject_reason"] for item in result if not item["selected"]) == ["capacity", "duplicate"]
+    assert all(item["reject_reason"] not in {"blurry", "screenshot"} for item in result)
+
+
+def test_manual_exclusion_does_not_consume_capacity_or_duplicate_representative(tmp_path):
+    excluded, alternate, unique = (uuid.UUID(int=n) for n in (11, 12, 13))
+    duplicate_a, duplicate_b, other = (tmp_path / f"{n}.bin" for n in range(3))
+    duplicate_a.write_bytes(b"same")
+    duplicate_b.write_bytes(b"same")
+    other.write_bytes(b"different")
+
+    result = select_photos(
+        [(excluded, duplicate_a), (alternate, duplicate_b), (unique, other)],
+        pages=1,
+        excluded_ids={excluded},
+    )
+
+    by_id = {item["photo_id"]: item for item in result}
+    assert by_id[excluded] == {"photo_id": excluded, "selected": False, "reject_reason": None}
+    assert by_id[alternate]["selected"] is True
+    assert by_id[alternate]["reject_reason"] is None
+    assert sum(item["selected"] for item in result) == 2
+
+
+def test_manual_include_is_preferred_duplicate_representative(tmp_path):
+    ordinary, included = uuid.UUID(int=21), uuid.UUID(int=22)
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.write_bytes(b"same")
+    b.write_bytes(b"same")
+
+    result = select_photos([(ordinary, a), (included, b)], pages=1, included_ids={included})
+
+    by_id = {item["photo_id"]: item for item in result}
+    assert by_id[included]["selected"] is True
+    assert by_id[included]["reject_reason"] is None
+    assert by_id[ordinary]["reject_reason"] == "duplicate"

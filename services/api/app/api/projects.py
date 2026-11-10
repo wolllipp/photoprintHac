@@ -47,6 +47,16 @@ async def own_project(s: AsyncSession, project_id: uuid.UUID, user: User) -> Pro
     return p
 
 
+async def locked_owned_project(s: AsyncSession, project_id: uuid.UUID, user: User) -> Project:
+    p = (await s.execute(
+        select(Project).where(Project.id == project_id).with_for_update()
+        .execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    if p is None or p.owner_id != user.id:
+        raise HTTPException(404, "проект не найден")
+    return p
+
+
 async def attach(s: AsyncSession, project: Project, photo_ids: list[uuid.UUID], user: User) -> int:
     """Прикрепляет только СВОИ фото; чужие id молча не принимаем."""
     mine = set((await s.execute(select(Photo.id).where(Photo.id.in_(photo_ids), Photo.owner_id == user.id))).scalars())
@@ -111,7 +121,7 @@ async def add_photos(project_id: uuid.UUID, body: PhotosIn, user: User = Depends
 @router.post("/projects/{project_id}/build")
 async def build(project_id: uuid.UUID, bg: BackgroundTasks, user: User = Depends(current_user),
                 s: AsyncSession = Depends(get_session)):
-    p = await own_project(s, project_id, user)
+    p = await locked_owned_project(s, project_id, user)
     n = (await s.execute(select(func.count()).select_from(ProjectPhoto).where(ProjectPhoto.project_id == p.id))).scalar_one()
     if n == 0:
         raise HTTPException(422, "в проекте нет фото")
@@ -143,9 +153,23 @@ async def job_cancel(job_id: uuid.UUID, user: User = Depends(current_user), s: A
     job = await s.get(BuildJob, job_id)
     if job is None:
         raise HTTPException(404, "задача не найдена")
-    await own_project(s, job.project_id, user)
+    project = await locked_owned_project(s, job.project_id, user)
+    job = (await s.execute(
+        select(BuildJob).where(BuildJob.id == job_id).with_for_update()
+        .execution_options(populate_existing=True)
+    )).scalar_one()
     if job.status in ("queued", "running"):
+        was_running = job.status == "running"
         job.status = "cancelled"
+        if was_running and project.status == ProjectStatus.building:
+            await s.flush()
+            newer = (await s.execute(select(BuildJob.id).where(
+                BuildJob.project_id == project.id,
+                BuildJob.id != job.id,
+                BuildJob.status.in_(("queued", "running")),
+            ))).first()
+            if newer is None:
+                project.status = ProjectStatus.draft
         await s.commit()
     return {"status": job.status}
 
@@ -168,8 +192,11 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
 async def patch_selection(project_id: uuid.UUID, body: SelectionPatch, user: User = Depends(current_user),
                           s: AsyncSession = Depends(get_session)):
     """Вернуть отсеянное фото (или убрать выбранное). Ручной выбор сборка больше не трогает."""
-    p = await own_project(s, project_id, user)
-    rows = {r.photo_id: r for r in (await s.execute(select(ProjectPhoto).where(ProjectPhoto.project_id == p.id))).scalars()}
+    p = await locked_owned_project(s, project_id, user)
+    rows = {r.photo_id: r for r in (await s.execute(
+        select(ProjectPhoto).where(ProjectPhoto.project_id == p.id)
+        .execution_options(populate_existing=True)
+    )).scalars()}
     for pid in body.include:
         if pid in rows:
             rows[pid].selected, rows[pid].reject_reason, rows[pid].user_override = True, None, True
