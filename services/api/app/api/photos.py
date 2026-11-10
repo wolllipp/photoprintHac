@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +9,7 @@ from PIL import ExifTags, Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.ai.quality import analyze_image
 from app.db import get_session
 from app.models import Photo, User
 from app.security.auth import current_user
@@ -49,7 +51,12 @@ async def upload(files: list[UploadFile] = File(...), user: User = Depends(curre
         pid = uuid.uuid4()
         path = folder / f"{pid}.{ALLOWED[fmt]}"
         path.write_bytes(data)
-        photo = Photo(id=pid, owner_id=user.id, path=str(path), width=w, height=h, taken_at=taken)
+        try:
+            sharpness, faces = await asyncio.to_thread(analyze_image, data)
+        except Exception:
+            sharpness, faces = None, None
+        photo = Photo(id=pid, owner_id=user.id, path=str(path), width=w, height=h, taken_at=taken,
+                      sharpness=sharpness, faces=faces)
         s.add(photo)
         out.append(photo)
     await s.commit()
