@@ -5,7 +5,7 @@
  */
 import * as Haptics from 'expo-haptics';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, FadeIn, SlideInDown } from 'react-native-reanimated';
+import Animated, { Easing, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
@@ -30,13 +30,13 @@ export function ConsentSheet({ visible, onAccept, onClose }: { visible: boolean;
 
           <View style={s.points}>
             {POINTS.map((p, i) => (
-              <Animated.View key={p.title} entering={FadeIn.delay(150 + i * 90).duration(300)} style={s.point}>
+              <View key={p.title} style={s.point}>
                 <Text style={s.num}>{i + 1}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={s.pTitle}>{p.title}</Text>
                   <Text style={s.pText}>{p.text}</Text>
                 </View>
-              </Animated.View>
+              </View>
             ))}
           </View>
 
