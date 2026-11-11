@@ -1,8 +1,11 @@
 import asyncio
+import io
 from pathlib import Path
 import threading
 
+import numpy as np
 import pytest
+from PIL import Image
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,11 +20,19 @@ def auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
+def textured_png(seed):
+    """Генерирует тестовое фото с устойчивым отличием для dHash."""
+    buffer = io.BytesIO()
+    pixels = np.random.default_rng(seed).integers(0, 256, (48, 64), dtype=np.uint8)
+    Image.fromarray(pixels).save(buffer, "PNG")
+    return buffer.getvalue()
+
+
 async def test_full_path_guest_to_tracked_order(client):
     # 1. гость собирает книгу без регистрации (A10)
     g = (await client.post("/auth/guest")).json()
     gh = auth(g["token"])
-    files = [("files", (f"{i}.png", png((i * 10 % 255, 90, 120)), "image/png")) for i in range(12)]
+    files = [("files", (f"{i}.png", textured_png(i), "image/png")) for i in range(12)]
     photos = (await client.post("/photos", files=files, headers=gh)).json()
     assert len(photos) == 12
 
@@ -101,7 +112,7 @@ async def test_bad_upload(client):
 
 async def test_build_rejects_only_exact_duplicate_and_keeps_restored_duplicate(client):
     token = (await client.post("/auth/guest")).json()["token"]
-    image_a, image_b = png((10, 20, 30)), png((40, 50, 60))
+    image_a, image_b = png((10, 20, 30)), textured_png(1)
     uploaded = await client.post("/photos", headers=auth(token), files=[
         ("files", ("a.png", image_a, "image/png")),
         ("files", ("b.png", image_a, "image/png")),
@@ -116,8 +127,8 @@ async def test_build_rejects_only_exact_duplicate_and_keeps_restored_duplicate(c
     await client.post(f"/projects/{project_id}/build", headers=auth(token))
     selection = (await client.get(f"/projects/{project_id}/selection", headers=auth(token))).json()
     assert selection["selected"] == 2
-    assert selection["rejected"] == {"duplicate": 1}
-    duplicate = next(photo["photo_id"] for photo in selection["photos"] if photo["reject_reason"] == "duplicate")
+    assert selection["rejected"] == {"similar": 1}
+    duplicate = next(photo["photo_id"] for photo in selection["photos"] if photo["reject_reason"] == "similar")
 
     await client.patch(f"/projects/{project_id}/selection", headers=auth(token), json={"include": [duplicate]})
     await client.post(f"/projects/{project_id}/build", headers=auth(token))
@@ -189,8 +200,8 @@ async def test_manual_selection_survives_patch_while_hashing(client, monkeypatch
     photos = (await client.post("/photos", headers=auth(token), files=[
         ("files", ("a.png", png(), "image/png")),
         ("files", ("b.png", png(), "image/png")),
-        ("files", ("c.png", png((1, 2, 3)), "image/png")),
-        ("files", ("d.png", png((4, 5, 6)), "image/png")),
+        ("files", ("c.png", textured_png(3), "image/png")),
+        ("files", ("d.png", textured_png(4), "image/png")),
     ])).json()
     project = (await client.post("/projects", headers=auth(token), json={
         "title": "Concurrent manual selection", "photo_ids": [photo["id"] for photo in photos], "pages": 1,
@@ -223,7 +234,7 @@ async def test_manual_selection_survives_patch_while_hashing(client, monkeypatch
     assert photo_result["user_override"] is True
     assert photo_result["reject_reason"] is None
     duplicate_alternate = next(p for p in selection["photos"] if p["photo_id"] == photos[1]["id"])
-    assert duplicate_alternate["reject_reason"] != "duplicate"
+    assert duplicate_alternate["reject_reason"] != "similar"
     assert selection["selected"] == 2
     assert selection["rejected"] == {"capacity": 1}
 

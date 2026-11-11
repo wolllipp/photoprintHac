@@ -1,4 +1,8 @@
+import io
 import uuid
+
+import numpy as np
+from PIL import Image
 
 from app.ai import select_photos
 
@@ -8,7 +12,7 @@ def photo(photo_id, path):
             "sharpness": 100, "faces": [], "taken_at": None}
 
 
-def test_select_photos_reports_only_exact_duplicates_and_capacity(tmp_path):
+def test_select_photos_reports_exact_duplicates_as_similar_and_capacity(tmp_path):
     first, duplicate, unique, capacity = (uuid.UUID(int=n) for n in (1, 2, 3, 4))
     same_a, same_b, other, extra = (tmp_path / name for name in ("a.png", "b.png", "c.png", "d.png"))
     same_a.write_bytes(b"identical image bytes")
@@ -22,9 +26,9 @@ def test_select_photos_reports_only_exact_duplicates_and_capacity(tmp_path):
 
     by_id = {item["photo_id"]: item for item in result}
     duplicate_results = [by_id[first], by_id[duplicate]]
-    assert sum(item["reject_reason"] == "duplicate" for item in duplicate_results) == 1
+    assert sum(item["reject_reason"] == "similar" for item in duplicate_results) == 1
     assert sum(item["selected"] for item in duplicate_results) == 1
-    assert sorted(item["reject_reason"] for item in result if not item["selected"]) == ["capacity", "duplicate"]
+    assert sorted(item["reject_reason"] for item in result if not item["selected"]) == ["capacity", "similar"]
     assert all(item["reject_reason"] not in {"blurry", "screenshot"} for item in result)
 
 
@@ -59,4 +63,25 @@ def test_manual_include_is_preferred_duplicate_representative(tmp_path):
     by_id = {item["photo_id"]: item for item in result}
     assert by_id[included]["selected"] is True
     assert by_id[included]["reject_reason"] is None
-    assert by_id[ordinary]["reject_reason"] == "duplicate"
+    assert by_id[ordinary]["reject_reason"] == "similar"
+
+
+def test_dhash_groups_near_duplicates_and_keeps_the_sharpest(tmp_path):
+    base = np.tile(np.arange(9, dtype=np.uint8) * 20, (8, 1))
+    changed = np.clip(base + 2, 0, 255).astype(np.uint8)
+    paths = [tmp_path / "base.png", tmp_path / "changed.png"]
+    for path, image in zip(paths, (base, changed)):
+        buffer = io.BytesIO()
+        Image.fromarray(image).save(buffer, "PNG")
+        path.write_bytes(buffer.getvalue())
+    less_sharp, sharpest = uuid.UUID(int=31), uuid.UUID(int=32)
+
+    result = select_photos([
+        {**photo(less_sharp, paths[0]), "sharpness": 80},
+        {**photo(sharpest, paths[1]), "sharpness": 500},
+    ], pages=1)
+
+    by_id = {row["photo_id"]: row for row in result}
+    assert by_id[sharpest]["selected"] is True
+    assert by_id[less_sharp]["selected"] is False
+    assert by_id[less_sharp]["reject_reason"] == "similar"

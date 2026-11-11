@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import io
 import uuid
 
+import numpy as np
 from PIL import Image
 from sqlalchemy import select
 
@@ -16,7 +17,7 @@ def _photo(photo_id, path, *, sharpness, width=1205, height=1795, faces=None, ta
             "sharpness": sharpness, "faces": faces or [], "taken_at": taken_at}
 
 
-def test_selection_prefers_sharp_photo_that_meets_dpi(tmp_path):
+def test_selection_prefers_sharp_photo_from_similar_pool(tmp_path):
     low, medium, high = (uuid.UUID(int=i) for i in (1, 2, 3))
     photos = []
     for photo_id, sharpness, width in ((low, 1, 500), (medium, 150, 1205), (high, 900, 1205)):
@@ -24,7 +25,7 @@ def test_selection_prefers_sharp_photo_that_meets_dpi(tmp_path):
         path.write_bytes(str(photo_id).encode())
         photos.append(_photo(photo_id, path, sharpness=sharpness, width=width))
 
-    result = select_photos(photos, pages=1, dpi_limit=(1205, 1795))
+    result = select_photos(photos, pages=1)
 
     selected = {photo["photo_id"] for photo in result if photo["selected"]}
     assert selected == {medium, high}
@@ -150,7 +151,8 @@ async def test_build_persists_compact_pages_with_real_crop_and_quality_results(c
     files = []
     for index in range(3):
         large = io.BytesIO()
-        Image.new("RGB", (2000, 1000), (index * 70, 20, 30)).save(large, format="PNG")
+        pixels = np.random.default_rng(index).integers(0, 256, (1000, 2000), dtype=np.uint8)
+        Image.fromarray(pixels).save(large, format="PNG")
         files.append(("files", (f"{index}.png", large.getvalue(), "image/png")))
     uploaded = await client.post("/photos", headers=headers, files=files)
     photo_ids = [photo["id"] for photo in uploaded.json()]
