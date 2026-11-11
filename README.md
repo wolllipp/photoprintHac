@@ -79,6 +79,7 @@ npx skills add ParthJadhav/app-store-screenshots
 | [notes/10-site-audit.md](notes/10-site-audit.md) | Аудит текущего сайта |
 | [notes/11-design-decisions.md](notes/11-design-decisions.md) | Решения по дизайну приложения и сайта |
 | [design/site/](design/site/) | Редизайн главной picpac.by |
+| [services/assistant](services/assistant/README.md) | Агент руководителя: локальная модель, 26 инструментов-плагинов, права, подтверждения |
 | [design/app/journey.html](design/app/journey.html) | Путь клиента в приложении, 8 экранов |
 
 Макеты открываются локально в браузере. Данные в макетах иллюстративные, фото — заглушки.

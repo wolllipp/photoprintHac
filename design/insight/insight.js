@@ -559,6 +559,13 @@ const DEMO = {
       "Почему упала маржа на Premium?",
       "Покажи зарплаты операторов ночной смены",
       "Какой будет выручка в декабре?",
+      "Собери презентацию по показателям за период",
+      "Что будет с маржей Premium, если ограничить скидку 25%?",
+      "Что важного сегодня? Утренний брифинг",
+      "Построй Парето брака по операторам",
+      "Подготовь повестку совещания по качеству",
+      "Поручи технологу печати проверить калибровку Ricoh до 14 ноября",
+      "Узнай у руководителя смен, сколько людей было ночью на Ricoh",
     ],
     answers: {
       cause: "Доля брака на Ricoh выросла до {ricohNow} при норме {ricohNorm}. Сильнее всего отклонение объясняет измерение «{topDim}»: по всем линиям значение «{topVal}» даёт {topShare} прироста брака при {topVol} объёма. На ночных сменах Ricoh брак {nightNow}, на дневных {dayNow}. В те же недели был простой {downtime} и смена партии бумаги.{extra} Совпадение по времени не доказывает причину.",
@@ -1498,9 +1505,49 @@ function answerText(intent, q) {
   const text = fill(A[intent], f);
   return intent === "cause" && S.status === "done" ? fill(A.closedPrefix, f) + text : text;
 }
+/* ---------- Агент: живой ассистент (services/assistant), при недоступности остаётся сценарный режим макета ---------- */
+const AGENT_URL = window.INSIGHT_AGENT_URL || "http://localhost:8001";
+let agentCtl = null;
+const mdLite = t => esc(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\[(\d+(?:,\s*\d+)*)\]/g, '<sup class="cite">$1</sup>').replace(/\n/g, "<br>");
+async function askAgent(q) {
+  const m = { who: "ai", agent: true, text: "", steps: [], artifacts: [], proposals: [], sources: [], notice: "", live: true, intent: "agent" };
+  agentCtl = new AbortController();
+  const history = S.chat.filter(x => x.text && (x.who === "me" || x.agent)).slice(-7, -1).map(x => ({ role: x.who === "me" ? "user" : "assistant", content: x.text }));
+  const r = await fetch(AGENT_URL + "/chat", { method: "POST", signal: agentCtl.signal, headers: { "Content-Type": "application/json", "X-Role": S.role }, body: JSON.stringify({ message: q, history }) });
+  if (!r.ok || !r.body) throw new Error("agent " + r.status);
+  S.chat.push(m); render();
+  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const { done, value } = await rd.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }); let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const ev = JSON.parse(buf.slice(0, i).replace(/^data: /, "")); buf = buf.slice(i + 2);
+      if (ev.type === "tool") m.steps.push({ id: ev.id, label: ev.label, st: "run" });
+      else if (ev.type === "tool_result") { const st = m.steps.find(x => x.id === ev.id); if (st) { st.st = ev.status; st.sum = ev.summary; } }
+      else if (ev.type === "artifact") m.artifacts.push(ev);
+      else if (ev.type === "proposal") m.proposals.push({ ...ev, state: "pending" });
+      else if (ev.type === "notice") { m.notice = ev.text; if (/Заблокировано/.test(ev.text)) m.refuse = true; }
+      else if (ev.type === "answer") { m.text = ev.text; m.sources = ev.sources; }
+      else if (ev.type === "error") { m.text = ev.text; m.refuse = true; }
+      render();
+    }
+  }
+  m.live = false;
+  S.journal.unshift({ time: nowStamp(), who: roleName(), q: maskPII(q), used: m.steps.map(x => x.label).join(", ") || "нет, инструменты не вызывались", result: m.refuse ? "Заблокировано или отказ" : m.notice ? "Ответ, требует уточнения" : "Ответ со ссылками", kind: m.refuse ? "block" : "ok", answer: maskPII(m.text) });
+}
 function ask(q) {
   q = q.trim(); if (!q || S.typing) return;
   S.chat.push({ who: "me", text: q }); S.typing = q; render();
+  askAgent(q).catch(e => { if (e.name === "AbortError") return; if (!S.chat.some(x => x.live)) askScripted(q); else { const l = S.chat.find(x => x.live); l.text = l.text || "Связь с ассистентом прервалась."; } })
+    .finally(() => { S.chat.forEach(x => { x.live = false; }); S.typing = null; render(); focusChat(); });
+}
+async function agentAct(arg) {
+  const [pid, verb] = arg.split(":");
+  const r = await fetch(`${AGENT_URL}/actions/${pid}/${verb}`, { method: "POST", headers: { "X-Role": S.role } }).then(x => x.json()).catch(() => ({ ok: false, error: "нет связи" }));
+  S.chat.forEach(m => (m.proposals || []).forEach(p => { if (p.id === pid && r.ok) { p.state = verb === "confirm" ? "done" : "no"; p.result = r.message; } }));
+  if (!r.ok) toast(r.error || "Не удалось"); render();
+}
+function askScripted(q) {
   clearTimeout(typingTimer);
   typingTimer = setTimeout(() => {
     const intent = intentOf(q), m = INTENT[intent], text = answerText(intent, q);
@@ -1511,7 +1558,17 @@ function ask(q) {
 }
 const focusChat = () => { const el = document.getElementById("chat-input"); if (el) el.focus(); };
 function vAssistant() {
-  const msgs = S.chat.length ? S.chat.map(m => m.who === "me" ? `<div class="msg me">${esc(m.text)}</div>` :
+  const agentMsg = m => `<div class="msg ai agent${m.refuse ? " refuse" : ""}">
+     ${m.steps.length ? `<ul class="steps">${m.steps.map(x => `<li class="st-${x.st}"><span class="st-dot"></span>${esc(x.label)}${x.sum ? `<em> · ${esc(x.sum)}</em>` : ""}</li>`).join("")}</ul>` : ""}
+     ${m.live && !m.text ? `<div class="muted small">Думаю…</div>` : ""}
+     ${m.notice ? `<div class="note warn small">${esc(m.notice)}</div>` : ""}
+     ${m.text ? `<div class="ans">${mdLite(m.text)}</div>` : ""}
+     ${m.artifacts.map(a => a.kind === "image" ? `<a href="${AGENT_URL + a.url}" target="_blank" rel="noopener"><img class="art-img" src="${AGENT_URL + a.url}" alt="${esc(a.title)}"></a>` : `<a class="art-file" href="${AGENT_URL + a.url}" download><b>${esc((a.name.split(".").pop() || "").toUpperCase())}</b>${esc(a.title)}</a>`).join("")}
+     ${m.proposals.map(p => `<div class="proposal ${p.state}"><div><b>${esc(p.title)}</b></div><div class="small muted">${Object.entries(p.details || {}).map(([k, v]) => esc(k) + ": " + esc(v)).join(" · ")}</div>
+        ${p.state === "pending" ? `<div class="actions"><button class="btn btn-primary btn-sm" data-act="agentAct" data-arg="${esc(p.id)}:confirm">Подтвердить${p.risk === "external" ? " и отправить" : ""}</button><button class="btn btn-quiet btn-sm" data-act="agentAct" data-arg="${esc(p.id)}:reject">Отклонить</button></div>` : `<div class="small">${p.state === "done" ? esc(p.result || "Выполнено") : "Отклонено, ничего не выполнено"}</div>`}</div>`).join("")}
+     ${m.sources.length ? `<details class="more"><summary>Источники (${m.sources.length})</summary><ol class="srcs">${m.sources.map(x => `<li><b>${esc(x.name)}</b> <span class="muted">${esc(x.kind)}${x.detail ? ", " + esc(x.detail) : ""}</span></li>`).join("")}</ol></details>` : ""}
+     ${m.live ? "" : `<div class="msg-meta"><span class="badge b-ai">Ответ AI</span></div>`}</div>`;
+  const msgs = S.chat.length ? S.chat.map(m => m.who === "me" ? `<div class="msg me">${esc(m.text)}</div>` : m.agent ? agentMsg(m) :
     `<div class="msg ai${m.refuse ? " refuse" : ""}"><div>${esc(m.text)}</div>
      ${m.sources.length ? `<details class="more"><summary>Источники</summary>${sourcesHtml(m.sources)}</details>` : ""}
      ${m.intent === "cause" ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.main)}">Открыть разбор отклонения</a>` : ""}
@@ -1918,7 +1975,8 @@ const ACT = {
   retry: () => { S.state = "data"; document.getElementById("state").value = "data"; },
   toggleBar: () => { document.body.classList.toggle("bar-hidden"); return "skip"; },
   hideBar: () => { document.body.classList.add("bar-hidden"); toast("Панель скрыта. Вернуть: Alt+D"); return "skip"; },
-  stop: () => { clearTimeout(typingTimer); S.typing = null; S.chat.push({ who: "ai", text: "Ответ остановлен.", sources: [], intent: "stop" }); },
+  agentAct: a => { agentAct(a); return "skip"; },
+  stop: () => { if (agentCtl) agentCtl.abort(); clearTimeout(typingTimer); S.typing = null; S.chat.push({ who: "ai", text: "Ответ остановлен.", sources: [], intent: "stop" }); },
   preset: a => { ask(DEMO.assistant.presets[+a]); return "skip"; },
   askCause: a => { const info = DEMO.otherCases[a], q = DEMO.assistant.presets[info && info.ask != null ? info.ask : 0]; if (S.chat.some(m => m.who === "me" && m.text === q)) S.chatTo = q; else S.pendingAsk = q; return "nav"; },
   /* Встречи */
