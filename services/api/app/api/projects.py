@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import ai
-from app.ai.quality import add_crop_warning, dpi_limit_for_format, quality_report
+from app.ai.quality import add_crop_warning, quality_report
 from app.db import get_session
 from app.jobs import run_build
 from app.models import (BuildJob, Photo, Product, ProductOption, Project, ProjectPage, ProjectPhoto,
@@ -206,10 +206,11 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
     """Экран «Лучшие 38 из 214»: что взяли, что отсеяли и почему."""
     p = await own_project(s, project_id, user)
     option = await s.get(ProductOption, p.option_id) if p.option_id else None
-    dpi_limit = dpi_limit_for_format(option.format if option else None)
+    format = option.format if option else None
+    product = await s.get(Product, p.product_id) if p.product_id else None
+    product_code = product.code if product else None
     layouts = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id))).scalars().all()
-    crop_warnings = {frame["photo_id"]: frame["warning"]
-                     for page in layouts for frame in page.layout["frames"] if frame.get("warning")}
+    frames = {frame["photo_id"]: frame for page in layouts for frame in page.layout["frames"]}
     rows = (await s.execute(select(ProjectPhoto, Photo).join(
         Photo, Photo.id == ProjectPhoto.photo_id,
     ).where(ProjectPhoto.project_id == p.id).order_by(Photo.created_at, Photo.id))).all()
@@ -217,14 +218,23 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
     for project_photo, _ in rows:
         if not project_photo.selected and project_photo.reject_reason:
             rejected[project_photo.reject_reason] = rejected.get(project_photo.reject_reason, 0) + 1
+    photo_results = []
+    for project_photo, photo in rows:
+        frame = frames.get(str(project_photo.photo_id))
+        report = quality_report(
+            photo, format=format, frame=frame.get("frame") if frame else None,
+            crop=frame.get("crop") if frame else None, product=product_code,
+        )
+        report = add_crop_warning(report, frame.get("warning") if frame else None)
+        photo_results.append({
+            "photo_id": str(project_photo.photo_id), "selected": project_photo.selected,
+            "reject_reason": project_photo.reject_reason, "user_override": project_photo.user_override,
+            "warnings": report["warnings"], "effective_dpi": report["effective_dpi"],
+            "quality_level": report["quality_level"],
+            "requires_confirmation": report["requires_confirmation"],
+        })
     return {"selected": sum(project_photo.selected for project_photo, _ in rows), "total": len(rows),
-            "rejected": rejected,
-            "photos": [{"photo_id": str(project_photo.photo_id), "selected": project_photo.selected,
-                        "reject_reason": project_photo.reject_reason, "user_override": project_photo.user_override,
-                        "warnings": add_crop_warning(
-                            quality_report(photo, dpi_limit), crop_warnings.get(str(project_photo.photo_id)),
-                        )["warnings"]}
-                       for project_photo, photo in rows]}
+            "rejected": rejected, "photos": photo_results}
 
 
 @router.patch("/projects/{project_id}/selection")

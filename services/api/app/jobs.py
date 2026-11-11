@@ -5,9 +5,9 @@ import uuid
 from sqlalchemy import case, select
 
 from app import ai, db
-from app.ai.quality import add_crop_warning, dpi_limit_for_format, page_aspect_for_format, quality_report
+from app.ai.quality import add_crop_warning, page_aspect_for_format, quality_report
 from app.config import settings
-from app.models import BuildJob, Photo, ProductOption, Project, ProjectPage, ProjectPhoto, ProjectStatus
+from app.models import BuildJob, Photo, Product, ProductOption, Project, ProjectPage, ProjectPhoto, ProjectStatus
 
 STAGES = ["selecting", "layout", "faces", "captions"]
 
@@ -43,8 +43,9 @@ async def run_build(job_id: uuid.UUID) -> None:
         await s.commit()
         pages = project.page_count or 24
         option = await s.get(ProductOption, project.option_id) if project.option_id else None
+        product = await s.get(Product, project.product_id) if project.product_id else None
         format = option.format if option else None
-        dpi_limit = dpi_limit_for_format(format)
+        product_code = product.code if product else None
         page_aspect = page_aspect_for_format(format)
         min_pages = option.min_pages if option and option.min_pages else 2
         try:
@@ -77,12 +78,12 @@ async def run_build(job_id: uuid.UUID) -> None:
                 await s.commit()
                 await asyncio.sleep(settings.build_stage_delay)
 
-                hashes = None
+                hashes = dhashes = None
                 if stage == "selecting":
-                    hashes = {}
-                    # Hashing may take time; cancellation and manual edits must remain unblocked here.
+                    hashes, dhashes = {}, {}
+                    # Хэширование выполняется вне транзакции, чтобы не блокировать отмену.
                     await asyncio.to_thread(ai.select_photos, photos, pages, hashes=hashes,
-                                            dpi_limit=dpi_limit)
+                                            dhashes=dhashes)
 
                 project, job = await _lock_project_job(s, job_id, project_id)
                 if job.status != "running":
@@ -104,7 +105,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                     excluded_ids = {pp.photo_id for pp in pps if pp.user_override and not pp.selected}
                     included_ids = {pp.photo_id for pp in pps if pp.user_override and pp.selected}
                     decisions = ai.select_photos(
-                        photos, pages, excluded_ids, included_ids, hashes=hashes, dpi_limit=dpi_limit,
+                        photos, pages, excluded_ids, included_ids, hashes=hashes, dhashes=dhashes,
                     )
                     decided = {d["photo_id"]: d for d in decisions}
                     for pp in pps:
@@ -129,7 +130,8 @@ async def run_build(job_id: uuid.UUID) -> None:
                     ))).scalars():
                         await s.delete(old)
                     layouts = ai.layout(selected_photos, pages, min_pages, page_aspect,
-                                        source=project.source.value, theme=project.theme)
+                                        source=project.source.value, theme=project.theme,
+                                        format=format, product=product_code)
                     if len(layouts) < pages:
                         project.page_count = len(layouts)
                         prog["suggested_pages"] = len(layouts)
@@ -141,12 +143,21 @@ async def run_build(job_id: uuid.UUID) -> None:
                     layouts = (await s.execute(select(ProjectPage).where(
                         ProjectPage.project_id == project_id,
                     ))).scalars().all()
-                    crop_warnings = {frame["photo_id"]: frame["warning"]
-                                     for page in layouts for frame in page.layout["frames"]
-                                     if frame.get("warning")}
-                    reports = {str(photo_id): add_crop_warning(
-                        quality_report(by_id[photo_id], dpi_limit), crop_warnings.get(str(photo_id)))
-                        for photo_id in selected if photo_id in by_id}
+                    frames = {frame["photo_id"]: frame for page in layouts
+                              for frame in page.layout["frames"]}
+                    reports = {}
+                    for photo_id in selected:
+                        photo = by_id.get(photo_id)
+                        frame = frames.get(str(photo_id))
+                        if photo is None:
+                            continue
+                        report = quality_report(
+                            photo, format=format, frame=frame.get("frame") if frame else None,
+                            crop=frame.get("crop") if frame else None, product=product_code,
+                        )
+                        reports[str(photo_id)] = add_crop_warning(
+                            report, frame.get("warning") if frame else None,
+                        )
                     prog["faces"] = [len(reports), len(selected)]
                     prog["quality"] = reports
                 job.progress = prog

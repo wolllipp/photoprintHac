@@ -6,6 +6,11 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from PIL import ExifTags, Image, UnidentifiedImageError
+
+try:
+    import pillow_heif
+except ImportError:  # HEIC-декодер ставится вместе с локальной зависимостью
+    pillow_heif = None
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -14,9 +19,12 @@ from app.db import get_session
 from app.models import Photo, User
 from app.security.auth import current_user
 
+if pillow_heif:
+    pillow_heif.register_heif_opener()
+
 router = APIRouter(tags=["photos"])
 MAX_BYTES = 40 * 1024 * 1024
-ALLOWED = {"JPEG": "jpg", "PNG": "png", "HEIC": "heic", "WEBP": "webp"}
+ALLOWED = {"JPEG": "jpg", "PNG": "png", "HEIC": "heic", "HEIF": "heic", "WEBP": "webp"}
 
 
 def _taken_at(img: Image.Image) -> datetime | None:

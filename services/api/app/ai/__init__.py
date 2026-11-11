@@ -10,7 +10,7 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.ai.quality import DPI_LIMITS, MONTHS_RU, crop_rect, quality_report
+from app.ai.quality import MONTHS_RU, crop_rect, difference_hash, dhash_distance, effective_dpi
 from app.config import settings
 
 THEMES = {
@@ -123,42 +123,64 @@ def select_photos(
     included_ids: set[uuid.UUID] | None = None,
     *,
     hashes: dict[uuid.UUID, bytes] | None = None,
-    dpi_limit: tuple[int, int] = DPI_LIMITS["20x20_spread"],
+    dhashes: dict[uuid.UUID, int] | None = None,
 ) -> list[dict]:
-    """Выбирает уникальные фото по качеству; ручной выбор имеет приоритет."""
+    """Оставляет SHA-идентичные и визуально похожие фото вне книги как запас."""
     excluded_ids = excluded_ids or set()
     included_ids = included_ids or set()
     hashes = hashes if hashes is not None else {}
-    groups: dict[bytes, list[uuid.UUID]] = {}
-    scores = {}
-    for photo in photos:
+    dhashes = dhashes if dhashes is not None else {}
+    available = [p for p in photos if p["photo_id"] not in excluded_ids]
+    content_hashes, visual_hashes, sharpness = {}, {}, {}
+    for photo in available:
         photo_id, path = photo["photo_id"], photo["path"]
         content_hash = hashes.get(photo_id)
         if content_hash is None:
             content_hash = _file_hash(Path(path))
             hashes[photo_id] = content_hash
-        scores[photo_id] = quality_report(photo, dpi_limit)["score"]
-        if photo_id not in excluded_ids:
-            groups.setdefault(content_hash, []).append(photo_id)
+        perceptual = dhashes.get(photo_id)
+        if perceptual is None:
+            image_bytes = Path(path).read_bytes()
+            try:
+                perceptual = difference_hash(image_bytes)
+            except ValueError:
+                # Файловые заглушки в тестах всё ещё участвуют в exact-hash.
+                perceptual = int.from_bytes(hashlib.sha256(image_bytes).digest()[:8], "big")
+            dhashes[photo_id] = perceptual
+        content_hashes[photo_id] = content_hash
+        visual_hashes[photo_id] = perceptual
+        sharpness[photo_id] = photo.get("sharpness") or 0
 
     def rank(photo_id):
-        return photo_id not in included_ids, -scores[photo_id], _h(photo_id)
+        return photo_id not in included_ids, -sharpness[photo_id], _h(photo_id)
 
-    duplicates = {
-        photo_id
-        for group in groups.values() if len(group) > 1
-        for photo_id in sorted(group, key=rank)[1:]
-    }
-    unique_ids = [photo["photo_id"] for photo in photos
-                  if photo["photo_id"] not in excluded_ids | duplicates]
-    target = min(len(unique_ids), max(0, round(pages * 1.6)))
-    keep = set(sorted(unique_ids, key=rank)[:target])
-    return [
-        {"photo_id": photo["photo_id"], "selected": photo["photo_id"] in keep,
-         "reject_reason": None if photo["photo_id"] in excluded_ids or photo["photo_id"] in keep else
-         "duplicate" if photo["photo_id"] in duplicates else "capacity"}
-        for photo in photos
-    ]
+    # Объединяем точные SHA-256 и близкие dHash пары в компоненты связности.
+    parents = {photo_id: photo_id for photo_id in content_hashes}
+
+    def root(photo_id):
+        while parents[photo_id] != photo_id:
+            parents[photo_id] = parents[parents[photo_id]]
+            photo_id = parents[photo_id]
+        return photo_id
+
+    ids = list(content_hashes)
+    for index, photo_id in enumerate(ids):
+        for other in ids[index + 1:]:
+            if (content_hashes[photo_id] == content_hashes[other]
+                    or dhash_distance(visual_hashes[photo_id], visual_hashes[other]) <= 8):
+                parents[root(other)] = root(photo_id)
+    groups: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for photo_id in ids:
+        groups.setdefault(root(photo_id), []).append(photo_id)
+    duplicates = {photo_id for group in groups.values() if len(group) > 1
+                  for photo_id in sorted(group, key=rank)[1:]}
+    unique_ids = [p["photo_id"] for p in available if p["photo_id"] not in duplicates]
+    target = min(len(unique_ids), max(len(included_ids), round(pages * 1.6)))
+    keep = set(sorted(unique_ids, key=rank)[:target]) | (included_ids & set(content_hashes))
+    return [{"photo_id": p["photo_id"], "selected": p["photo_id"] in keep,
+             "reject_reason": None if p["photo_id"] in excluded_ids or p["photo_id"] in keep else
+             "similar" if p["photo_id"] in duplicates else "capacity"}
+            for p in photos]
 
 
 TEMPLATES = {
@@ -192,7 +214,9 @@ def _chronological(photo: dict) -> tuple:
 
 
 def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspect: float = 1,
-           trim_px: int = 30, risk_px: int = 60, source: str = "picked", theme: str | None = None) -> list[dict]:
+           trim_px: int | None = None, risk_px: int | None = None, source: str = "picked",
+           theme: str | None = None, format: str | None = None,
+           product: str | None = None) -> list[dict]:
     """Сортирует фото по времени и раскладывает по шаблонам без пустых рамок."""
     selected = sorted(selected, key=_chronological)
     requested = max(page_count, min_pages)
@@ -239,9 +263,13 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
         positions = TEMPLATES[len(photos)] if photos else ()
         frames = []
         for photo, (x, y, w, h) in zip(photos, positions):
+            frame = {"x": x, "y": y, "w": w, "h": h}
+            dpi = effective_dpi(photo.get("width") or 1, photo.get("height") or 1,
+                                format, frame, book=True) or 300
             crop = crop_rect(photo.get("width") or 1, photo.get("height") or 1,
-                             photo.get("faces") or [], page_aspect * w / h, trim_px, risk_px)
-            frames.append({"photo_id": str(photo["photo_id"]), "frame": {"x": x, "y": y, "w": w, "h": h},
+                             photo.get("faces") or [], 2 * page_aspect * w / h, trim_px, risk_px,
+                             dpi=dpi, risk_mm=5)
+            frames.append({"photo_id": str(photo["photo_id"]), "frame": frame,
                            "crop": {key: crop[key] for key in ("x", "y", "w", "h")},
                            "warning": crop["warning"]})
         out.append({"position": pos, "chapter": chapters[pos], "frames": frames})
