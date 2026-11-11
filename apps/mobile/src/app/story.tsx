@@ -34,7 +34,7 @@ const EXAMPLES = [
   { label: 'Выпускной 11 «Б»', text: 'Выпускной 11 «Б» — все фото класса, 40 страниц' },
 ];
 /** Что «услышала» диктовка в демо (в продукте — распознавание речи в локальном контуре). */
-const HEARD = 'Книга про лето на даче с бабушкой, светлая, 20 страниц, больше людей';
+const HEARD = 'Книга про лето на даче с бабушкой, светлая, 24 страницы, больше людей';
 const FOUND: PhotoName[] = ['night-window', 'city-sunset', 'friends-night', 'cafe-dessert', 'roses'];
 
 const KIND: Record<string, string> = {
@@ -47,16 +47,15 @@ const KIND: Record<string, string> = {
 const pagesWord = (n: number) => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'страницы' : n % 10 === 1 && n % 100 !== 11 ? 'страницу' : 'страниц');
 function answerText(p: ParsedStory, sp: Spec) {
   const mood = [p.tone ? `${p.tone.replace(/ый$/, 'ые').replace(/ий$/, 'ие')} тона` : null, p.accent].filter(Boolean).join(', ');
-  const pages = sp.spreads * 2;
-  return `Соберём ${KIND[p.themeLabel] ?? 'книгу'} ${sp.format}: ${sp.spreads} разворотов, ${pages} ${pagesWord(pages)}, ${sp.lam} ламинация${mood ? `. Настроение — ${mood}` : ''}. Из ${p.photos} фото оставим лучшие — без дублей и смазанных, лица в обрез не попадут.`;
+  return `Соберём ${KIND[p.themeLabel] ?? 'книгу'} ${sp.format}: ${sp.pages} ${pagesWord(sp.pages)}, ${sp.lam} ламинация${mood ? `. Настроение — ${mood}` : ''}. Из ${p.photos} фото оставим лучшие — без дублей и смазанных, лица в обрез не попадут.`;
 }
 
-/** Что спрашиваем перед сборкой: формат (у Classic — два), ламинация, сколько разворотов. */
-type Spec = { format: '20×20' | '21×30'; lam: 'глянцевая' | 'зернистая'; spreads: number };
+/** Что спрашиваем перед сборкой: формат, ламинация, сколько страниц (Lite — от 24). */
+type Spec = { format: '20×20' | '21×30'; lam: 'глянцевая' | 'зернистая'; pages: number };
 const FORMATS: Spec['format'][] = ['20×20', '21×30'];
 const LAMS: Spec['lam'][] = ['глянцевая', 'зернистая'];
-const SPREADS = [10, 12, 15, 20];
-const nearest = (n: number) => SPREADS.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+const PAGES = [24, 32, 40, 48];
+const nearest = (n: number) => PAGES.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
 
 type Turn = { id: number; q: string; parsed: ParsedStory; step: number; spec: Spec | null; text: string; done: boolean };
 const STEP_MS = 380;
@@ -64,7 +63,8 @@ const STEP_MS = 380;
 export default function Story() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { voice } = useLocalSearchParams<{ voice?: string }>();
+  // q — готовая фраза (например, с карточки повода на главной): отправляется сама при открытии
+  const { voice, q } = useLocalSearchParams<{ voice?: string; q?: string }>();
   const [turns, setTurns] = useState<Turn[]>([]);
   const composer = useRef<ComposerHandle>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -120,10 +120,15 @@ export default function Story() {
     const all = [v, ...turns.map((t) => t.q).reverse()].join('. ');
     const parsed = parseStory(all)!;
     const prev = turns[turns.length - 1]?.spec ?? null;
-    // уточнение с числом страниц меняет развороты, остальное — как выбрали
-    const spec = prev ? { ...prev, spreads: /\d{2,3}\s*(стр|страниц)/i.test(v) ? nearest(parsed.pages / 2) : prev.spreads } : null;
+    // уточнение с числом страниц меняет объём, остальное — как выбрали
+    const spec = prev ? { ...prev, pages: /\d{2,3}\s*(стр|страниц)/i.test(v) ? nearest(parsed.pages) : prev.pages } : null;
     setTurns((ts) => [...ts, { id: nextId.current++, q: v, parsed, step: 0, spec, text: '', done: false }]);
   };
+  useEffect(() => {
+    if (q) send(q);
+    // один раз при открытии
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // перед первой сборкой — согласие на обработку фото ИИ (A14), один раз
   const { aiConsent, setAiConsent } = useStore();
   const [ask, setAsk] = useState<Record<string, string> | null>(null);
@@ -195,7 +200,7 @@ export default function Story() {
   );
 }
 
-/** ИИ уточняет параметры книги: формат, ламинация, развороты. По умолчанию — то, что понял из фразы. */
+/** ИИ уточняет параметры книги: формат, ламинация, страницы. По умолчанию — то, что понял из фразы. */
 function Ask({ initial, onDone }: { initial: Spec; onDone: (sp: Spec) => void }) {
   const [sp, setSp] = useState(initial);
   const pick = <K extends keyof Spec>(k: K, v: Spec[K]) => {
@@ -207,7 +212,7 @@ function Ask({ initial, onDone }: { initial: Spec; onDone: (sp: Spec) => void })
       <Text style={s.askTitle}>Пара вопросов перед сборкой</Text>
       <AskRow label="Формат" items={FORMATS} value={sp.format} show={(v) => v} onPick={(v) => pick('format', v)} />
       <AskRow label="Ламинация" items={LAMS} value={sp.lam} show={(v) => v} onPick={(v) => pick('lam', v)} />
-      <AskRow label="Разворотов" items={SPREADS} value={sp.spreads} show={(v) => `${v}`} hint={`${sp.spreads * 2} стр.`} onPick={(v) => pick('spreads', v)} />
+      <AskRow label="Страниц" items={PAGES} value={sp.pages} show={(v) => `${v}`} onPick={(v) => pick('pages', v)} />
       <Tap style={[s.cta, { justifyContent: 'center', marginTop: 4 }]} onPress={() => onDone(sp)} accessibilityRole="button">
         <Text style={s.ctaText}>Собрать вариант</Text>
       </Tap>
@@ -244,7 +249,7 @@ function TurnView({ turn, onConfirm, onShow }: { turn: Turn; onConfirm: (sp: Spe
     { label: 'Отбор', now: 'убираю дубли и смазанные', done: 'лучшие кадры' },
     { label: 'Шаблон', now: 'подбираю', done: p.themeLabel === 'Своя тема' ? 'Классика' : p.themeLabel },
   ];
-  const price = sp ? bookPrice('lite', fitFormat('lite', sp.format), sp.spreads, sp.lam === 'зернистая' ? 'Зерно' : 'Глянец') : tariffs[0].price;
+  const price = sp ? bookPrice('lite', fitFormat('lite', sp.format), sp.pages, sp.lam === 'зернистая' ? 'Зерно' : 'Глянец') : tariffs[0].price;
   return (
     <View style={s.turn}>
       <Animated.Text entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.q}>
@@ -268,7 +273,7 @@ function TurnView({ turn, onConfirm, onShow }: { turn: Turn; onConfirm: (sp: Spe
         )}
       </View>
 
-      {turn.step >= 3 && !sp ? <Ask initial={{ format: '20×20', lam: 'глянцевая', spreads: nearest(p.pages / 2) }} onDone={onConfirm} /> : null}
+      {turn.step >= 3 && !sp ? <Ask initial={{ format: '20×20', lam: 'глянцевая', pages: nearest(p.pages) }} onDone={onConfirm} /> : null}
 
       {turn.step >= 3 && sp ? (
         <Animated.View entering={FadeInDown.duration(duration.fast).easing(ease.smoothOut)} style={s.answer}>
@@ -285,7 +290,7 @@ function TurnView({ turn, onConfirm, onShow }: { turn: Turn; onConfirm: (sp: Spe
                 <Text style={s.foundMore}>+{p.photos - FOUND.length} фото</Text>
               </View>
 
-              <Tap style={s.cta} onPress={() => onShow({ title: p.album, pages: String(sp.spreads * 2), photos: String(p.photos), format: sp.format, lam: sp.lam })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
+              <Tap style={s.cta} onPress={() => onShow({ title: p.album, pages: String(sp.pages), photos: String(p.photos), format: sp.format, lam: sp.lam })} accessibilityRole="button" accessibilityLabel={`Показать вариант, от ${rub(price)}`}>
                 <Text style={s.ctaText}>Показать вариант</Text>
                 <View style={s.ctaSum}>
                   <Text style={s.ctaPrice}>от {rub(price)}</Text>

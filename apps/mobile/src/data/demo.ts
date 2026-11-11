@@ -69,34 +69,43 @@ export type Tariff = {
   tall?: boolean;
 };
 
-/** Цены за 24 страницы иллюстративные; источник правды — справочник D14 (бэкенд). */
+/** Цены за 24 страницы формата 20×20 — по таблице super.picpac.by (notes/23-super-alignment.md). */
 export const tariffs: Tariff[] = [
-  { id: 'lite', name: 'Lite', price: 62.4, readyBy: '13 ноя', about: 'Lite — тонкие листы, как в журнале', cover: ['#ECC097', '#C8806B'] },
-  { id: 'classic', name: 'Classic', price: 81.09, readyBy: '14 ноя', about: 'Classic — плотные листы, раскрытие на 180°', cover: ['#A9CDD2', '#5C8A88'] },
-  { id: 'premium', name: 'Premium', price: 96.6, readyBy: '15 ноя', about: 'Premium — фотобумага 1 мм, без шва по центру', cover: ['#DF948A', '#A9443F'], tall: true },
+  { id: 'lite', name: 'Lite', price: 70, readyBy: '14 ноя', about: 'Lite — тонкие листы, как в журнале', cover: ['#ECC097', '#C8806B'] },
+  { id: 'classic', name: 'Classic', price: 87, readyBy: '14 ноя', about: 'Classic — плотные листы, раскрытие на 180°', cover: ['#A9CDD2', '#5C8A88'] },
+  { id: 'premium', name: 'Premium', price: 149.5, readyBy: '14 ноя', about: 'Premium — фотобумага 1 мм, без шва по центру', cover: ['#DF948A', '#A9443F'], tall: true },
 ];
 
 export type Draft = { title: string; pages: number; format: string; photos: number; cover: PhotoName };
 /**
- * Цена книги: тариф × формат × развороты × ламинация. Опорные цены — нижняя (акционная) с сайта (notes/06):
- * Lite 56,00 за 12 разворотов, Classic 72,90 за 10, Premium 70,35 за 5 — все 20×20.
- * shortcut: шаг за разворот, надбавки за формат и зернистую ламинацию — условные; источник правды — справочник D14.
+ * Цена книги: тариф × формат × страницы × ламинация. Цены, диапазоны и шаг — с super.picpac.by:
+ * Lite 24–160 стр., от 70,00 за 24, +2,00 за 2 стр.; Classic 20–60, от 81,00 за 20, +3,00 за 2 стр.;
+ * Premium 10–60, от 100,50 за 10, +7,00 за 2 стр. Печать книги — 3 дня с оплаты.
+ * ДОПУЩЕНИЕ: надбавки за формат и зернистую ламинацию на сайте не указаны — условные; источник правды — справочник D14.
  */
 export const FORMATS_BY_TARIFF: Record<Tariff['id'], string[]> = {
-  lite: ['20×20', '21×30', '25×25'],
+  lite: ['20×20', '26×26', '21×30'],
   classic: ['20×20', '21×30'],
-  premium: ['20×20', '21×30', '25×25', '30×20', '30×30'],
+  premium: ['20×20', '30×20', '25×25', '30×30', '21×30'],
 };
-const BASE: Record<Tariff['id'], { price: number; spreads: number; step: number }> = {
-  lite: { price: 56, spreads: 12, step: 2.2 },
-  classic: { price: 72.9, spreads: 10, step: 3.4 },
-  premium: { price: 70.35, spreads: 5, step: 6.9 },
+/** price — за min страниц; step — доплата за каждые 2 страницы сверх min. */
+export const BOOK: Record<Tariff['id'], { price: number; min: number; max: number; step: number }> = {
+  lite: { price: 70, min: 24, max: 160, step: 2 },
+  classic: { price: 81, min: 20, max: 60, step: 3 },
+  premium: { price: 100.5, min: 10, max: 60, step: 7 },
 };
-const FORMAT_K: Record<string, number> = { '20×20': 1, '21×30': 1.25, '25×25': 1.2, '30×20': 1.3, '30×30': 1.55 };
-export function bookPrice(tariff: Tariff['id'], format: string, spreads: number, finish: 'Глянец' | 'Зерно') {
-  const b = BASE[tariff];
-  const raw = (b.price + b.step * (spreads - b.spreads)) * (FORMAT_K[format] ?? 1) + (finish === 'Зерно' ? 3 : 0);
-  return Math.round(Math.max(raw, b.price * 0.6) * 100) / 100;
+/** Дней на печать книги — с момента оплаты. */
+export const PRINT_DAYS = 3;
+/** Число страниц в пределах тарифа, чётное. */
+export function fitPages(tariff: Tariff['id'], pages: number) {
+  const b = BOOK[tariff];
+  return Math.min(b.max, Math.max(b.min, Math.ceil(pages / 2) * 2));
+}
+const FORMAT_K: Record<string, number> = { '20×20': 1, '21×30': 1.25, '25×25': 1.2, '26×26': 1.2, '30×20': 1.3, '30×30': 1.55 };
+export function bookPrice(tariff: Tariff['id'], format: string, pages: number, finish: 'Глянец' | 'Зерно') {
+  const b = BOOK[tariff];
+  const raw = (b.price + (b.step * (fitPages(tariff, pages) - b.min)) / 2) * (FORMAT_K[format] ?? 1) + (finish === 'Зерно' ? 3 : 0);
+  return Math.round(raw * 100) / 100;
 }
 /** Какой формат взять, если у тарифа выбранного нет. */
 export const fitFormat = (tariff: Tariff['id'], format: string) => (FORMATS_BY_TARIFF[tariff].includes(format) ? format : '20×20');
@@ -107,13 +116,13 @@ export const drafts: Record<string, Draft> = {
   friends: { title: 'Мы с друзьями', pages: 32, format: '21×30', photos: 52, cover: 'friends-selfie' },
   karelia: { title: 'Карелия, июль', pages: 24, format: '20×20', photos: 38, cover: 'night-window' },
   'year-2026': { title: 'Книга года 2026', pages: 40, format: '21×30', photos: 96, cover: 'night-window' },
-  dacha: { title: 'Дача, август', pages: 16, format: '20×20', photos: 24, cover: 'bouquet' },
+  dacha: { title: 'Дача, август', pages: 24, format: '20×20', photos: 24, cover: 'bouquet' },
   concerts: { title: 'Концерты', pages: 20, format: '20×20', photos: 34, cover: 'concert' },
   cafes: { title: 'Кофейни', pages: 20, format: '20×20', photos: 41, cover: 'cafe-interior' },
-  flowers: { title: 'Цветы', pages: 16, format: '20×20', photos: 41, cover: 'roses' },
+  flowers: { title: 'Цветы', pages: 24, format: '20×20', photos: 41, cover: 'roses' },
 };
 
-/** Развороты для листания книги: раскладка каждой страницы и кадры на ней. */
+/** Книга листается парами страниц (как раскрытая): раскладка левой и правой страницы и кадры на них. Считаем и продаём — страницами. */
 export type PageLayout = 'one' | 'two' | 'three';
 /** photos — по рамкам слева направо; null — пустая рамка (в конструкторе). */
 export type Spread = { left: PageLayout; right: PageLayout; photos: (PhotoName | null)[]; bg?: string; caption?: string | null };

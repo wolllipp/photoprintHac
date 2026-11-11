@@ -3,10 +3,12 @@
  * По умолчанию 10×15, глянец, по одной копии. Кадры, которые не совпадают с форматом по пропорции,
  * отмечены пунктиром «обрежем края» — и подсказка, на какой формат они лягут без обрезки.
  * Фото с количеством 0 в заказ не идут. Дальше — корзина, как у книг.
+ * Если пришли из чата с близкими — печатаем выбранные там фото (параметр photos, JSON-массив).
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { MinusIcon, PlusIcon } from 'phosphor-react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -15,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddedToast, useAdded } from '@/components/added';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { photos, pic, type PhotoName } from '@/data/photos';
+import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -30,15 +32,26 @@ const PAPERS = [
   { id: 'Глянец', title: 'глянцевая', sub: 'яркие цвета, насыщенный чёрный' },
   { id: 'Мат', title: 'матовая', sub: 'без бликов и отпечатков пальцев' },
 ] as const;
-const SHOTS = Object.keys(photos) as PhotoName[];
+const ALL = Object.keys(photos) as PhotoName[];
 // shortcut: «квадратные» кадры отмечены вручную; в продукте — пропорция файла против пропорции формата (A8)
-const SQUARE = new Set<PhotoName>(['cafe-dessert', 'birthday-cake']);
+const SQUARE = new Set<Pic>(['cafe-dessert', 'birthday-cake']);
+
+function parseShots(raw?: string): Pic[] {
+  try {
+    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(v) && v.length ? v.filter((x): x is string => typeof x === 'string') : ALL;
+  } catch {
+    return ALL;
+  }
+}
 const GAP = 8;
 
 export default function Print() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { addToCart } = useStore();
+  const params = useLocalSearchParams<{ photos?: string }>();
+  const [SHOTS] = useState(() => parseShots(params.photos));
   const [format, setFormat] = useState(FORMATS[0]);
   const [fit, setFit] = useState<'crop' | 'fields'>('crop');
   const [paper, setPaper] = useState<(typeof PAPERS)[number]['id']>('Глянец');

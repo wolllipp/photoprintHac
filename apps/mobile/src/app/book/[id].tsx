@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
-import { bookPrice, drafts, fitFormat, FORMATS_BY_TARIFF, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
+import { BOOK, bookPrice, drafts, fitFormat, fitPages, FORMATS_BY_TARIFF, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { type PhotoName, pic } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease, flickSpring, sheetSpring } from '@/motion';
@@ -28,13 +28,15 @@ export default function BookScreen() {
   const { addToCart, setLastBook } = useStore();
   const [tariff, setTariff] = useState<Tariff>(tariffs[1]);
   const [finish, setFinish] = useState<'Глянец' | 'Зерно'>(params.lam === 'зернистая' ? 'Зерно' : 'Глянец');
-  // формат и развороты — из диалога, если пришли оттуда; цена пересчитывается от всего сразу
+  // формат и страницы — из диалога, если пришли оттуда; цена пересчитывается от всего сразу
   const [format, setFormat] = useState(params.format ?? draft.format);
-  const [spreadsN, setSpreadsN] = useState(Math.round(Number(params.pages ?? draft.pages) / 2));
+  // сколько страниц хочет человек; у каждого тарифа свой диапазон — в цену и на экран идёт подогнанное число
+  const [wanted, setWanted] = useState(Number(params.pages ?? draft.pages));
   const fmt = fitFormat(tariff.id, format);
-  const priceOf = (t: Tariff) => bookPrice(t.id, fitFormat(t.id, format), spreadsN, finish);
+  const priceOf = (t: Tariff) => bookPrice(t.id, fitFormat(t.id, format), wanted, finish);
   const price = priceOf(tariff);
-  const pagesN = spreadsN * 2;
+  const range = BOOK[tariff.id];
+  const pagesN = fitPages(tariff.id, wanted);
 
   /* ---- шторка: тянется за пальцем 1:1, отпускание — по проекции скорости (apple-design) ---- */
   const ty = useSharedValue(0); // 0 — раскрыта, maxOffset — свёрнута до заголовка
@@ -175,19 +177,19 @@ export default function BookScreen() {
           </View>
         </View>
 
-        {/* развороты — степпер */}
+        {/* страницы — степпер по две, в пределах тарифа */}
         <View style={[s.lam, s.spreadsRow]}>
           <View>
-            <Text style={s.lamLabel}>Разворотов</Text>
-            <Text style={s.spreadsSub}>{pagesN} страниц</Text>
+            <Text style={s.lamLabel}>Страниц</Text>
+            <Text style={s.spreadsSub}>от {range.min} до {range.max}</Text>
           </View>
           <View style={s.stepper}>
-            <Tap style={s.step} onPress={() => { Haptics.selectionAsync().catch(() => {}); setSpreadsN((n) => Math.max(5, n - 1)); }} disabled={spreadsN <= 5} accessibilityRole="button" accessibilityLabel="Меньше разворотов">
-              <MinusIcon size={15} color={spreadsN <= 5 ? colors.mut2 : colors.fg} weight="bold" />
+            <Tap style={s.step} onPress={() => { Haptics.selectionAsync().catch(() => {}); setWanted(pagesN - 2); }} disabled={pagesN <= range.min} accessibilityRole="button" accessibilityLabel="Меньше страниц">
+              <MinusIcon size={15} color={pagesN <= range.min ? colors.mut2 : colors.fg} weight="bold" />
             </Tap>
-            <AnimatedNumber value={spreadsN} format={String} style={s.stepN} />
-            <Tap style={s.step} onPress={() => { Haptics.selectionAsync().catch(() => {}); setSpreadsN((n) => Math.min(30, n + 1)); }} disabled={spreadsN >= 30} accessibilityRole="button" accessibilityLabel="Больше разворотов">
-              <PlusIcon size={15} color={spreadsN >= 30 ? colors.mut2 : colors.fg} weight="bold" />
+            <AnimatedNumber value={pagesN} format={String} style={s.stepN} />
+            <Tap style={s.step} onPress={() => { Haptics.selectionAsync().catch(() => {}); setWanted(pagesN + 2); }} disabled={pagesN >= range.max} accessibilityRole="button" accessibilityLabel="Больше страниц">
+              <PlusIcon size={15} color={pagesN >= range.max ? colors.mut2 : colors.fg} weight="bold" />
             </Tap>
           </View>
         </View>
@@ -262,7 +264,7 @@ function TariffTile({ t, price, on, onPick }: { t: Tariff; price: number; on: bo
   );
 }
 
-/** Книгу можно листать: развороты по одному, свайпом вбок; снизу — какой разворот из скольких. */
+/** Книгу можно листать: по две страницы, как раскрытую, свайпом вбок; снизу — точки по парам страниц. */
 function Pager({ pages, maxH }: { pages: number; maxH: number }) {
   const { width } = useWindowDimensions();
   // ширина разворота: на всю ширину или меньше, если по высоте места мало
@@ -286,7 +288,7 @@ function Pager({ pages, maxH }: { pages: number; maxH: number }) {
         style={{ marginVertical: -28, overflow: 'visible' }}
         contentContainerStyle={{ paddingVertical: 28 }}>
         {Array.from({ length: total }, (_, i) => book[i % book.length]).map((sp, i) => (
-          <View key={i} style={{ width, alignItems: 'center' }} accessible accessibilityLabel={`Разворот ${i + 1} из ${total}`}>
+          <View key={i} style={{ width, alignItems: 'center' }} accessible accessibilityLabel={`Страницы ${i * 2 + 1}–${i * 2 + 2} из ${total * 2}`}>
             <View style={[s.spread, { width: spreadW }, sp.bg ? { backgroundColor: sp.bg } : null]}>
               <Leaf layout={sp.left} shots={sp.photos.slice(0, count(sp.left))} side="left" />
               <Leaf layout={sp.right} shots={sp.photos.slice(count(sp.left))} side="right" />

@@ -1,7 +1,7 @@
 /**
  * Превью книги — что получится, до сборки. По референсу профиля: сверху сцена (книга на размытой
  * обложке, к низу уходит в белый), крупное название, кнопка «Собрать» с ценой и круглая «Править»,
- * строка цифр «Страниц · Фото · Цена», описание от ИИ, развороты сеткой.
+ * строка цифр «Страниц · Фото · Цена», описание от ИИ, страницы сеткой (по две, как в раскрытой книге).
  * Книга пока объёмная статичная (корешок, срез страниц, тень); «живая» 3D-книга — следующим шагом.
  */
 import * as Haptics from 'expo-haptics';
@@ -120,7 +120,7 @@ export default function Preview() {
           <View style={s.about}>
             <Text style={s.aboutText}>
               {p.about ??
-                `Тёплая книга о поездке: ${picked} лучших кадров из ${p.photos ?? 214}, без дублей и смазанных. Пейзажи — на целый разворот, люди — крупно, лица не попадут в обрез.`}
+                `Тёплая книга о поездке: ${picked} лучших кадров из ${p.photos ?? 214}, без дублей и смазанных. Пейзажи — во всю страницу, люди — крупно, лица не попадут в обрез.`}
             </Text>
           </View>
 
@@ -134,20 +134,20 @@ export default function Preview() {
             }}
           />
 
-          <Text style={s.h2}>Развороты</Text>
+          <Text style={s.h2}>Страницы</Text>
           <View style={s.grid}>
             {book.map((sp, i) => (
               <View key={i} style={s.cell}>
                 <Tap
                   onPress={() => cells.current[i]?.measureInWindow((x, y, w, h) => setOpen({ i, from: { x, y, w, h } }))}
                   accessibilityRole="button"
-                  accessibilityLabel={`Открыть разворот ${i + 1} крупно`}>
+                  accessibilityLabel={`Открыть страницы ${i * 2 + 1}–${i * 2 + 2} крупно`}>
                   <View ref={(v) => { cells.current[i] = v; }} collapsable={false} style={changed.includes(i) && s.changed}>
                     <MiniSpread key={sp.photos.join()} sp={sp} />
                   </View>
                 </Tap>
                 <Text style={[s.cellLabel, changed.includes(i) && { color: colors.coralAction, fontFamily: fonts.semibold }]}>
-                  {changed.includes(i) ? 'изменено' : i === 0 ? 'Обложка и начало' : `Разворот ${i + 1}`}
+                  {changed.includes(i) ? 'изменено' : i === 0 ? 'Обложка и начало' : `Стр. ${i * 2 + 1}–${i * 2 + 2}`}
                 </Text>
               </View>
             ))}

@@ -62,14 +62,14 @@ const DEMO_ORDER: PlacedOrder = {
   id: '4792088',
   title: 'Юбилей мамы',
   tariffName: 'Classic',
-  total: 72.9,
+  total: 87,
   readyBy: 'завтра',
   placedAt: new Date(2026, 10, 6),
   fresh: false,
   cover: 'bouquet',
   stage: 3,
   live: 'Европочта · ПВЗ №112, Притыцкого, 29',
-  items: [{ id: 'mama-classic-20×20-Глянец', projectId: 'mama', title: 'Юбилей мамы', tariff: 'classic', tariffName: 'Classic', format: '20×20', pages: 24, finish: 'Глянец', price: 72.9, readyBy: '14 ноя', cover: 'bouquet', qty: 1 }],
+  items: [{ id: 'mama-classic-20×20-Глянец', projectId: 'mama', title: 'Юбилей мамы', tariff: 'classic', tariffName: 'Classic', format: '20×20', pages: 24, finish: 'Глянец', price: 87, readyBy: '14 ноя', cover: 'bouquet', qty: 1 }],
 };
 
 type Store = {
@@ -129,7 +129,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<PlacedOrder[]>([DEMO_ORDER]);
   const [points, setPoints] = useState(initialPoints);
-  const [tabBarHidden, setTabBarHidden] = useState(true);
+  const [tabBarHidden, setTabBarHidden] = useState(false);
   const [showIntro, setShowIntroState] = useState(true);
   const [design, setDesign] = useState<Spread[] | null>(null);
   const [extras, setExtras] = useState<ExtraId[]>([]);

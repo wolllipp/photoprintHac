@@ -1,76 +1,69 @@
-import { router, useIsFocused } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ActionTiles, AlbumCards, HeroPager, PlainTopBar } from '@/components/home';
-import { albums, currentOrder, suggestions } from '@/data/demo';
+import { HomeStatus, PlainTopBar, StoryRow } from '@/components/home';
+import { NewSheet, type NewChoice } from '@/components/newSheet';
+import { PicksViewer } from '@/components/picks';
+import { SoonBlock } from '@/components/soon';
+import { currentOrder, fitPages, suggestions } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { colors } from '@/theme';
 
-const openBook = (id: string) => router.push({ pathname: '/book/[id]', params: { id } });
+/** Выбрали фото в галерее — сразу собираем книгу: объём по числу снимков (в среднем 1–2 на страницу), Lite от 24 стр. */
+async function bookFromPhotos() {
+  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
+  if (res.canceled || !res.assets.length) return;
+  const n = res.assets.length;
+  router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(fitPages('lite', Math.round(n / 1.6))) } });
+}
 
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-  const { points, showIntro, setTabBarHidden } = useStore();
-  const focused = useIsFocused();
-  const [scrollY] = useState(() => new Animated.Value(0));
-  const scroller = useRef<ComponentRef<typeof Animated.ScrollView>>(null);
-  // статус-бар светлый, пока над ним фото; тёмный, когда кадр уехал
-  const [overPhoto, setOverPhoto] = useState(true);
-  // автолистание слайдов — только пока главная прокручена в самый верх
-  const [atTop, setAtTop] = useState(true);
+  const { points } = useStore();
+  const [creating, setCreating] = useState(false);
+  // какая подборка открыта на весь экран и какие уже смотрели (серое кольцо)
+  const [open, setOpen] = useState<number | null>(null);
+  const [seen, setSeen] = useState<string[]>([]);
 
-  // меню скрыто, пока виден полноэкранный кадр; на других вкладках — всегда видно
-  useEffect(() => {
-    setTabBarHidden(focused && showIntro && overPhoto);
-  }, [focused, showIntro, overPhoto, setTabBarHidden]);
-
-  // «Продолжить» на приветствии — плавно к плиткам
-  const toTiles = () => scroller.current?.scrollTo({ y: height - insets.top - 8, animated: true });
+  const onPick = (c: NewChoice) => {
+    setCreating(false);
+    // галерею открываем, когда лист уже закрылся: iOS не покажет два окна одновременно
+    if (c === 'photos') setTimeout(() => bookFromPhotos().catch(() => {}), 350);
+    else if (c === 'words') router.push('/story');
+    else if (c === 'voice') router.push({ pathname: '/story', params: { voice: '1' } });
+    else if (c === 'print') router.push('/print');
+    else router.push('/shared');
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <StatusBar style={showIntro && overPhoto ? 'light' : 'dark'} animated />
-      <Animated.ScrollView
-        ref={scroller}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
-        showsVerticalScrollIndicator={false}
-        // приветствие не останавливается на полпути: отпустил — доезжает до плиток или обратно к фото
-        snapToOffsets={showIntro ? [0, height - insets.top - 8] : undefined}
-        snapToStart
-        snapToEnd={false}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-          listener: (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-            const next = e.nativeEvent.contentOffset.y < height * 0.25;
-            if (next !== overPhoto) setOverPhoto(next);
-            const top = e.nativeEvent.contentOffset.y < 30;
-            if (top !== atTop) setAtTop(top);
-          },
-        })}>
-        {showIntro ? (
-          <HeroPager atTop={atTop} items={suggestions} points={points} scrollY={scrollY} onContinue={toTiles} onOpenBook={openBook} />
-        ) : null}
-        <View style={[s.content, { paddingTop: showIntro ? 20 : insets.top + 6 }]}>
-          {showIntro ? null : <PlainTopBar points={points} />}
-          <ActionTiles
-            order={currentOrder}
-            onAsk={() => router.push('/story')}
-            onMic={() => router.push({ pathname: '/story', params: { voice: '1' } })}
-            onOrder={() => router.navigate('/orders')}
-          />
-          <AlbumCards items={albums} />
-        </View>
-      </Animated.ScrollView>
+      <StatusBar style="dark" animated />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 72 }]} showsVerticalScrollIndicator={false}>
+        <PlainTopBar points={points} />
+        <StoryRow items={suggestions} seen={seen} onNew={() => setCreating(true)} onOpen={setOpen} />
+        <HomeStatus order={currentOrder} onOrder={() => router.navigate('/orders')} />
+        <SoonBlock />
+      </ScrollView>
+
+      <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} />
+      <PicksViewer
+        items={suggestions}
+        start={open}
+        onClose={() => setOpen(null)}
+        onSeen={(id) => setSeen((x) => (x.includes(id) ? x : [...x, id]))}
+        onOpenBook={(id) => {
+          setOpen(null);
+          router.push({ pathname: '/book/[id]', params: { id } });
+        }}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  content: { paddingHorizontal: 16, gap: 28 },
+  content: { paddingHorizontal: 16, gap: 24 },
 });

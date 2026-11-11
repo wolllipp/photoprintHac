@@ -32,6 +32,12 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 220
         }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "picPac подскажет книгу к дням рождения и праздникам из вашего календаря. События не покидают телефон."
+        }
       ]
     ],
     "experiments": {

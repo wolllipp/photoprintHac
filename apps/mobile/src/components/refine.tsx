@@ -1,6 +1,6 @@
 /**
- * Правка книги словами после сборки (A2): «убери людей с 3 разворота», «больше пейзажей».
- * Помощник отвечает теми же строками «подпись — итог», что в диалоге, и меняет развороты на месте.
+ * Правка книги словами после сборки (A2): «убери людей со страницы 5», «больше пейзажей».
+ * Помощник отвечает теми же строками «подпись — итог», что в диалоге, и меняет страницы на месте.
  * В демо — правила по словам запроса; в продукте — локальная модель с доступом к макету книги.
  */
 import * as Haptics from 'expo-haptics';
@@ -17,14 +17,15 @@ import { colors, fonts } from '@/theme';
 
 const PEOPLE: PhotoName[] = ['friends-selfie', 'friends-night', 'birthday-cake'];
 const VIEWS: PhotoName[] = ['city-sunset', 'night-window', 'roses', 'bouquet', 'cafe-interior', 'cafe-dessert', 'concert'];
-const HINTS = ['Меньше селфи', 'Больше пейзажей', 'Убери людей с 3 разворота'];
+const HINTS = ['Меньше селфи', 'Больше пейзажей', 'Убери людей со страницы 5'];
 
 type Edit = { id: number; q: string; found: string; done: string; ready: boolean };
 
-/** Что сделать с книгой по фразе: какие развороты затронуть и чем заменить. */
+/** Что сделать с книгой по фразе: какие страницы затронуть и чем заменить. Книга хранится парами страниц: стр. 5 и 6 — третья пара. */
 function apply(book: Spread[], q: string): { next: Spread[]; changed: number[]; found: string; done: string } {
-  const m = q.match(/(\d+)\s*-?\s*(?:м|й|ом|ого)?\s*развор/i) ?? q.match(/развор\w*\s*(\d+)/i);
-  const only = m ? Math.max(1, Math.min(book.length, Number(m[1]))) - 1 : null;
+  const m = q.match(/(\d+)\s*-?\s*(?:й|ой|ей)?\s*стр/i) ?? q.match(/стр[а-яё.]*\s*(\d+)/i);
+  const only = m ? Math.max(1, Math.min(book.length, Math.ceil(Number(m[1]) / 2))) - 1 : null;
+  const pair = (i: number) => `стр. ${i * 2 + 1}–${i * 2 + 2}`;
   const people = /люд|селфи|лиц/i.test(q);
   const views = /пейзаж|вид|природ/i.test(q);
   let k = 0;
@@ -36,7 +37,7 @@ function apply(book: Spread[], q: string): { next: Spread[]; changed: number[]; 
     photos.forEach((ph, j) => {
       const swap = people || views ? ph && PEOPLE.includes(ph as PhotoName) : false;
       if (!swap) return;
-      // берём пейзаж, которого на этом развороте ещё нет
+      // берём пейзаж, которого на этих страницах ещё нет
       for (let t = 0; t < VIEWS.length; t++) {
         const cand = VIEWS[(k + t) % VIEWS.length];
         if (!photos.includes(cand)) {
@@ -50,8 +51,9 @@ function apply(book: Spread[], q: string): { next: Spread[]; changed: number[]; 
     if (photos.some((ph, j) => ph !== sp.photos[j])) changed.push(i);
     return { ...sp, photos };
   });
-  const where = only !== null ? `разворот ${only + 1}` : `${changed.length} ${changed.length === 1 ? 'разворот' : 'разворота'}`;
-  if (!swaps) return { next: book, changed: [], found: only !== null ? `разворот ${only + 1}` : 'вся книга', done: 'менять нечего — уже так' };
+  const n = changed.length * 2;
+  const where = only !== null ? pair(only) : `${n} ${n < 5 ? 'страницы' : 'страниц'}`;
+  if (!swaps) return { next: book, changed: [], found: only !== null ? pair(only) : 'вся книга', done: 'менять нечего — уже так' };
   return { next, changed, found: `${swaps} ${swaps === 1 ? 'кадр' : swaps < 5 ? 'кадра' : 'кадров'} с людьми · ${where}`, done: 'заменили на пейзажи' };
 }
 
@@ -78,7 +80,7 @@ export function RefineCard({ book, onChange }: { book: Spread[]; onChange: (next
   return (
     <View style={s.card}>
       <Text style={s.title}>Поправить словами</Text>
-      <Text style={s.sub}>Скажите, что изменить, — пересоберём только нужные развороты.</Text>
+      <Text style={s.sub}>Скажите, что изменить, — пересоберём только нужные страницы.</Text>
 
       {edits.map((e) => (
         <Animated.View key={e.id} entering={FadeInDown.duration(260).easing(ease.smoothOut)} style={{ gap: 6 }}>
@@ -108,7 +110,7 @@ export function RefineCard({ book, onChange }: { book: Spread[]; onChange: (next
           value={text}
           onChangeText={setText}
           onSubmitEditing={() => send(text)}
-          placeholder="Например: убери людей с 2 разворота"
+          placeholder="Например: убери людей со страницы 3"
           placeholderTextColor={colors.mut2}
           returnKeyType="send"
           style={s.input}

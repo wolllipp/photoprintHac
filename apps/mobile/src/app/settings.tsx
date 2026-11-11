@@ -19,7 +19,7 @@ import { colors, fonts } from '@/theme';
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
-  const { showIntro, setShowIntro, aiConsent, setAiConsent, phone, points, orders } = useStore();
+  const { aiConsent, setAiConsent, phone, points, orders } = useStore();
   const [notify, setNotify] = useState({ status: true, promo: false });
   const [deleted, setDeleted] = useState(false);
   const enter = (i: number) => FadeInDown.delay(50 * i).duration(380).easing(ease.smoothOut);
@@ -78,12 +78,6 @@ export default function Profile() {
         <Animated.View entering={enter(2)} style={s.group}>
           <Toggle title="Статус заказа" sub="печать, отправка, «можно забирать»" value={notify.status} onChange={(v) => setNotify((n) => ({ ...n, status: v }))} />
           <Toggle title="Скидки и идеи книг" sub="не чаще раза в неделю" value={notify.promo} onChange={(v) => setNotify((n) => ({ ...n, promo: v }))} />
-        </Animated.View>
-
-        {/* приложение */}
-        <Text style={s.h2}>Приложение</Text>
-        <Animated.View entering={enter(3)} style={s.group}>
-          <Toggle title="Приветственный экран" sub="фото на весь экран при открытии" value={showIntro} onChange={setShowIntro} />
         </Animated.View>
 
         {/* приватность */}

@@ -150,7 +150,7 @@ export default function Editor() {
                 <TextTIcon size={18} color={sp.caption !== null ? '#fff' : colors.fg} weight="bold" />
               </Tool>
               {book.length > 1 ? (
-                <Tool label="Удалить разворот" onPress={() => commit(book.filter((_, j) => j !== i))}>
+                <Tool label="Удалить эти страницы" onPress={() => commit(book.filter((_, j) => j !== i))}>
                   <TrashIcon size={18} color={colors.fg} weight="bold" />
                 </Tool>
               ) : null}
@@ -197,10 +197,10 @@ export default function Editor() {
               <TextInput
                 value={sp.caption}
                 onChangeText={(t) => setBook((b) => b.map((x, j) => (j === i ? { ...x, caption: t } : x)))}
-                placeholder="Подпись к развороту"
+                placeholder="Подпись к страницам"
                 placeholderTextColor={colors.mut2}
                 style={s.caption}
-                accessibilityLabel={`Подпись к развороту ${i + 1}`}
+                accessibilityLabel={`Подпись к страницам ${i * 2 + 1}–${i * 2 + 2}`}
               />
             ) : null}
           </Animated.View>
@@ -208,7 +208,7 @@ export default function Editor() {
 
         <Tap style={s.addSpread} onPress={addSpread} accessibilityRole="button">
           <PlusIcon size={18} color={colors.fg} weight="bold" />
-          <Text style={s.addText}>Добавить разворот</Text>
+          <Text style={s.addText}>Добавить 2 страницы</Text>
         </Tap>
       </ScrollView>
 
