@@ -1,6 +1,6 @@
 /**
  * Подборка на весь экран — как история: сверху полоски, касание справа — следующая, слева — предыдущая,
- * удержание — пауза. Внизу одна кнопка «Смотреть книгу». Открывается с кружка на главной.
+ * удержание — пауза. Внизу одна кнопка «Собрать эту книгу» — после неё идея становится черновиком. Открывается с кружка на главной.
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -113,7 +113,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
         <View style={s.head} pointerEvents="box-none">
           <Image source={pic(item.photo)} style={s.thumb} contentFit="cover" />
           <View style={{ flex: 1 }}>
-            <Text style={s.headTitle} numberOfLines={1}>Собрали для вас</Text>
+            <Text style={s.headTitle} numberOfLines={1}>Идея книги · ещё не заказана</Text>
             <Text style={s.headSub} numberOfLines={1}>{item.meta}</Text>
           </View>
           <Tap onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="Закрыть">
@@ -136,7 +136,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
           accessibilityRole="button"
           style={{ alignSelf: 'stretch' }}>
           <Glass style={s.cta} interactive>
-            <Text style={s.ctaText}>Смотреть книгу</Text>
+            <Text style={s.ctaText}>Собрать эту книгу</Text>
             <CaretRightIcon size={16} color={colors.fg} weight="bold" />
           </Glass>
         </Tap>

@@ -2,19 +2,18 @@
  * Фотопечать (A7): формат, бумага, сколько копий каждого фото — цена считается сразу.
  * По умолчанию 10×15, глянец, по одной копии. Кадры, которые не совпадают с форматом по пропорции,
  * отмечены пунктиром «обрежем края» — и подсказка, на какой формат они лягут без обрезки.
- * Фото с количеством 0 в заказ не идут. Дальше — корзина, как у книг.
+ * Фото с количеством 0 в заказ не идут. «Заказать» — сразу на оформление, как у книг.
  * Если пришли из чата с близкими — печатаем выбранные там фото (параметр photos, JSON-массив).
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { MinusIcon, PlusIcon } from 'phosphor-react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AddedToast, useAdded } from '@/components/added';
 import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
@@ -49,7 +48,7 @@ const GAP = 8;
 export default function Print() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { addToCart } = useStore();
+  const { orderNow } = useStore();
   const params = useLocalSearchParams<{ photos?: string }>();
   const [SHOTS] = useState(() => parseShots(params.photos));
   const [format, setFormat] = useState(FORMATS[0]);
@@ -70,11 +69,11 @@ export default function Print() {
     setQty(Object.fromEntries(SHOTS.map((k) => [k, n])));
   };
 
-  const added = useAdded();
-  const onAdd = () => {
+  const onOrder = () => {
     if (!count) return;
     const first = SHOTS.find((k) => qty[k] > 0) ?? SHOTS[0];
-    addToCart({
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    orderNow({
       projectId: `print-${format.id}`,
       title: `Фотопечать ${format.id}`,
       tariff: 'print',
@@ -86,7 +85,7 @@ export default function Print() {
       readyBy: 'завтра',
       cover: first,
     });
-    added.show(`Фотопечать ${format.id} · ${count} фото`, first);
+    router.push('/checkout');
   };
 
   return (
@@ -219,14 +218,13 @@ export default function Print() {
       </ScrollView>
 
       <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
-        <Tap style={[s.cta, !count && { opacity: 0.4 }]} onPress={onAdd} disabled={!count} accessibilityRole="button" accessibilityLabel={`В корзину, ${count} фото, ${rub(total)}`}>
-          <Text style={s.ctaText}>В корзину · {count} фото</Text>
+        <Tap style={[s.cta, !count && { opacity: 0.4 }]} onPress={onOrder} disabled={!count} accessibilityRole="button" accessibilityLabel={`Заказать ${count} фото, ${rub(total)}`}>
+          <Text style={s.ctaText}>Заказать · {count} фото</Text>
           <View style={s.ctaSum}>
             <AnimatedNumber value={total} format={rub} style={s.ctaPrice} />
           </View>
         </Tap>
       </View>
-      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 84} />
     </View>
   );
 }

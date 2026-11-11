@@ -24,7 +24,7 @@ export default function SharedList() {
       <NavBar title="" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
         <Text style={s.title}>Общие альбомы</Text>
-        <Text style={s.lead}>Гости добавляют фото по QR-коду, без приложения. Из всех снимков — одна книга.</Text>
+        <Text style={s.lead}>Отправьте ссылку родным — каждый добавит свои фото, без приложения. Из всех снимков — одна книга.</Text>
 
         <Tap style={s.create} onPress={() => router.push('/shared/new')} accessibilityRole="button">
           <View style={s.plus}>
@@ -32,7 +32,7 @@ export default function SharedList() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.createTitle}>Создать новый</Text>
-            <Text style={s.createSub}>свадьба, выпускной, поездка — займёт минуту</Text>
+            <Text style={s.createSub}>юбилей, свадьба, поездка — займёт минуту</Text>
           </View>
         </Tap>
 

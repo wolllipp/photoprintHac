@@ -52,15 +52,16 @@ export default function Preview() {
   const [open, setOpen] = useState<{ i: number; from: Rect } | null>(null); // открытый крупно разворот и откуда вырос
   const cells = useRef<(ComponentRef<typeof View> | null)[]>([]);
 
-  // книга собрана — запоминаем: если не дойдёт до корзины, главная предложит продолжить (A11)
-  const { setLastBook } = useStore();
+  // книга собрана — запоминаем: если не дойдёт до заказа, она в «Черновиках» и в «Продолжить книгу» на главной (A11)
+  const { setLastBook, startDraft } = useStore();
   useEffect(() => {
+    startDraft('karelia');
     setLastBook({ title, cover: 'night-window', params: { ...p } as Record<string, string>, at: Date.now() });
     // запоминаем один раз при открытии
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // книга уже собрана: дальше — выбрать тариф и в корзину
+  // книга уже собрана: дальше — выбрать тариф и заказать
   const next = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     router.push({ pathname: '/book/[id]', params: { id: 'karelia', format: p.format ?? '20×20', pages: String(pages), lam: p.lam ?? 'глянцевая' } });

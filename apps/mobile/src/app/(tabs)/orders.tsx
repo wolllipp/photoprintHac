@@ -1,19 +1,20 @@
 /**
- * Заказы — статус наглядно: обложка, этап крупно, «будет …», шкала из пяти точек на одной линии
- * (пройденные — коралловые, текущая пульсирует), живая строка «что сейчас». Под заказом —
- * «На экран блокировки» (превью Live Activity) и «Помощь». Ниже — все заказы.
+ * Заказы — каждый строкой: обложка, этап, «будет …», тонкая шкала этапов. Нажатие раскрывает
+ * путь заказа по шагам и действия: «На экран блокировки» (превью Live Activity), «Проблема с заказом»,
+ * «Заказать ещё». Только что оплаченный заказ раскрыт сразу.
  * Этапы и прогресс в продукте приходят из GET /orders/{id} (order_stages, production_progress).
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { XIcon } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
+import { CaretDownIcon, CheckIcon, XIcon } from 'phosphor-react-native';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { StageRing } from '@/components/stageRing';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
@@ -21,14 +22,19 @@ import { ease, SuccessCheck } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 const STAGES = ['Принят', 'Проверен', 'Печать', 'В пути', 'Готов'];
-const NOW = ['Принят', 'Проверяем макет', 'Печатаем', 'В пути', 'Можно забирать'];
+const NOW = ['Заказ принят', 'Проверяем макет', 'Печатаем', 'Едет к вам', 'Можно забирать'];
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
   const { orders, markSeen, repeatOrder } = useStore();
-  const [lock, setLock] = useState(false);
+  // какой заказ показываем на экране блокировки (превью)
+  const [lock, setLock] = useState<PlacedOrder | null>(null);
   const [onLock, setOnLock] = useState<string | null>(null);
+  // раскрыт только что оплаченный заказ; остальные — строками
+  const [openId, setOpenId] = useState<string | null>(() => (orders[0]?.fresh ? orders[0].id : null));
   const order = orders[0];
+  const active = orders.filter((o) => o.stage < 4 || o.fresh);
+  const done = orders.filter((o) => o.stage >= 4 && !o.fresh);
   const fresh = order?.fresh ?? false;
   useEffect(() => {
     if (!fresh) return;
@@ -55,48 +61,80 @@ export default function Orders() {
           </View>
         ) : (
           <>
-            <Animated.View entering={FadeInDown.delay(60).duration(420).easing(ease.smoothOut)}>
-              <OrderCard order={order} />
-            </Animated.View>
+            {/* в работе — строки со статусом; нажатие раскрывает путь заказа и действия */}
+            {active.length ? <SectionTitle title="В работе" n={active.length} tone="coral" /> : null}
+            {active.map((o, i) => (
+              <Animated.View key={o.id} entering={FadeInDown.delay(60 + i * 50).duration(420).easing(ease.smoothOut)}>
+                <OrderRow
+                  order={o}
+                  open={openId === o.id}
+                  onToggle={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setOpenId((x) => (x === o.id ? null : o.id));
+                  }}>
+                  {o.stage < 4 ? (
+                    <Tap style={[s.btnMain, onLock === o.id && s.btnDone]} onPress={() => setLock(o)} accessibilityRole="button">
+                      <Text style={[s.btnText, { color: onLock === o.id ? colors.tealInk : '#fff' }]}>
+                        {onLock === o.id ? 'Статус на экране блокировки' : 'Показывать на экране блокировки'}
+                      </Text>
+                    </Tap>
+                  ) : null}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
+                      <Text style={s.btnText}>Проблема с заказом</Text>
+                    </Tap>
+                    {o.items?.length ? (
+                      <Tap
+                        style={s.btn}
+                        onPress={() => {
+                          // тот же состав — сразу на оформление, корзины нет
+                          repeatOrder(o.id);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                          router.push('/checkout');
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Заказать ещё раз то же самое">
+                        <Text style={s.btnText}>Заказать ещё</Text>
+                      </Tap>
+                    ) : null}
+                  </View>
+                </OrderRow>
+              </Animated.View>
+            ))}
 
-            <Animated.View entering={FadeInDown.delay(120).duration(420).easing(ease.smoothOut)} style={{ gap: 8 }}>
-              <Tap style={[s.btnMain, onLock === order.id && s.btnDone]} onPress={() => setLock(true)} accessibilityRole="button">
-                <Text style={[s.btnText, { color: onLock === order.id ? colors.tealInk : '#fff' }]}>
-                  {onLock === order.id ? 'Статус на экране блокировки' : 'Показывать на экране блокировки'}
-                </Text>
-              </Tap>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
-                  <Text style={s.btnText}>Проблема с заказом</Text>
-                </Tap>
-                {order.items?.length ? (
-                  <Tap
-                    style={s.btn}
-                    onPress={() => {
-                      // состав заказа — в корзину, и сразу туда: без плашки, которая висит и ничего не объясняет
-                      repeatOrder(order.id);
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                      router.navigate('/cart');
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Заказать ещё: положить этот заказ в корзину">
-                    <Text style={s.btnText}>Заказать ещё</Text>
-                  </Tap>
-                ) : null}
-              </View>
-            </Animated.View>
-
-            {orders.length > 1 ? (
-              <Animated.View entering={FadeInDown.delay(180).duration(420).easing(ease.smoothOut)} style={{ gap: 8 }}>
-                <Text style={s.h2}>Все заказы</Text>
-                {orders.slice(1).map((o) => (
-                  <View key={o.id} style={s.row}>
-                    <Image source={pic(o.cover)} style={s.rowCover} contentFit="cover" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.rowTitle} numberOfLines={1}>{o.title}</Text>
-                      <Text style={s.rowSub}>№{o.id} · {STAGES[o.stage].toLowerCase()}</Text>
+            {/* полученные — просто строкой: что, когда получен, сколько стоил и «Ещё раз»; раскрывать нечего */}
+            {done.length ? <SectionTitle title="Полученные" n={done.length} tone="teal" /> : null}
+            {done.length ? (
+              <Animated.View entering={FadeInDown.delay(140).duration(420).easing(ease.smoothOut)} style={s.doneList}>
+                {done.map((o, i) => (
+                  <View key={o.id}>
+                    {i ? <View style={s.doneLine} /> : null}
+                    <View style={s.doneRow}>
+                      <View>
+                        <Image source={pic(o.cover)} style={s.doneCover} contentFit="cover" />
+                        <View style={s.doneCheck}>
+                          <CheckIcon size={10} color="#fff" weight="bold" />
+                        </View>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.doneTitle} numberOfLines={1}>{o.title}</Text>
+                        <Text style={s.cardSub} numberOfLines={1}>{o.live.split(' · ')[0]} · {rub(o.total)}</Text>
+                      </View>
+                      {o.items?.length ? (
+                        <Tap
+                          onPress={() => {
+                            // тот же состав — сразу на оформление, корзины нет
+                            repeatOrder(o.id);
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                            router.push('/checkout');
+                          }}
+                          hitSlop={10}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Заказать ещё «${o.title}»`}>
+                          <Text style={s.doneLink}>Ещё раз</Text>
+                        </Tap>
+                      ) : null}
                     </View>
-                    <Text style={s.rowSum}>{rub(o.total)}</Text>
                   </View>
                 ))}
               </Animated.View>
@@ -106,16 +144,16 @@ export default function Orders() {
       </ScrollView>
 
       {/* превью статуса на экране блокировки (Live Activity) */}
-      <Modal visible={lock} transparent animationType="fade" onRequestClose={() => setLock(false)}>
-        {order ? (
+      <Modal visible={lock !== null} transparent animationType="fade" onRequestClose={() => setLock(null)}>
+        {lock ? (
           <LockPreview
-            order={order}
-            added={onLock === order.id}
+            order={lock}
+            added={onLock === lock.id}
             onAdd={() => {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-              setOnLock(order.id);
+              setOnLock(lock.id);
             }}
-            onClose={() => setLock(false)}
+            onClose={() => setLock(null)}
           />
         ) : null}
       </Modal>
@@ -123,33 +161,52 @@ export default function Orders() {
   );
 }
 
-/** Карточка заказа: обложка, название, этап крупно, «будет …», шкала и живая строка. */
-function OrderCard({ order }: { order: PlacedOrder }) {
+/** Заголовок раздела со счётчиком в цветной пилюле: коралловый — в работе, бирюзовый — получены. */
+function SectionTitle({ title, n, tone }: { title: string; n: number; tone: 'coral' | 'teal' }) {
   return (
-    <View style={s.card}>
-      <View style={s.cardHead}>
-        <Image source={pic(order.cover)} style={s.cover} contentFit="cover" />
-        <View style={{ flex: 1 }}>
-          <Text style={s.cardTitle} numberOfLines={1}>{order.title}</Text>
-          <Text style={s.cardSub}>№{order.id} · {order.tariffName} · {rub(order.total)}</Text>
-        </View>
+    <View style={s.sec}>
+      <Text style={s.h2}>{title}</Text>
+      <View style={[s.secPill, { backgroundColor: tone === 'coral' ? colors.coralTint : colors.tealTint }]}>
+        <Text style={[s.secPillText, { color: tone === 'coral' ? colors.coralAction : colors.tealInk }]}>{n}</Text>
       </View>
-
-      {/* тонкая линия, к краям растворяется */}
-      <LinearGradient
-        colors={['rgba(60,40,30,0)', 'rgba(60,40,30,0.2)', 'rgba(60,40,30,0)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={s.divider}
-      />
-
-      <View style={s.statusRow}>
-        <Text style={s.stage}>{NOW[order.stage]}</Text>
-        <Text style={s.eta}>будет {order.readyBy}</Text>
-      </View>
-
-      <Timeline order={order} />
     </View>
+  );
+}
+
+/**
+ * Заказ строкой: обложка, этап и «будет …», название, тонкая шкала этапов.
+ * Нажатие плавно раскрывает путь заказа по шагам и действия.
+ */
+function OrderRow({ order, open, onToggle, children }: { order: PlacedOrder; open: boolean; onToggle: () => void; children?: ReactNode }) {
+  const ready = order.stage >= 4;
+  const turn = useAnimatedStyle(() => ({ transform: [{ rotate: withTiming(open ? '180deg' : '0deg', { duration: 220 }) }] }));
+  return (
+    <Animated.View layout={LinearTransition.duration(260).easing(ease.smoothOut)} style={s.card}>
+      <Tap onPress={onToggle} style={{ gap: 12 }} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${order.title}: ${NOW[order.stage]}${ready ? '' : `, будет ${order.readyBy}`}`}>
+        <View style={s.cardHead}>
+          <StageRing stage={order.stage} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.stage, ready && { color: colors.tealInk }]} numberOfLines={1}>{NOW[order.stage]}</Text>
+            <Text style={s.eta} numberOfLines={1}>{ready ? order.live : `Будет ${order.readyBy} · «${order.title}»`}</Text>
+          </View>
+          <Animated.View style={turn}>
+            <CaretDownIcon size={16} color={colors.mut} weight="bold" />
+          </Animated.View>
+        </View>
+      </Tap>
+      {open ? (
+        <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(140)} style={{ gap: 14 }}>
+          <LinearGradient
+            colors={['rgba(60,40,30,0)', 'rgba(60,40,30,0.2)', 'rgba(60,40,30,0)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={s.divider}
+          />
+          <Timeline order={order} />
+          {children}
+        </Animated.View>
+      ) : null}
+    </Animated.View>
   );
 }
 
@@ -251,15 +308,22 @@ const s = StyleSheet.create({
   paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 22, padding: 14 },
   paidText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  card: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 16 },
+  card: { backgroundColor: colors.card, borderRadius: 24, padding: 14, gap: 14 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cover: { width: 52, height: 60, borderRadius: 12 },
-  cardTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.fg },
+  sec: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  secPill: { minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  secPillText: { fontSize: 13, fontFamily: fonts.bold },
+  stage: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
+  eta: { fontSize: 14.5, lineHeight: 19, fontFamily: fonts.semibold, color: colors.fg, marginTop: 2 },
+  doneList: { borderRadius: 22, borderWidth: 1, borderColor: colors.hair, paddingHorizontal: 12 },
+  doneRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  doneLine: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hair, marginLeft: 52 },
+  doneCover: { width: 40, height: 48, borderRadius: 9, opacity: 0.9 },
+  doneCheck: { position: 'absolute', right: -5, bottom: -5, width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.bg, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
+  doneTitle: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
+  doneLink: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
   cardSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
-  statusRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  stage: { flexShrink: 1, fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
-  divider: { height: 1, marginHorizontal: -16 },
-  eta: { fontSize: 16, fontFamily: fonts.bold, color: colors.coralAction },
+  divider: { height: 1, marginHorizontal: -12 },
 
 
 
@@ -281,11 +345,6 @@ const s = StyleSheet.create({
   tlTitle: { flexShrink: 1, fontSize: 15.5, fontFamily: fonts.bold, color: colors.fg },
   tlWhen: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, fontVariant: ['tabular-nums'] },
   tlPlace: { fontSize: 13.5, lineHeight: 18, fontFamily: fonts.regular, color: colors.mut },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, padding: 10, paddingRight: 16 },
-  rowCover: { width: 44, height: 52, borderRadius: 10 },
-  rowTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
-  rowSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
-  rowSum: { fontSize: 15, fontFamily: fonts.display, color: colors.fg },
 
   empty: { backgroundColor: colors.card, borderRadius: 26, padding: 20, gap: 6 },
   emptyTitle: { fontSize: 22, fontFamily: fonts.display, color: colors.fg },

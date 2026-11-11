@@ -41,7 +41,6 @@ export default function RootLayout() {
         <Stack.Screen name="retouch" />
         <Stack.Screen name="print" />
         <Stack.Screen name="editor" />
-        <Stack.Screen name="drafts" />
         <Stack.Screen name="cards" options={{ presentation: 'modal' }} />
         <Stack.Screen name="preview" options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />

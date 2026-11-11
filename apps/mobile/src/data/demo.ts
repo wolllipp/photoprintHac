@@ -133,13 +133,37 @@ export const spreads: Spread[] = [
   { left: 'two', right: 'three', photos: ['night-window', 'city-sunset', 'friends-selfie', 'cafe-dessert', 'concert'] },
 ];
 
+/* ---------- лента «Ваши книги» на главной ---------- */
+/**
+ * Только свои напечатанные книги — без чужих людей. Повод вернуться: «год назад», «как вам книга?»,
+ * а из каждой карточки — поделиться (+100 пиков за друга) или заказать ещё.
+ */
+export type Memory = {
+  id: string;
+  kind: 'yearAgo' | 'arrived' | 'book';
+  /** когда напечатана — месяц и год */
+  printed: string;
+  title: string;
+  /** когда напечатана и сколько страниц */
+  meta: string;
+  pages: PhotoName[];
+  tariff: Tariff['id'];
+  format: string;
+  pageCount: number;
+};
+export const memories: Memory[] = [
+  { id: 'grodno-2025', kind: 'yearAgo', printed: 'ноябрь 2025', title: 'Осень в Гродно', meta: 'Lite · 20×20 · 24 стр.', pages: ['city-sunset', 'night-window', 'cafe-dessert', 'cafe-interior', 'concert', 'roses'], tariff: 'lite', format: '20×20', pageCount: 24 },
+  { id: 'grad-2026', kind: 'arrived', printed: 'ноябрь 2026', title: 'Выпускной 11 «Б»', meta: 'Classic · 21×30 · 32 стр.', pages: ['friends-night', 'friends-selfie', 'concert', 'birthday-cake', 'city-sunset'], tariff: 'classic', format: '21×30', pageCount: 32 },
+  { id: 'dacha-2026', kind: 'book', printed: 'август 2026', title: 'Лето на даче', meta: 'Classic · 20×20 · 24 стр.', pages: ['bouquet', 'roses', 'birthday-cake', 'cafe-dessert', 'night-window'], tariff: 'classic', format: '20×20', pageCount: 24 },
+];
+
 /* ---------- общие альбомы ---------- */
 export type SharedAlbum = { id: string; name: string; photo: PhotoName; photos: number; guests: number; status: string; open: boolean };
 export const sharedAlbums: SharedAlbum[] = [
   { id: '11b-2026', name: 'Выпускной 11 «Б»', photo: 'friends-night', photos: 44, guests: 7, status: 'сбор фото до 30 ноя', open: true },
   { id: 'cafes', name: 'Кофейни с друзьями', photo: 'cafe-interior', photos: 23, guests: 6, status: 'сбор закрыт · книга заказана', open: false },
 ];
-export const OCCASIONS = ['Выпускной', 'Свадьба', 'День рождения', 'Корпоратив', 'Поездка', 'Другое'];
+export const OCCASIONS = ['Юбилей', 'День рождения', 'Свадьба', 'Выпускной', 'Поездка', 'Другое'];
 
 /* ---------- пики ---------- */
 /** Правила — notes/16-points.md. Без стартового подарка; имя друга не показываем (персональные данные). */

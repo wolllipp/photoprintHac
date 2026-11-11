@@ -12,7 +12,6 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pik, Tap } from '@/components/ui';
-import { suggestions } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { ease } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -37,7 +36,7 @@ export default function Profile() {
       },
     ]);
   const logout = () =>
-    Alert.alert('Выйти из аккаунта?', 'Корзина и черновики останутся в аккаунте — вернутся, когда войдёте снова.', [
+    Alert.alert('Выйти из аккаунта?', 'Черновики и заказы останутся в аккаунте — вернутся, когда войдёте снова.', [
       { text: 'Отмена', style: 'cancel' },
       { text: 'Выйти', style: 'destructive', onPress: () => router.back() },
     ]);
@@ -62,7 +61,7 @@ export default function Profile() {
         {/* переходы */}
         <Animated.View entering={enter(1)} style={s.group}>
           <Row title="Пики" sub="баллы за друзей и отзывы" onPress={() => router.push('/points')} right={<View style={s.pts}><Text style={s.ptsText}>{points}</Text><Pik size={18} /></View>} />
-          <Row title="Мои дизайны" sub={`${suggestions.length} черновика книг`} onPress={() => router.push('/drafts')} />
+          <Row title="Черновики" sub="незаконченные книги — храним 60 дней" onPress={() => { router.back(); router.navigate('/drafts'); }} />
           <Row
             title="Заказы"
             sub={orders.length ? `${orders.length} · последний «${orders[0].title}»` : 'пока нет'}

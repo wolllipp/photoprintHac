@@ -12,7 +12,6 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AddedToast, useAdded } from '@/components/added';
 import { Tap } from '@/components/ui';
 import { BOOK, bookPrice, drafts, fitFormat, fitPages, FORMATS_BY_TARIFF, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { type PhotoName, pic } from '@/data/photos';
@@ -25,7 +24,12 @@ export default function BookScreen() {
   const id = params.id;
   const draft = drafts[id ?? 'karelia'] ?? drafts.karelia;
   const insets = useSafeAreaInsets();
-  const { addToCart, setLastBook } = useStore();
+  const { orderNow, startDraft } = useStore();
+  // открыл книгу — она стала черновиком: если отвлекут, будет ждать в «Черновиках»
+  useEffect(() => {
+    startDraft(id ?? 'karelia');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
   const [tariff, setTariff] = useState<Tariff>(tariffs[1]);
   const [finish, setFinish] = useState<'Глянец' | 'Зерно'>(params.lam === 'зернистая' ? 'Зерно' : 'Глянец');
   // формат и страницы — из диалога, если пришли оттуда; цена пересчитывается от всего сразу
@@ -84,9 +88,10 @@ export default function BookScreen() {
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: ty.value }] }));
   const stageStyle = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, sheetH.value - ty.value) }));
 
-  const added = useAdded();
-  const onAdd = () => {
-    addToCart({
+  // «Заказать» — сразу на оформление, без корзины; незаконченная книга остаётся в «Черновиках»
+  const onOrder = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    orderNow({
       projectId: id ?? 'karelia',
       title: draft.title,
       tariff: tariff.id,
@@ -98,9 +103,7 @@ export default function BookScreen() {
       readyBy: tariff.readyBy,
       cover: draft.cover,
     });
-    // в корзину — и остаёмся здесь: человек сам решит, когда оформлять
-    setLastBook(null);
-    added.show(draft.title, draft.cover);
+    router.push('/checkout');
   };
 
   return (
@@ -218,16 +221,15 @@ export default function BookScreen() {
         </View>
 
         {/* цена уже на выбранном тарифе — на кнопке без повтора */}
-        <Tap style={s.cta} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`В корзину, ${tariff.name}, ${rub(price)}`}>
-          <Text style={s.ctaText}>В корзину</Text>
+        <Tap style={s.cta} onPress={onOrder} accessibilityRole="button" accessibilityLabel={`Заказать, ${tariff.name}, ${rub(price)}`}>
+          <Text style={s.ctaText}>Заказать · {rub(price)}</Text>
         </Tap>
       </Animated.View>
-      <AddedToast shown={added.shown} onHide={added.hide} bottom={insets.bottom + 84} />
     </View>
   );
 }
 
-/** Тариф: выбор — обводка плавно проявляется, на миг вспыхивает свечение (как допуслуги в корзине). */
+/** Тариф: выбор — обводка плавно проявляется, на миг вспыхивает свечение (как способ доставки при оформлении). */
 function TariffTile({ t, price, on, onPick }: { t: Tariff; price: number; on: boolean; onPick: () => void }) {
   const v = useSharedValue(on ? 1 : 0);
   const glow = useSharedValue(0);

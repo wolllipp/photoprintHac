@@ -1,7 +1,7 @@
 /**
- * «Оформление» — после корзины: что заказываем (одной строкой), доставка, оплата (карта или ЕРИП),
- * получатель (телефон, код из SMS — только при первом заказе, A10), пики, итог и «Оплатить».
- * Выбор доставки и оплаты — строками с рамкой, как допуслуги в корзине; итог шрифтом заголовков;
+ * «Оформление» — сразу после «Заказать», корзины нет (notes/25): что заказываем (одной строкой), доставка,
+ * оплата (карта или ЕРИП), допуслуги и промокод, получатель (телефон, код из SMS — только при первом заказе, A10),
+ * пики, итог и «Оплатить». Выбор — строками с рамкой; итог шрифтом заголовков;
  * кнопка — как «Оформить»: текст слева, сумма в пилюле справа.
  */
 import * as Haptics from 'expo-haptics';
@@ -17,13 +17,16 @@ import { ChoiceTile } from '@/components/choice';
 import { Pik, Tap } from '@/components/ui';
 import { delivery, payments, pickupPoints, PIK_RATE, piksUsable } from '@/data/demo';
 import { pic } from '@/data/photos';
-import { cartTotal, rub, useStore } from '@/data/store';
+import { cartTotal, EXTRAS, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
-  const { cart, placeOrder, points, extras, cards, cardId, phone, setPhone } = useStore();
+  const { cart, placeOrder, points, extras, toggleExtra, cards, cardId, phone, setPhone } = useStore();
+  // промокод (ТЗ: на пути заказа); демо-код PICPAC10 — −10% к товарам
+  const [promo, setPromo] = useState('');
+  const [promoOk, setPromoOk] = useState<boolean | null>(null);
   const card = cards.find((c) => c.id === cardId) ?? cards[0];
   // телефон: смотреть → ввести новый → код из SMS (демо-код 0000)
   const [phoneStep, setPhoneStep] = useState<'view' | 'edit' | 'code'>('view');
@@ -57,7 +60,7 @@ export default function Checkout() {
   if (!cart.length) {
     return (
       <View style={[s.screen, s.empty, { paddingTop: insets.top }]}>
-        <Text style={s.emptyTitle}>Корзина пуста</Text>
+        <Text style={s.emptyTitle}>Нечего оформлять</Text>
         <Tap style={s.emptyBtn} onPress={() => router.back()} accessibilityRole="button">
           <Text style={s.emptyBtnText}>Назад</Text>
         </Tap>
@@ -67,12 +70,18 @@ export default function Checkout() {
 
   const d = delivery.find((x) => x.id === deliveryId) ?? delivery[0];
   const goods = cartTotal(cart, extras);
+  const promoOff = promoOk ? Math.round(cart.reduce((a, it) => a + it.price * it.qty, 0) * 0.1 * 100) / 100 : 0;
   // пиками — до 30% товаров, доставка не входит; списываем только то, что ушло в скидку
   const piksCan = piksUsable(points, goods);
   const piksCapped = piksCan < points;
   const piksSpent = usePiks ? piksCan : 0;
   const piksOff = Math.round(piksSpent * PIK_RATE * 100) / 100;
-  const total = Math.round((goods + d.price - piksOff) * 100) / 100;
+  const total = Math.round((goods - promoOff + d.price - piksOff) * 100) / 100;
+  const applyPromo = () => {
+    const ok = promo.trim().toUpperCase() === 'PICPAC10';
+    setPromoOk(ok);
+    Haptics.notificationAsync(ok ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error).catch(() => {});
+  };
   const pieces = cart.reduce((a, it) => a + it.qty, 0);
 
   const onPay = () => {
@@ -97,8 +106,12 @@ export default function Checkout() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
+      {/* заголовок и крестик — в одну линию */}
       <View style={s.nav}>
-        <Tap style={s.round} onPress={() => (router.canGoBack() ? router.back() : router.replace('/cart'))} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
+        <Animated.Text entering={enter(0)} style={[s.title, { flex: 1 }]} numberOfLines={1}>
+          Оформление
+        </Animated.Text>
+        <Tap style={s.round} onPress={() => (router.canGoBack() ? router.back() : router.replace('/drafts'))} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
           <XIcon size={16} color={colors.fg} weight="bold" />
         </Tap>
       </View>
@@ -109,13 +122,10 @@ export default function Checkout() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive">
-        <Animated.Text entering={enter(0)} style={s.title}>
-          Оформление
-        </Animated.Text>
 
-        {/* что заказываем — одной строкой, полный список уже был в корзине */}
+        {/* что заказываем — одной строкой; нажатие — вернуться к книге */}
         <Animated.View entering={enter(1)}>
-          <Tap style={s.goods} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`${pieces} товара, ${rub(goods)}, вернуться в корзину`}>
+          <Tap style={s.goods} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`${pieces} товара, ${rub(goods)}, вернуться назад`}>
             <View style={s.covers}>
               {cart.slice(0, 3).map((it, i) => (
                 <Image key={it.id} source={pic(it.cover)} style={[s.cover, { marginLeft: i ? -14 : 0, zIndex: 3 - i }]} contentFit="cover" />
@@ -193,7 +203,39 @@ export default function Checkout() {
           </View>
         </Animated.View>
 
+        {/* допуслуги и промокод — бывшая часть корзины */}
         <Animated.View entering={enter(4)} style={s.section}>
+          <Text style={s.h2}>Добавить к заказу</Text>
+          {EXTRAS.map((e) => (
+            <ChoiceTile key={e.id} title={e.title} sub={e.sub} right={`+${rub(e.price)}`} on={extras.includes(e.id)} onPick={() => toggleExtra(e.id)} />
+          ))}
+          <View style={[s.row, promoOk === false && s.rowWarn]}>
+            <TextInput
+              value={promo}
+              onChangeText={(t) => {
+                setPromo(t);
+                setPromoOk(null);
+              }}
+              onSubmitEditing={applyPromo}
+              placeholder="Промокод"
+              placeholderTextColor={colors.mut2}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="done"
+              style={[s.rowTitle, { flex: 1, paddingVertical: 4 }]}
+              accessibilityLabel="Промокод"
+            />
+            {promoOk ? (
+              <Text style={[s.link, { color: colors.tealInk }]}>−10%</Text>
+            ) : promo.trim() ? (
+              <Tap onPress={applyPromo} accessibilityRole="button" hitSlop={10}>
+                <Text style={s.link}>{promoOk === false ? 'Не подошёл' : 'Применить'}</Text>
+              </Tap>
+            ) : null}
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={enter(5)} style={s.section}>
           <Text style={s.h2}>Получатель</Text>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
@@ -206,8 +248,9 @@ export default function Checkout() {
             </View>
         </Animated.View>
 
-        <Animated.View entering={enter(5)} style={s.sums}>
+        <Animated.View entering={enter(6)} style={s.sums}>
           <View style={s.sum}><Text style={s.sumL}>Товары{extras.length ? ' и услуги' : ''}</Text><AnimatedNumber value={goods} format={rub} style={s.sumR} /></View>
+          {promoOk ? <View style={s.sum}><Text style={s.sumL}>Промокод</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(promoOff)}</Text></View> : null}
           <View style={s.sum}><Text style={s.sumL}>Доставка</Text><AnimatedNumber value={d.price} format={rub} style={s.sumR} /></View>
           {usePiks ? <View style={s.sum}><Text style={s.sumL}>Пики</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(piksOff)}</Text></View> : null}
           <View style={[s.sum, { marginTop: 4 }]}><Text style={s.totalL}>Итого</Text><AnimatedNumber value={total} format={rub} style={s.totalR} /></View>
@@ -441,7 +484,7 @@ function formatPhone(t: string) {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  nav: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
+  nav: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
   round: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: 16, gap: 18 },
   title: { fontSize: 32, lineHeight: 38, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },

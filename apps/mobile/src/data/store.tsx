@@ -1,5 +1,7 @@
 /**
- * Состояние покупки на клиенте: корзина и оформленные заказы.
+ * Состояние покупки на клиенте: что сейчас оформляем, черновики и оформленные заказы.
+ * Корзины нет (стратегия трека 2, notes/25): «Заказать» сразу ведёт на оформление, а незаконченное лежит в «Черновиках».
+ * cart — это то, что оформляется прямо сейчас (одна книга, печать или повтор заказа).
  * Позже заменяется вызовами API (POST /orders, GET /orders/{id}).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -58,6 +60,14 @@ export type PlacedOrder = {
 };
 
 /** Заказ, который уже в пути (его же показывает плитка на главной). */
+/** Уже полученные заказы — те же книги, что в ленте «Ваши книги» на главной. */
+const DONE_ORDERS: PlacedOrder[] = [
+  { id: '4791930', title: 'Выпускной 11 «Б»', tariffName: 'Classic', total: 104.65, readyBy: '5 ноя', placedAt: new Date(2026, 10, 2), fresh: false, cover: 'friends-night', stage: 4, live: 'получен 5 ноя · Европочта, ПВЗ №112',
+    items: [{ id: 'grad-classic-21×30-Глянец', projectId: 'grad-2026', title: 'Выпускной 11 «Б»', tariff: 'classic', tariffName: 'Classic', format: '21×30', pages: 32, finish: 'Глянец', price: 104.65, readyBy: '5 ноя', cover: 'friends-night', qty: 1 }] },
+  { id: '4790412', title: 'Лето на даче', tariffName: 'Classic', total: 87, readyBy: '21 авг', placedAt: new Date(2026, 7, 18), fresh: false, cover: 'bouquet', stage: 4, live: 'получен 21 авг · Белпочта',
+    items: [{ id: 'dacha-classic-20×20-Глянец', projectId: 'dacha-2026', title: 'Лето на даче', tariff: 'classic', tariffName: 'Classic', format: '20×20', pages: 24, finish: 'Глянец', price: 87, readyBy: '21 авг', cover: 'bouquet', qty: 1 }] },
+];
+
 const DEMO_ORDER: PlacedOrder = {
   id: '4792088',
   title: 'Юбилей мамы',
@@ -105,9 +115,20 @@ type Store = {
   clearCart: () => void;
   orders: PlacedOrder[];
   placeOrder: (total: number, spentPoints?: number) => PlacedOrder | null;
-  /** «Повторить»: положить состав заказа в корзину */
+  /** «Повторить»: состав заказа — сразу на оформление */
   repeatOrder: (id: string) => number;
+  /** «Заказать»: эта позиция и есть заказ — без корзины, сразу на оформление */
+  orderNow: (item: Omit<CartItem, 'id' | 'qty'>) => void;
+  /** черновики: книги, которые человек начал (открыл), но не заказал; id книги → когда начал.
+   *  Предложения ИИ в кружках сюда не попадают, пока их не открыли. */
+  started: Record<string, number>;
+  startDraft: (id: string) => void;
+  /** черновики, которые человек убрал */
+  hiddenDrafts: string[];
+  hideDraft: (id: string) => void;
   points: number;
+  /** начислить пики (отзыв о книге и т. п.) */
+  addPoints: (n: number) => void;
   markSeen: () => void;
   /** нижнее меню скрыто, пока на главной виден полноэкранный кадр */
   tabBarHidden: boolean;
@@ -127,7 +148,7 @@ const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<PlacedOrder[]>([DEMO_ORDER]);
+  const [orders, setOrders] = useState<PlacedOrder[]>([DEMO_ORDER, ...DONE_ORDERS]);
   const [points, setPoints] = useState(initialPoints);
   const [tabBarHidden, setTabBarHidden] = useState(false);
   const [showIntro, setShowIntroState] = useState(true);
@@ -140,6 +161,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [aiConsent, setAiConsent] = useState(false);
   const [lastBook, setLastBook] = useState<LastBook | null>(null);
   const [gesturesSeen, setGesturesSeen] = useState(false);
+  const [hiddenDrafts, setHiddenDrafts] = useState<string[]>([]);
+  // демо: одну книгу человек начал неделю назад и бросил
+  const [started, setStarted] = useState<Record<string, number>>(() => ({ concerts: Date.now() - 6 * 86_400_000 }));
 
   // восстановить всё после перезапуска; пока не прочитали — не перезаписываем сохранённое
   const [loaded, setLoaded] = useState(false);
@@ -149,7 +173,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!raw) return;
         const v = JSON.parse(raw);
         if (Array.isArray(v.cart)) setCart(v.cart);
-        if (Array.isArray(v.orders) && v.orders.length) setOrders(v.orders.map((o: PlacedOrder) => ({ ...o, placedAt: new Date(o.placedAt), fresh: false })));
+        if (Array.isArray(v.orders) && v.orders.length) {
+          const saved: PlacedOrder[] = v.orders.map((o: PlacedOrder) => ({ ...o, placedAt: new Date(o.placedAt), fresh: false }));
+          // демо-история полученных заказов появляется и у тех, кто уже открывал приложение раньше
+          setOrders([...saved, ...DONE_ORDERS.filter((d) => !saved.some((x) => x.id === d.id))]);
+        }
         if (typeof v.points === 'number') setPoints(v.points);
         if (Array.isArray(v.extras)) setExtras(v.extras);
         if (Array.isArray(v.cards) && v.cards.length) setCardList(v.cards);
@@ -158,6 +186,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (typeof v.aiConsent === 'boolean') setAiConsent(v.aiConsent);
         if (v.lastBook) setLastBook(v.lastBook);
         if (v.gesturesSeen) setGesturesSeen(true);
+        if (Array.isArray(v.hiddenDrafts)) setHiddenDrafts(v.hiddenDrafts);
+        if (v.started && typeof v.started === 'object') setStarted(v.started);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -166,8 +196,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, gesturesSeen })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -222,6 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearCart: () => setCart([]),
       orders,
       points,
+      addPoints: (n) => setPoints((p) => p + n),
       tabBarHidden,
       setTabBarHidden,
       showIntro,
@@ -230,19 +261,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDesign,
       markSeen: () => setOrders((o) => o.map((x) => (x.fresh ? { ...x, fresh: false } : x))),
       repeatOrder: (id) => {
-        const o = orders.find((x) => x.id === id);
-        const items = o?.items ?? [];
-        setCart((c) => {
-          const next = [...c];
-          for (const it of items) {
-            const at = next.findIndex((x) => x.id === it.id);
-            if (at >= 0) next[at] = { ...next[at], qty: Math.min(20, next[at].qty + it.qty) };
-            else next.push(it);
-          }
-          return next;
-        });
+        const items = orders.find((x) => x.id === id)?.items ?? [];
+        setCart(items);
+        setExtras([]);
         return items.length;
       },
+      orderNow: (item) => {
+        setCart([{ ...item, id: `${item.projectId}-${item.tariff}-${item.format}-${item.finish}`, qty: 1 }]);
+        setExtras([]);
+      },
+      started,
+      // открыли книгу снова — она опять черновик, даже если раньше её убрали или заказали
+      startDraft: (id) => {
+        setStarted((st) => ({ ...st, [id]: Date.now() }));
+        setHiddenDrafts((h) => (h.includes(id) ? h.filter((x) => x !== id) : h));
+      },
+      hiddenDrafts,
+      hideDraft: (id) => setHiddenDrafts((h) => (h.includes(id) ? h : [...h, id])),
       placeOrder: (total, spentPoints = 0) => {
         const item = cart[0];
         if (!item) return null;
@@ -262,11 +297,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setOrders((o) => [order, ...o]);
         setCart([]);
         setExtras([]);
+        // оформили книгу — из черновиков она уходит
+        setHiddenDrafts((h) => (h.includes(item.projectId) ? h : [...h, item.projectId]));
+        // в демо незаконченная книга одна — заказали книгу, значит, «Продолжить книгу» больше не нужно
+        if (item.tariff !== 'print') setLastBook(null);
         if (spentPoints) setPoints((p) => Math.max(0, p - spentPoints));
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

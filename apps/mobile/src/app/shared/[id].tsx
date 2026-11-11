@@ -1,17 +1,17 @@
 /**
- * Общий альбом по QR-коду (UC-G1): организатор показывает код — гости сканируют и загружают фото
- * со страницы в браузере, без установки приложения. Организатор видит, как альбом наполняется,
+ * Общий альбом по ссылке (UC-G1): организатор отправляет ссылку в чат родных — каждый открывает её и загружает фото
+ * со страницы в браузере, без установки приложения. QR-код — запасной вариант, когда все рядом (праздник). Организатор видит, как альбом наполняется,
  * и собирает книгу из всех снимков. В продукте — POST /shared-albums, поток загрузок по WebSocket.
  * Здесь новые фото приходят по таймеру (DEMO_MODE).
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ShareNetworkIcon } from 'phosphor-react-native';
+import { LinkSimpleIcon, QrCodeIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import Animated, { LinearTransition, ReduceMotion, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition, ReduceMotion, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NavBar } from '@/components/nav';
@@ -26,10 +26,13 @@ const FACES: PhotoName[] = ['friends-selfie', 'friends-night', 'concert'];
 
 export default function Shared() {
   const insets = useSafeAreaInsets();
-  const p = useLocalSearchParams<{ id: string; name?: string; fresh?: string }>();
+  const p = useLocalSearchParams<{ id: string; name?: string; fresh?: string; kind?: string; status?: string }>();
+  // подарок к дате — QR не нужен: родные далеко, ссылка уходит в чат
+  const gift = p.kind === 'gift';
   const known = sharedAlbums.find((a) => a.id === p.id);
   const fresh = p.fresh === '1'; // только что создан — альбом пустой, гости ещё не пришли
   const LINK = `https://picpac.by/a/${p.id}`;
+  const [qr, setQr] = useState(false);
   const [name, setName] = useState(p.name ?? known?.name ?? 'Общий альбом');
   const [got, setGot] = useState(fresh ? 0 : 3); // сколько новых фото уже пришло
   const base = fresh ? { photos: 0, guests: 0 } : { photos: (known?.photos ?? 41) - 3, guests: (known?.guests ?? 7) - 1 };
@@ -45,7 +48,7 @@ export default function Shared() {
 
   const share = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    Share.share({ message: `Добавляйте фото в альбом «${name}»: ${LINK}` }).catch(() => {});
+    Share.share({ message: `Собираем альбом «${name}» — добавьте свои фото, приложение не нужно: ${LINK}` }).catch(() => {});
   };
 
   const recent = INCOMING.slice(0, got).reverse();
@@ -56,21 +59,40 @@ export default function Shared() {
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
         <Animated.View entering={enterItem(0)} style={{ gap: 4 }}>
           <TextInput value={name} onChangeText={setName} style={s.name} accessibilityLabel="Название альбома" />
-          <Text style={s.lead}>Гости сканируют код и добавляют фото со своего телефона — без приложения и регистрации.</Text>
+          {p.status ?? known?.status ? (
+            <View style={s.deadline}>
+              <Text style={s.deadlineText}>{p.status ?? known?.status}</Text>
+            </View>
+          ) : null}
+          <Text style={s.lead}>Отправьте ссылку родным в чат — они откроют её и добавят фото со своего телефона, без приложения и регистрации.</Text>
         </Animated.View>
 
-        {/* код */}
-        <Animated.View entering={enterItem(1)} style={s.qrCard}>
-          <View style={s.qrBox} accessible accessibilityLabel={`QR-код альбома, ссылка ${LINK}`}>
-            <QRCode value={LINK} size={196} color={colors.fg} backgroundColor="#fff" ecl="M" />
+        {/* ссылка — главное: отправить в семейный чат; QR — запасной, когда все рядом */}
+        <Animated.View entering={enterItem(1)} style={s.linkCard}>
+          <View style={s.linkRow}>
+            <View style={s.linkIcon}>
+              <LinkSimpleIcon size={20} color={colors.peachInk} weight="bold" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.linkLabel}>Ссылка на альбом</Text>
+              <Text style={s.link} selectable numberOfLines={1}>picpac.by/a/{p.id}</Text>
+            </View>
           </View>
-          <Text style={s.link} selectable>picpac.by/a/{p.id}</Text>
-          <View style={s.btns}>
-            <Tap style={[s.btn, s.btnPrimary]} onPress={share} accessibilityRole="button">
-              <ShareNetworkIcon size={18} color="#fff" weight="bold" />
-              <Text style={s.btnPrimaryText}>Поделиться</Text>
-            </Tap>
-          </View>
+          <Tap style={[s.btn, s.btnPrimary]} onPress={share} accessibilityRole="button" accessibilityLabel="Отправить ссылку на альбом">
+            <ShareNetworkIcon size={18} color="#fff" weight="bold" />
+            <Text style={s.btnPrimaryText}>Отправить ссылку</Text>
+          </Tap>
+          {gift ? null : (
+          <Tap style={s.qrToggle} onPress={() => setQr((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: qr }}>
+            <QrCodeIcon size={16} color={colors.coralLink} weight="bold" />
+            <Text style={s.qrToggleText}>{qr ? 'Скрыть QR-код' : 'Показать QR-код — если все рядом'}</Text>
+          </Tap>
+          )}
+          {qr ? (
+            <Animated.View entering={FadeIn.duration(220)} style={s.qrBox} accessible accessibilityLabel={`QR-код альбома, ссылка ${LINK}`}>
+              <QRCode value={LINK} size={180} color={colors.fg} backgroundColor="#fff" ecl="M" />
+            </Animated.View>
+          ) : null}
         </Animated.View>
 
         {/* живой счётчик */}
@@ -95,7 +117,7 @@ export default function Shared() {
             <View style={s.dot} />
           </View>
           <View style={s.strip}>
-            {recent.length === 0 ? <ThinkingLine text="Ждём первых гостей — покажите им код" style={s.small} /> : null}
+            {recent.length === 0 ? <ThinkingLine text="Ждём первые фото — отправьте ссылку родным" style={s.small} /> : null}
             {recent.map((k) => (
               <Animated.View
                 key={k}
@@ -110,8 +132,8 @@ export default function Shared() {
 
         {/* как это работает */}
         <Animated.View entering={enterItem(3)} style={s.how}>
-          <Step n={1} text="Покажите код на экране или распечатайте карточки на столы" />
-          <Step n={2} text="Гости открывают ссылку и загружают фото — без приложения" />
+          <Step n={1} text="Отправьте ссылку в семейный чат или друзьям" />
+          <Step n={2} text="Каждый открывает её и добавляет фото — без приложения" />
           <Step n={3} text="Вы собираете книгу из всех снимков за пару минут" />
         </Animated.View>
       </ScrollView>
@@ -141,11 +163,18 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 18, gap: 14, paddingTop: 4 },
   name: { fontSize: 28, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg, padding: 0 },
   lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut },
-  qrCard: { backgroundColor: colors.card, borderRadius: 26, padding: 18, alignItems: 'center', gap: 12 },
-  qrBox: { backgroundColor: '#fff', borderRadius: 22, padding: 16 },
-  link: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  deadline: { alignSelf: 'flex-start', backgroundColor: colors.coralTint, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, marginVertical: 4 },
+  deadlineText: { fontSize: 13.5, fontFamily: fonts.semibold, color: colors.coralAction },
+  linkCard: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 12 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  linkIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center' },
+  linkLabel: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  link: { fontSize: 17, fontFamily: fonts.bold, color: colors.fg },
+  qrToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 4 },
+  qrToggleText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.coralLink },
+  qrBox: { alignSelf: 'center', backgroundColor: '#fff', borderRadius: 22, padding: 16 },
   btns: { flexDirection: 'row', gap: 8, alignSelf: 'stretch' },
-  btn: { flex: 1, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  btn: { height: 52, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   btnPrimary: { backgroundColor: colors.coralAction },
   btnPrimaryText: { fontSize: 15, fontFamily: fonts.semibold, color: '#fff' },
   live: { backgroundColor: colors.card, borderRadius: 26, padding: 16, gap: 12 },

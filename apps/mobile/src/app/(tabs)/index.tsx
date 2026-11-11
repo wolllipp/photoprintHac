@@ -5,11 +5,12 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HomeStatus, PlainTopBar, StoryRow } from '@/components/home';
+import { BooksFeed } from '@/components/feed';
+import { NowBlock, PlainTopBar, StoryRow } from '@/components/home';
 import { NewSheet, type NewChoice } from '@/components/newSheet';
 import { PicksViewer } from '@/components/picks';
 import { SoonBlock } from '@/components/soon';
-import { currentOrder, fitPages, suggestions } from '@/data/demo';
+import { fitPages, suggestions } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { colors } from '@/theme';
 
@@ -45,8 +46,9 @@ export default function Home() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 72 }]} showsVerticalScrollIndicator={false}>
         <PlainTopBar points={points} />
         <StoryRow items={suggestions} seen={seen} onNew={() => setCreating(true)} onOpen={setOpen} />
-        <HomeStatus order={currentOrder} onOrder={() => router.navigate('/orders')} />
+        <NowBlock />
         <SoonBlock />
+        <BooksFeed />
       </ScrollView>
 
       <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} />
