@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1200" preserveAspectRatio="xMidYMid slice">
+  <!-- Фон светлого варианта: песочные дюны в одном тоне, стекло мягко их размывает -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBF7F1"/><stop offset=".55" stop-color="#F6EEE4"/><stop offset="1" stop-color="#EADFD2"/></linearGradient>
+    <radialGradient id="sun"><stop offset="0" stop-color="#F3CFC3" stop-opacity=".55"/><stop offset="1" stop-color="#F3CFC3" stop-opacity="0"/></radialGradient>
+    <linearGradient id="d1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEE3D6"/><stop offset="1" stop-color="#E2D4C4"/></linearGradient>
+    <linearGradient id="d2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E4D6C6"/><stop offset="1" stop-color="#D6C5B3"/></linearGradient>
+    <linearGradient id="d3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D9C9B7"/><stop offset="1" stop-color="#C9B6A2"/></linearGradient>
+  </defs>
+  <rect width="1920" height="1200" fill="url(#sky)"/>
+  <circle cx="1500" cy="300" r="620" fill="url(#sun)"/>
+  <path d="M0 640 C260 560 470 620 720 590 C1010 555 1240 640 1500 600 C1680 572 1810 590 1920 570 V1200 H0Z" fill="url(#d1)"/>
+  <path d="M0 800 C320 700 560 830 860 770 C1160 710 1370 840 1640 770 C1760 738 1850 750 1920 735 V1200 H0Z" fill="url(#d2)"/>
+  <path d="M0 1000 C280 900 620 1040 960 960 C1260 890 1540 1040 1920 930 V1200 H0Z" fill="url(#d3)"/>
+</svg>
