@@ -47,7 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-async function raw<T>(method: string, path: string, body?: unknown, auth = true, extra?: Record<string, string>, timeoutMs = TIMEOUT_MS): Promise<T> {
+async function raw<T>(method: string, path: string, body?: unknown, auth = true, extra?: Record<string, string>, timeoutMs = TIMEOUT_MS, retried = false): Promise<T> {
   const headers: Record<string, string> = { ...extra };
   if (auth) {
     const t = await ensureToken();
@@ -66,7 +66,12 @@ async function raw<T>(method: string, path: string, body?: unknown, auth = true,
     });
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
-    if (res.status === 401 && auth) await forgetToken();
+    if (res.status === 401 && auth) {
+      // токен больше не принимается (сервер сменил секрет, база пересоздана): забываем его и один раз повторяем запрос
+      // с новым гостевым — иначе первая загрузка фото после обновления сервера падала с «не авторизован»
+      await forgetToken(headers.Authorization);
+      if (!retried) return raw<T>(method, path, body, auth, extra, timeoutMs, true);
+    }
     if (!res.ok) throw new ApiError(res.status, detailText(data?.detail) || res.statusText);
     return data as T;
   } finally {
@@ -82,16 +87,28 @@ function detailText(d: unknown): string {
 }
 
 /** Гостевой токен: собирать книгу можно без входа. */
+// один запрос гостевого токена на всех: фото грузятся в два потока, и без этого каждый поток завёл бы своего гостя —
+// фото разошлись бы по двум аккаунтам, и книга собралась бы не из всех
+let guestPending: Promise<string> | null = null;
 export async function ensureToken() {
   const t = await loadToken();
   if (t) return t;
-  const r = await raw<{ token: string }>('POST', '/auth/guest', {}, false);
-  await saveToken(r.token, false);
-  return r.token;
+  guestPending ??= (async () => {
+    try {
+      const r = await raw<{ token: string }>('POST', '/auth/guest', {}, false);
+      await saveToken(r.token, false);
+      return r.token;
+    } finally {
+      guestPending = null;
+    }
+  })();
+  return guestPending;
 }
 
 /** Токен больше не принимается (сервер сменил секрет, база пересоздана): забываем его — следующий запрос получит гостевой. */
-async function forgetToken() {
+async function forgetToken(sent?: string) {
+  // другой поток уже получил новый токен — его не трогаем
+  if (sent && token && sent !== `Bearer ${token}`) return;
   token = null;
   registered = false;
   await AsyncStorage.multiRemove([TOKEN_KEY, REGISTERED_KEY]).catch(() => {});
