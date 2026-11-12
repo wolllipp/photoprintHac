@@ -29,7 +29,7 @@ const SHEET_TOP = Platform.OS === 'ios' ? 10 : 24;
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
-  const { cart, placeOrder, points, extras, toggleExtra, cards, cardId, phone, setPhone, orderNow } = useStore();
+  const { cart, placeOrder, points, refreshMe, extras, toggleExtra, cards, cardId, phone, setPhone, orderNow } = useStore();
   // книга в заказе — тариф можно сменить прямо здесь; цена и объём пересчитываются под тариф
   const book = cart[0] && cart[0].tariff !== 'print' && cart.length === 1 ? cart[0] : null;
   const [tariffOpen, setTariffOpen] = useState(false);
@@ -110,7 +110,7 @@ export default function Checkout() {
   // пиками — до 30% товаров, доставка не входит; списываем только то, что ушло в скидку
   const piksCan = piksUsable(points, goods);
   const piksCapped = piksCan < points;
-  const piksSpent = usePiks ? piksCan : 0;
+  const piksSpent = usePiks && signedIn ? piksCan : 0;
   const piksOff = Math.round(piksSpent * PIK_RATE * 100) / 100;
   // порог бесплатной доставки — по товарам без допуслуг и скидок, как на сервере
   const items = cart.reduce((a, it) => a + it.price * it.qty, 0);
@@ -220,6 +220,8 @@ export default function Checkout() {
       signedInRef.current = true;
       setSignedIn(true);
       setPhone(draftPhone);
+      // баланс пиков этого аккаунта — с сервера
+      refreshMe();
       setPhoneStep('view');
       if (payAfterLogin.current) {
         payAfterLogin.current = false;
@@ -326,6 +328,8 @@ export default function Checkout() {
             .map((x) => (
               <ChoiceTile key={x.id} title={x.title} sub={x.sub} on={x.id === payId} onPick={() => setPayId(x.id)} />
             ))}
+          {/* пики — только у вошедшего и только если они есть (баланс с сервера) */}
+          {signedIn && points > 0 ? (
           <View style={s.row}>
             <Pik size={28} />
             <View style={{ flex: 1 }}>
@@ -348,6 +352,7 @@ export default function Checkout() {
               accessibilityLabel="Списать пики"
             />
           </View>
+          ) : null}
         </Animated.View>
 
         {/* допуслуги и промокод — бывшая часть корзины */}

@@ -12,8 +12,14 @@ from decimal import Decimal as D
 from sqlalchemy import select
 
 from app import db
+from app.config import settings
 import app.models  # noqa: F401
-from app.models import DeliveryMethod, OrderItem, Product, ProductOption, Project
+from app.models import DeliveryMethod, OrderItem, PointsLedger, Product, ProductOption, Project, User
+
+# Демо-аккаунт стенда показа (только DEMO_MODE): вход по этому номеру с кодом 0000 — и сразу есть пики.
+# Пики начисляет сервер, приложение баланс только показывает (GET /me).
+DEMO_PHONE = "+375297000000"
+DEMO_POINTS = 350
 
 # (code, title, line, {format: ...}, min_p, base_p, base_price, step_price, max_p, days, assumed)
 BOOKS = [
@@ -102,7 +108,22 @@ async def seed() -> None:
                 d = DeliveryMethod(code=code, title=title, price=price, free_from=free_from, days=days)
                 s.add(d)
             d.title, d.price, d.free_from, d.days = title, price, free_from, days
+        if settings.demo_mode:
+            await seed_demo_account(s)
         await s.commit()
+
+
+async def seed_demo_account(s) -> None:
+    """Демо-аккаунт и его стартовые пики — один раз (повторный сид не начисляет снова)."""
+    user = (await s.execute(select(User).where(User.phone == DEMO_PHONE))).scalar_one_or_none()
+    if user is None:
+        user = User(phone=DEMO_PHONE, name="Демо")
+        s.add(user)
+        await s.flush()
+    granted = (await s.execute(select(PointsLedger.id).where(PointsLedger.user_id == user.id,
+                                                             PointsLedger.reason == "demo_grant"))).first()
+    if not granted:
+        s.add(PointsLedger(user_id=user.id, delta=DEMO_POINTS, reason="demo_grant"))
 
 
 if __name__ == "__main__":

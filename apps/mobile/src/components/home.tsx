@@ -175,7 +175,8 @@ export function OverlapTitle({
 /*  Шапка: аватар · логотип · пики                                         */
 /* ====================================================================== */
 
-export function PlainTopBar({ points }: { points: number }) {
+/** points — null у гостя: пиков без входа нет, плашку не показываем. */
+export function PlainTopBar({ points }: { points: number | null }) {
   return (
     <View style={s.plainTop}>
       {/* логотип — под кнопками и не ловит касания */}
@@ -185,10 +186,12 @@ export function PlainTopBar({ points }: { points: number }) {
       <Tap onPress={() => router.navigate('/settings')} hitSlop={8} style={s.plainAvatar} accessibilityRole="button" accessibilityLabel="Профиль и настройки">
         <Text style={s.plainAvatarText}>И</Text>
       </Tap>
-      <Tap style={s.plainPoints} onPress={() => router.push('/points')} accessibilityRole="button" accessibilityLabel={`${points} пиков, подробнее`}>
-        <AnimatedNumber value={points} format={String} style={[s.pointsText, { color: colors.fg }]} />
-        <Pik />
-      </Tap>
+      {points != null ? (
+        <Tap style={s.plainPoints} onPress={() => router.push('/points')} accessibilityRole="button" accessibilityLabel={`${points} пиков, подробнее`}>
+          <AnimatedNumber value={points} format={String} style={[s.pointsText, { color: colors.fg }]} />
+          <Pik />
+        </Tap>
+      ) : null}
     </View>
   );
 }

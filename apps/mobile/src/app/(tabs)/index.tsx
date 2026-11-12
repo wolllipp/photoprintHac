@@ -14,7 +14,7 @@ import { colors } from '@/theme';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const { points, setCreating } = useStore();
+  const { points, signedIn, setCreating } = useStore();
   // какая подборка открыта на весь экран и какие уже смотрели (серое кольцо)
   const [open, setOpen] = useState<number | null>(null);
   const [seen, setSeen] = useState<string[]>([]);
@@ -23,7 +23,7 @@ export default function Home() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <StatusBar style="dark" animated />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 96 }]} showsVerticalScrollIndicator={false}>
-        <PlainTopBar points={points} />
+        <PlainTopBar points={signedIn ? points : null} />
         <StoryRow items={suggestions} seen={seen} onNew={() => setCreating(true)} onOpen={setOpen} />
         <NowBlock />
         <SoonBlock />

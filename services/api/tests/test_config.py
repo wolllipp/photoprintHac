@@ -41,6 +41,15 @@ async def test_token_signed_with_old_example_secret_is_rejected(client):
     assert (await client.get("/me", headers={"Authorization": f"Bearer {forged}"})).status_code == 401
 
 
+async def test_demo_account_has_points_from_seed(client):
+    from app import db, seed
+    async with db.SessionLocal() as s:  # повторный сид пики второй раз не начисляет
+        await seed.seed_demo_account(s)
+        await s.commit()
+    v = (await client.post("/auth/otp/verify", json={"phone": "+375 29 700-00-00", "code": "0000"})).json()
+    assert (await client.get("/me", headers={"Authorization": f"Bearer {v['token']}"})).json()["points"] == seed.DEMO_POINTS
+
+
 async def test_different_phones_get_different_accounts(client):
     a = (await client.post("/auth/otp/verify", json={"phone": "+375297772221", "code": "0000"})).json()["user"]
     b = (await client.post("/auth/otp/verify", json={"phone": "+375297772222", "code": "0000"})).json()["user"]

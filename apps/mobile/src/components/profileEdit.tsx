@@ -57,7 +57,7 @@ function NameForm({ onDone }: { onDone: () => void }) {
 
 /** Телефон: новый номер → код из SMS → вход в аккаунт этого номера. Код отправляет и проверяет сервер. */
 function PhoneForm({ onDone }: { onDone: () => void }) {
-  const { phone, setPhone } = useStore();
+  const { phone, setPhone, refreshMe } = useStore();
   const [step, setStep] = useState<'num' | 'code'>('num');
   const [num, setNum] = useState('');
   const [code, setCode] = useState('');
@@ -108,6 +108,8 @@ function PhoneForm({ onDone }: { onDone: () => void }) {
           try {
             await verifyCode(num, code);
             setPhone(`+375 ${digits.slice(-9, -7)} •••-••-${digits.slice(-2)}`);
+            // другой номер — другой аккаунт и его пики
+            refreshMe();
             done();
             onDone();
           } catch (e) {

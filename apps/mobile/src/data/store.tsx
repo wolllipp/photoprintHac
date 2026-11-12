@@ -5,9 +5,9 @@
  * Позже заменяется вызовами API (POST /orders, GET /orders/{id}).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { points as initialPoints } from '@/data/demo';
+import { fetchMe, isRegistered } from '@/api/client';
 import { cards as demoCards, phoneMasked, type Card, type Spread } from '@/data/demo';
 import type { Pic } from '@/data/photos';
 
@@ -156,7 +156,12 @@ type Store = {
   /** черновики, которые человек убрал */
   hiddenDrafts: string[];
   hideDraft: (id: string) => void;
+  /** баланс пиков — с сервера (GET /me); у гостя 0 и не показывается */
   points: number;
+  /** вошёл по номеру телефона: только тогда показываем пики */
+  signedIn: boolean;
+  /** перечитать вход и баланс с сервера — после входа и после заказа */
+  refreshMe: () => void;
   /** начислить пики (отзыв о книге и т. п.) */
   addPoints: (n: number) => void;
   markSeen: () => void;
@@ -182,7 +187,27 @@ const Ctx = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<PlacedOrder[]>([DEMO_ORDER, ...DONE_ORDERS]);
-  const [points, setPoints] = useState(initialPoints);
+  // пики не храним на телефоне и не придумываем: баланс приходит с сервера
+  const [points, setPoints] = useState(0);
+  const [signedIn, setSignedIn] = useState(false);
+  const refreshMe = useCallback(() => {
+    const guest = () => {
+      setSignedIn(false);
+      setPoints(0);
+    };
+    (async () => {
+      try {
+        if (!(await isRegistered())) return guest();
+        const me = await fetchMe();
+        setSignedIn(true);
+        setPoints(me.points);
+      } catch {
+        // токен больше не принимается — снова гость; нет связи — оставляем, что было
+        if (!(await isRegistered().catch(() => true))) guest();
+      }
+    })();
+  }, []);
+  useEffect(() => refreshMe(), [refreshMe]);
   const [tabBarHidden, setTabBarHidden] = useState(false);
   const [showIntro, setShowIntroState] = useState(true);
   const [design, setDesign] = useState<Spread[] | null>(null);
@@ -216,7 +241,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           // демо-история полученных заказов появляется и у тех, кто уже открывал приложение раньше
           setOrders([...saved, ...DONE_ORDERS.filter((d) => !saved.some((x) => x.id === d.id))]);
         }
-        if (typeof v.points === 'number') setPoints(v.points);
         if (Array.isArray(v.extras)) setExtras(v.extras);
         if (Array.isArray(v.cards) && v.cards.length) setCardList(v.cards);
         if (typeof v.cardId === 'string') setCardId(v.cardId);
@@ -239,8 +263,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste, name, delivery, serverDrafts })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, name, delivery, serverDrafts]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste, name, delivery, serverDrafts })).catch(() => {});
+  }, [loaded, cart, pending, orders, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, name, delivery, serverDrafts]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -306,6 +330,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearCart: () => setCart([]),
       orders,
       points,
+      signedIn,
+      refreshMe,
       addPoints: (n) => setPoints((p) => p + n),
       creating,
       setCreating,
@@ -367,11 +393,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setHiddenDrafts((h) => (h.includes(item.projectId) ? h : [...h, item.projectId]));
         // в демо незаконченная книга одна — заказали книгу, значит, «Продолжить книгу» больше не нужно
         if (item.tariff !== 'print') setLastBook(null);
-        if (spentPoints) setPoints((p) => Math.max(0, p - spentPoints));
+        // заказ на сервере — остаток пиков берём оттуда; демо-заказ без сервера — вычитаем на экране
+        if (server) refreshMe();
+        else if (spentPoints) setPoints((p) => Math.max(0, p - spentPoints));
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating, name, delivery, serverDrafts],
+    [cart, orders, points, signedIn, refreshMe, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating, name, delivery, serverDrafts],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

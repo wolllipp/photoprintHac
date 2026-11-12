@@ -172,7 +172,6 @@ export async function orderPrintsOnServer(o: {
 }) {
   await ensureRegistered();
   const ids = await upload(o.prints.map((p) => p.uri));
-  if (o.points > 0) await api.post(`/dev/points?amount=${o.points}`).catch(() => {});
   return api.post<{ id: string; number: number; total: string }>('/orders', {
     product: 'print_chemical', // как на сайте по умолчанию: «на фотобумаге, как в фотоателье»
     format: PRINT_FORMAT[o.format] ?? '10x15',
@@ -207,8 +206,7 @@ export async function orderOnServer(o: {
   promo?: string;
 }) {
   await ensureRegistered();
-  // демо: пики живут в приложении — перед заказом переносим на сервер столько, сколько списываем (только DEMO_MODE)
-  if (o.points > 0) await api.post(`/dev/points?amount=${o.points}`).catch(() => {});
+  // пики списывает сервер со своего баланса (GET /me); приложение их не начисляет
   const body = {
     project_id: o.projectId,
     product: o.tariff,

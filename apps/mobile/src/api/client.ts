@@ -123,6 +123,11 @@ export async function verifyCode(phone: string, code: string) {
   return r.user;
 }
 
+/** Кто вошёл и сколько у него пиков — баланс считает только сервер (GET /me). */
+export async function fetchMe() {
+  return raw<{ id: string; phone: string | null; is_guest: boolean; points: number }>('GET', '/me');
+}
+
 /** Ошибка входа — понятной фразой для листа «Номер телефона». */
 export function loginErrorText(e: unknown) {
   if (e instanceof ApiError) {

@@ -21,7 +21,7 @@ import { colors, fonts } from '@/theme';
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
-  const { aiConsent, setAiConsent, phone, points, orders, name, delivery: pref, cards, cardId } = useStore();
+  const { aiConsent, setAiConsent, phone, points, signedIn, orders, name, delivery: pref, cards, cardId } = useStore();
   // что сейчас правим — листом снизу
   const [edit, setEdit] = useState<EditWhat | null>(null);
   const method = delivery.find((d) => d.id === pref.deliveryId) ?? delivery[0];
@@ -78,7 +78,10 @@ export default function Profile() {
 
         {/* переходы */}
         <Animated.View entering={enter(1)} style={s.group}>
-          <Row title="Пики" sub="баллы за друзей и отзывы" onPress={() => router.push('/points')} right={<View style={s.pts}><Text style={s.ptsText}>{points}</Text><Pik size={18} /></View>} />
+          {/* пики — только у вошедшего по номеру; баланс с сервера */}
+          {signedIn ? (
+            <Row title="Пики" sub="баллы за друзей и отзывы" onPress={() => router.push('/points')} right={<View style={s.pts}><Text style={s.ptsText}>{points}</Text><Pik size={18} /></View>} />
+          ) : null}
           <Row title="Черновики" sub="незаконченные книги — храним 60 дней" onPress={() => { router.back(); router.navigate('/drafts'); }} />
           <Row
             title="Заказы"
