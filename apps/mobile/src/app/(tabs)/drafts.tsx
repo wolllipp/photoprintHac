@@ -54,18 +54,18 @@ export default function Drafts() {
     .sort((a, b) => b[1] - a[1])
     .map(([id, at], i) => {
       const d = drafts[id];
-      // книга из превью — открываем там же, где остановились
-      const fromPreview = id === 'karelia' && lastBook;
+      // на этой книге человек остановился — открываем на той же странице
+      const fromPreview = lastBook && (lastBook.params.id ?? 'karelia') === id ? lastBook : null;
       return {
         id,
-        title: fromPreview ? lastBook.title : d.title,
-        cover: fromPreview ? lastBook.cover : d.cover,
+        title: fromPreview ? fromPreview.title : d.title,
+        cover: fromPreview ? fromPreview.cover : d.cover,
         tag: i === 0 ? 'вы остановились здесь' : 'не закончена',
-        pages: fromPreview ? Number(lastBook.params.pages ?? d.pages) : d.pages,
-        format: fromPreview ? lastBook.params.format ?? d.format : d.format,
+        pages: fromPreview ? Number(fromPreview.params.pages ?? d.pages) : d.pages,
+        format: fromPreview ? fromPreview.params.format ?? d.format : d.format,
         photos: d.photos,
         savedAt: at,
-        open: () => (fromPreview ? router.push({ pathname: '/preview', params: lastBook.params }) : router.push({ pathname: '/book/[id]', params: { id } })),
+        open: () => router.push({ pathname: '/review', params: fromPreview ? fromPreview.params : { id } }),
       };
     });
 
@@ -93,13 +93,13 @@ export default function Drafts() {
   const restore = (it: Item) => setPending((p) => p.filter((x) => x !== it.id));
   const expire = (it: Item) => {
     hideDraft(it.id);
-    if (it.id === 'karelia') setLastBook(null);
+    if (lastBook && (lastBook.params.id ?? 'karelia') === it.id) setLastBook(null);
     setPending((p) => p.filter((x) => x !== it.id));
   };
   const live = items.filter((it) => !pending.includes(it.id)).length;
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={[s.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 90 }]} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.screen} contentContainerStyle={[s.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 96 }]} showsVerticalScrollIndicator={false}>
       <View style={s.head}>
         <Text style={s.title}>Черновики</Text>
         {live ? <Text style={s.count}>{live}</Text> : null}

@@ -102,8 +102,11 @@ type Store = {
   phone: string;
   /** согласие на обработку фото ИИ (A14) */
   /** брошенная сборка: книга дошла до превью, но не попала в корзину (A11) */
-  /** подсказка жестов в корзине уже показана */
+  /** подсказка жестов при просмотре книги («→ нравится · ← поменять») уже показана */
   gesturesSeen: boolean;
+  /** накопленный вкус (notes/25, раздел 9): что человек менял свайпом влево — учитываем в следующей книге */
+  taste: string[];
+  addTaste: (t: string) => void;
   setGesturesSeen: (v: boolean) => void;
   lastBook: LastBook | null;
   setLastBook: (b: LastBook | null) => void;
@@ -130,6 +133,9 @@ type Store = {
   /** начислить пики (отзыв о книге и т. п.) */
   addPoints: (n: number) => void;
   markSeen: () => void;
+  /** лист «Создать» открыт — плюсом в нижнем меню или кружком на главной */
+  creating: boolean;
+  setCreating: (v: boolean) => void;
   /** нижнее меню скрыто, пока на главной виден полноэкранный кадр */
   tabBarHidden: boolean;
   setTabBarHidden: (v: boolean) => void;
@@ -162,6 +168,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastBook, setLastBook] = useState<LastBook | null>(null);
   const [gesturesSeen, setGesturesSeen] = useState(false);
   const [hiddenDrafts, setHiddenDrafts] = useState<string[]>([]);
+  const [taste, setTaste] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
   // демо: одну книгу человек начал неделю назад и бросил
   const [started, setStarted] = useState<Record<string, number>>(() => ({ concerts: Date.now() - 6 * 86_400_000 }));
 
@@ -185,8 +193,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (typeof v.phone === 'string') setPhone(v.phone);
         if (typeof v.aiConsent === 'boolean') setAiConsent(v.aiConsent);
         if (v.lastBook) setLastBook(v.lastBook);
-        if (v.gesturesSeen) setGesturesSeen(true);
+        // подсказка теперь про свайпы в книге — старый флаг от корзины не считаем
+        if (v.reviewHint) setGesturesSeen(true);
         if (Array.isArray(v.hiddenDrafts)) setHiddenDrafts(v.hiddenDrafts);
+        if (Array.isArray(v.taste)) setTaste(v.taste);
         if (v.started && typeof v.started === 'object') setStarted(v.started);
       })
       .catch(() => {})
@@ -196,8 +206,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -253,6 +263,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       orders,
       points,
       addPoints: (n) => setPoints((p) => p + n),
+      creating,
+      setCreating,
       tabBarHidden,
       setTabBarHidden,
       showIntro,
@@ -271,6 +283,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setExtras([]);
       },
       started,
+      taste,
+      addTaste: (t) => setTaste((x) => (x.includes(t) ? x : [...x, t])),
       // открыли книгу снова — она опять черновик, даже если раньше её убрали или заказали
       startDraft: (id) => {
         setStarted((st) => ({ ...st, [id]: Date.now() }));
@@ -305,7 +319,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

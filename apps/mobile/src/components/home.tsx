@@ -178,12 +178,13 @@ export function OverlapTitle({
 export function PlainTopBar({ points }: { points: number }) {
   return (
     <View style={s.plainTop}>
-      <Tap onPress={() => router.push('/settings')} style={s.plainAvatar} accessibilityRole="button" accessibilityLabel="Профиль и настройки">
-        <Text style={s.plainAvatarText}>И</Text>
-      </Tap>
-      <View style={s.brand} pointerEvents="none" accessibilityRole="header">
+      {/* логотип — под кнопками и не ловит касания */}
+      <View style={[s.brand, { pointerEvents: 'none' }]} accessibilityRole="header">
         <Logo width={92} color={colors.coral} />
       </View>
+      <Tap onPress={() => router.navigate('/settings')} hitSlop={8} style={s.plainAvatar} accessibilityRole="button" accessibilityLabel="Профиль и настройки">
+        <Text style={s.plainAvatarText}>И</Text>
+      </Tap>
       <Tap style={s.plainPoints} onPress={() => router.push('/points')} accessibilityRole="button" accessibilityLabel={`${points} пиков, подробнее`}>
         <AnimatedNumber value={points} format={String} style={[s.pointsText, { color: colors.fg }]} />
         <Pik />
@@ -256,7 +257,7 @@ export function NowBlock() {
     <Reanimated.View entering={FadeInDown.duration(380)} style={{ gap: 8 }}>
       {/* брошенная книга — фото на всю плитку, как в «Черновиках»: это приглашение вернуться, а не строка статуса */}
       {lastBook ? (
-        <Tap style={s.resume} onPress={() => router.push({ pathname: '/preview', params: lastBook.params })} accessibilityRole="button" accessibilityLabel={`Продолжить книгу «${lastBook.title}» с того же места`}>
+        <Tap style={s.resume} onPress={() => router.push({ pathname: '/review', params: lastBook.params })} accessibilityRole="button" accessibilityLabel={`Продолжить книгу «${lastBook.title}» с того же места`}>
           <Photo source={pic(lastBook.cover)} style={StyleSheet.absoluteFill} />
           <LinearGradient colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.62)']} locations={[0.2, 1]} style={StyleSheet.absoluteFill} />
           <View style={s.resumeTag}>
@@ -318,18 +319,21 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 4,
   },
+  // профиль — в той же рамке, что пики справа: без тени и заливки, шапка читается одной линией
   plainAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.peach,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    zIndex: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(35,43,42,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   plainAvatarText: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: colors.peachInk,
+    fontSize: 18,
+    fontFamily: fonts.display,
+    color: colors.fg,
   },
   plainPoints: {
     flexDirection: 'row',

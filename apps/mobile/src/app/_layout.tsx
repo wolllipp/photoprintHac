@@ -42,7 +42,7 @@ export default function RootLayout() {
         <Stack.Screen name="print" />
         <Stack.Screen name="editor" />
         <Stack.Screen name="cards" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="preview" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="review" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       </Stack>
     </StoreProvider>

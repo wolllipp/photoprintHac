@@ -14,7 +14,6 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { StageRing } from '@/components/stageRing';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
@@ -23,6 +22,10 @@ import { colors, fonts } from '@/theme';
 
 const STAGES = ['Принят', 'Проверен', 'Печать', 'В пути', 'Готов'];
 const NOW = ['Заказ принят', 'Проверяем макет', 'Печатаем', 'Едет к вам', 'Можно забирать'];
+/** Что будет следующим шагом — строкой под полосой. */
+const NEXT = ['проверим макет', 'печать', 'отправка', 'можно забирать', ''];
+/** «Европочта · ПВЗ №112, Притыцкого, 29» → «ПВЗ №112». */
+const place = (live: string) => live.split(' · ').pop()?.split(',')[0] ?? live;
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
@@ -44,7 +47,7 @@ export default function Orders() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 96 }]} showsVerticalScrollIndicator={false}>
         <Text style={s.title}>Заказы</Text>
 
         {fresh ? (
@@ -183,16 +186,26 @@ function OrderRow({ order, open, onToggle, children }: { order: PlacedOrder; ope
   return (
     <Animated.View layout={LinearTransition.duration(260).easing(ease.smoothOut)} style={s.card}>
       <Tap onPress={onToggle} style={{ gap: 12 }} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${order.title}: ${NOW[order.stage]}${ready ? '' : `, будет ${order.readyBy}`}`}>
+        {/* что за заказ — мелко; что сейчас — крупно; когда и где — строкой ниже */}
         <View style={s.cardHead}>
-          <StageRing stage={order.stage} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.stage, ready && { color: colors.tealInk }]} numberOfLines={1}>{NOW[order.stage]}</Text>
-            <Text style={s.eta} numberOfLines={1}>{ready ? order.live : `Будет ${order.readyBy} · «${order.title}»`}</Text>
-          </View>
+          <Text style={s.orderTitle} numberOfLines={1}>«{order.title}»</Text>
           <Animated.View style={turn}>
             <CaretDownIcon size={16} color={colors.mut} weight="bold" />
           </Animated.View>
         </View>
+        <View style={{ gap: 2 }}>
+          <Text style={[s.stage, ready && { color: colors.tealInk }]} numberOfLines={1}>{NOW[order.stage]}</Text>
+          <Text style={s.eta} numberOfLines={1}>{ready ? place(order.live) : `будет ${order.readyBy} в ${place(order.live)}`}</Text>
+        </View>
+        {/* полоса из пяти отрезков: пройденные — коралловые, текущий — наполовину */}
+        <View style={s.segs}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View key={i} style={s.seg}>
+              <View style={[s.segFill, { width: i < order.stage || ready ? '100%' : i === order.stage ? '50%' : '0%' }, ready && { backgroundColor: colors.tealInk }]} />
+            </View>
+          ))}
+        </View>
+        <Text style={s.next} numberOfLines={1}>{ready ? 'заказ готов — заберите в течение 7 дней' : `дальше: «${NEXT[order.stage]}»${order.stage === 3 ? ' — придёт SMS' : ''}`}</Text>
       </Tap>
       {open ? (
         <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(140)} style={{ gap: 14 }}>
@@ -313,8 +326,6 @@ const s = StyleSheet.create({
   sec: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   secPill: { minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   secPillText: { fontSize: 13, fontFamily: fonts.bold },
-  stage: { fontSize: 19, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
-  eta: { fontSize: 14.5, lineHeight: 19, fontFamily: fonts.semibold, color: colors.fg, marginTop: 2 },
   doneList: { borderRadius: 22, borderWidth: 1, borderColor: colors.hair, paddingHorizontal: 12 },
   doneRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   doneLine: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hair, marginLeft: 52 },
@@ -322,6 +333,13 @@ const s = StyleSheet.create({
   doneCheck: { position: 'absolute', right: -5, bottom: -5, width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.bg, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
   doneLink: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
+  orderTitle: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  stage: { fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
+  eta: { fontSize: 15, lineHeight: 20, fontFamily: fonts.semibold, color: colors.coralAction },
+  segs: { flexDirection: 'row', gap: 5 },
+  seg: { flex: 1, height: 7, borderRadius: 4, backgroundColor: colors.card2, overflow: 'hidden' },
+  segFill: { height: 7, borderRadius: 4, backgroundColor: colors.coralAction },
+  next: { fontSize: 13.5, fontFamily: fonts.medium, color: colors.mut },
   cardSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
   divider: { height: 1, marginHorizontal: -12 },
 

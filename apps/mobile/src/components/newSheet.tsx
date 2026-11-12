@@ -19,7 +19,8 @@ import { colors, fonts } from '@/theme';
 
 export type NewChoice = 'photos' | 'words' | 'voice' | 'print' | 'shared';
 
-export function NewSheet({ visible, onClose, onPick }: { visible: boolean; onClose: () => void; onPick: (c: NewChoice) => void }) {
+/** onDismissed — лист полностью закрылся (iOS): только после этого можно открыть галерею. */
+export function NewSheet({ visible, onClose, onPick, onDismissed }: { visible: boolean; onClose: () => void; onPick: (c: NewChoice) => void; onDismissed?: () => void }) {
   const insets = useSafeAreaInsets();
   // свернуть пальцем: лист едет вниз за пальцем; дотянул дальше 120 точек или смахнул — закрывается
   const y = useSharedValue(0);
@@ -54,7 +55,7 @@ export function NewSheet({ visible, onClose, onPick }: { visible: boolean; onClo
     onPick(c);
   };
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismissed}>
       {/* внутри Modal жестам нужен свой корень */}
       <GestureHandlerRootView style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Animated.View style={[StyleSheet.absoluteFill, dim]}>

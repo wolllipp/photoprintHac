@@ -1,31 +1,22 @@
-import { NativeTabs } from 'expo-router/native-tabs';
+import { Tabs } from 'expo-router/tabs';
+import { View } from 'react-native';
 
-import { useStore } from '@/data/store';
+import { CreateHost, TabBar } from '@/components/tabBar';
 import { colors } from '@/theme';
 
 /**
- * Нижнее меню: Главная · Черновики · Заказы. Корзины нет — «Заказать» сразу ведёт на оформление (notes/25). Профиль — по аватару в шапке.
- * Нативные вкладки: на iOS 26+ система сама рисует плавающую стеклянную капсулу.
+ * Нижнее меню: Главная · Черновики · Заказы — три отдельные кнопки-квадратика над экраном, в духе Pinterest
+ * (components/tabBar.tsx). Корзины нет — «Заказать» сразу ведёт на оформление (notes/25).
  */
 export default function TabsLayout() {
-  const { tabBarHidden, started, hiddenDrafts } = useStore();
-  // сколько книг начато и не заказано — то же число, что в заголовке «Черновиков»
-  const draftsCount = Object.keys(started).filter((id) => !hiddenDrafts.includes(id)).length;
   return (
-    <NativeTabs hidden={tabBarHidden} tintColor={colors.coralAction} badgeBackgroundColor={colors.coralAction} iconColor={{ default: colors.mut, selected: colors.coralAction }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Главная</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="drafts">
-        <NativeTabs.Trigger.Label>Черновики</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="book.closed.fill" md="auto_stories" />
-        {draftsCount ? <NativeTabs.Trigger.Badge>{String(draftsCount)}</NativeTabs.Trigger.Badge> : null}
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="orders">
-        <NativeTabs.Trigger.Label>Заказы</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="list.bullet.rectangle.portrait.fill" md="receipt_long" />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}>
+        <Tabs.Screen name="index" options={{ title: 'Главная' }} />
+        <Tabs.Screen name="drafts" options={{ title: 'Черновики' }} />
+        <Tabs.Screen name="orders" options={{ title: 'Заказы' }} />
+      </Tabs>
+      <CreateHost />
+    </View>
   );
 }
