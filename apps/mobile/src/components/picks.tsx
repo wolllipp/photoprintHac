@@ -65,9 +65,23 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
   // полоска текущего кадра: на паузе замирает и потом продолжает с того же места
   const progress = useSharedValue(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // закрыть — экран плавно уезжает вниз, как при свайпе (раньше на последнем кадре он просто резко исчезал)
+  const drag = useSharedValue(0);
+  const closing = useRef(false);
+  const dismiss = () => {
+    if (closing.current) return;
+    closing.current = true;
+    if (timer.current) clearTimeout(timer.current);
+    cancelAnimation(progress);
+    drag.set(
+      withTiming(height, { duration: 320, easing: Easing.in(Easing.quad) }, (fin) => {
+        if (fin) scheduleOnRN(onClose);
+      }),
+    );
+  };
   const next = () => {
     if (frame < frames.length - 1) return setFrame((f) => f + 1);
-    if (page + 1 >= items.length) return onClose();
+    if (page + 1 >= items.length) return dismiss();
     setPage((p) => p + 1);
     setFrame(0);
   };
@@ -113,7 +127,6 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
   }, [page, frame, paused]);
 
   // свайп вниз — закрыть: экран едет за пальцем и чуть уменьшается
-  const drag = useSharedValue(0);
   const pan = usePanGesture({
     activeOffsetY: 12,
     failOffsetX: [-20, 20],
@@ -201,7 +214,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
                 <Text style={s.headTitle} numberOfLines={1}>{item.source === 'phone' ? 'Ваш альбом · с телефона' : 'Идея книги · ещё не заказана'}</Text>
                 <Text style={s.headSub} numberOfLines={1}>{item.meta}</Text>
               </View>
-              <Tap onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="Закрыть">
+              <Tap onPress={dismiss} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="Закрыть">
                 <XIcon size={22} color="#fff" weight="bold" />
               </Tap>
             </View>
