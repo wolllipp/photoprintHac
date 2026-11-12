@@ -51,14 +51,16 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .rings { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0 2px; }
 .rings::-webkit-scrollbar { display: none; }
-.ring-item { flex: 1; min-width: 0; max-width: 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.ring { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; }
-.ring.new { background: var(--coral-action); }
-.ring.story { border: 2.5px dashed var(--coral); }
-.ring.story.seen { border-color: var(--card2); }
-.ring .face { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font: 700 14px/1 Unbounded, sans-serif; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
-.ring-label { font-size: 12px; line-height: 15px; text-align: center; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ring.seen + .ring-label { color: var(--mut); }
+.ring-item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+/* кольцо как у историй: не смотрели — градиент кораллового в персиковый, смотрели — бежевое */
+.ring { width: 100%; max-width: 86px; aspect-ratio: 1; border-radius: 50%; padding: 3px; background: conic-gradient(from 200deg, #F7D5C2, #CC605B, #A9443F, #CC605B, #F7D5C2); transition: background .3s; }
+.ring.seen { background: var(--card2); }
+.ring .face { width: 100%; height: 100%; border-radius: 50%; border: 3px solid #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.ring .v { font: 800 clamp(15px, 4.6vw, 19px)/1 Unbounded, sans-serif; letter-spacing: -.8px; font-variant-numeric: tabular-nums; }
+.ring .v small { font-size: .6em; margin-left: 1px; }
+.ring .d { font-size: 10.5px; font-weight: 800; line-height: 1; padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.75); }
+.ring-label { font-size: 12.5px; line-height: 15px; font-weight: 600; text-align: center; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ring.seen + .ring-label { color: var(--mut); font-weight: 500; }
 
 .hero { position: relative; border-radius: 24px; overflow: hidden; padding: 16px; min-height: 170px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; width: 100%;
   background: radial-gradient(120% 90% at 100% 0%, #F7D5C2 0%, rgba(247,213,194,0) 60%), linear-gradient(160deg, #CC605B 0%, #A9443F 100%); color: #fff; }
@@ -368,24 +370,24 @@ function build() {
   CASES.push({ id: D.deviationsMeta.main, short: 'Брак Ricoh', title: 'Брак на линии Ricoh выше нормы', value: num(cur * 100), unit: '%', stage: 1,
     sub: `норма ${num(base * 100)}% · выше в ${num(cur / base)} раза`, cause: D.assistant?.causeSummary,
     extra: D.batchChange ? `Смена партии: ${D.batchChange.from} → ${D.batchChange.to}` : '', where: [['По сменам', byShift], ['По продуктам', byProduct]],
-    trend: { title: 'Брак по неделям', pts: weekly(ricoh, (xs) => rate(xs) * 100), norm: base * 100, limit: base * 100 * R.detectFactor, unit: '%', mark: ev, hotFrom: R.current[0] }, normV: base * 100,
+    delta: `↑ ×${num(cur / base)}`, trend: { title: 'Брак по неделям', pts: weekly(ricoh, (xs) => rate(xs) * 100), norm: base * 100, limit: base * 100 * R.detectFactor, unit: '%', mark: ev, hotFrom: R.current[0] }, normV: base * 100,
     ask: 'Почему вырос брак на линии Ricoh?', tone: 'cover' });
   const prem = rows.filter((r) => r.product === R.premium);
   const disc = (xs) => xs.reduce((a, r) => a + r.discount, 0) / Math.max(1, xs.reduce((a, r) => a + r.revenue + r.discount, 0));
   const dc = disc(inw(prem, R.current)), db = disc(inw(prem, R.baseline));
   CASES.push({ id: D.deviationsMeta.discount, short: 'Скидка', title: oc['D-117']?.title || 'Скидка на Premium выше нормы', value: num(dc * 100), unit: '%', stage: 0,
     sub: `норма ${num(db * 100)}% · выше в ${num(dc / db)} раза`, cause: oc['D-117']?.cause,
-    trend: { title: 'Средняя скидка по неделям', pts: weekly(prem, (xs) => disc(xs) * 100), norm: db * 100, limit: db * 100 * 1.2, unit: '%', hotFrom: R.current[0] }, ask: 'Почему упала маржа на Premium?', tone: 'cover' });
+    delta: `↑ ×${num(dc / db)}`, trend: { title: 'Средняя скидка по неделям', pts: weekly(prem, (xs) => disc(xs) * 100), norm: db * 100, limit: db * 100 * 1.2, unit: '%', hotFrom: R.current[0] }, ask: 'Почему упала маржа на Premium?', tone: 'cover' });
   const hr = inw(D.hr, R.current), staffed = hr.reduce((a, r) => a + r.staffed, 0) / Math.max(1, hr.reduce((a, r) => a + r.planned, 0));
   CASES.push({ id: D.deviationsMeta.staffing, short: 'Смены', title: oc['D-119']?.title || 'Укомплектованность смен ниже порога', value: num(staffed * 100, 0), unit: '%', stage: 0,
     sub: `порог ${num(R.staffingMin * 100, 0)}% · в сменах меньше людей, чем по плану`, cause: oc['D-119']?.cause,
-    trend: { title: 'Люди в сменах по неделям', pts: weeks.map((w) => { const h = D.hr.filter((r) => r.w === w); return { w, v: (h.reduce((a, r) => a + r.staffed, 0) / Math.max(1, h.reduce((a, r) => a + r.planned, 0))) * 100 }; }), limit: R.staffingMin * 100, low: true, unit: '%', hotFrom: R.current[0] }, ask: 'Почему не хватает людей в сменах?', tone: 'calm' });
+    delta: `↓ ${num((R.staffingMin - staffed) * 100, 0)} п.`, trend: { title: 'Люди в сменах по неделям', pts: weeks.map((w) => { const h = D.hr.filter((r) => r.w === w); return { w, v: (h.reduce((a, r) => a + r.staffed, 0) / Math.max(1, h.reduce((a, r) => a + r.planned, 0))) * 100 }; }), limit: R.staffingMin * 100, low: true, unit: '%', hotFrom: R.current[0] }, ask: 'Почему не хватает людей в сменах?', tone: 'calm' });
   const lv = D.live || {}, open = lv.support_open ?? 0;
   const at = lv.updated_at ? new Date(lv.updated_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '—';
   CASES.push({ id: 'APP', short: 'Приложение', title: 'Заказы и обращения из приложения', value: String(lv.orders_total ?? 0), unit: '', stage: open ? 0 : 4, live: true,
     sub: `${pl(lv.orders_total ?? 0, 'заказ', 'заказа', 'заказов')} · ${open} ${pl(open, 'открытое обращение', 'открытых обращения', 'открытых обращений')} · на ${at}`,
     cause: open ? 'Клиенты пишут по конкретным заказам — номера и темы у ассистента.' : 'Открытых обращений нет, заказы идут по этапам.',
-    ask: 'Есть обращения по заказам из приложения?', tone: 'teal',
+    ask: 'Есть обращения по заказам из приложения?', tone: 'teal', delta: open ? `${open} обращ.` : 'заказы',
     stages: [['Принят', 'accepted'], ['Проверен', 'layout_checked'], ['Печать', 'printing'], ['В пути', 'handed_to_delivery'], ['Готов', 'delivered']].map(([n, k]) => [n, (lv.orders_by_stage || {})[k] || 0]) });
 }
 
@@ -401,7 +403,7 @@ function renderToday() {
   CASES.forEach((c, i) => {
     const old = seen.includes(c.id);
     const face = c.tone === 'teal' ? 'background:#E3F6F3;color:#1F6F67' : c.tone === 'calm' ? 'background:#F1EAE3;color:#3B4B4A' : 'background:#FCE9DE;color:#A9472B';
-    const b = el('button', 'ring-item tap', `<div class="ring story${old ? ' seen' : ''}"><div class="face" style="${face}"><span>${esc(c.value)}${c.unit ? `<small style="font-size:10px">${c.unit}</small>` : ''}</span></div></div><div class="ring-label">${esc(c.short)}</div>`);
+    const b = el('button', 'ring-item tap', `<div class="ring${old ? ' seen' : ''}"><div class="face" style="${face}"><span class="v">${esc(c.value)}${c.unit ? `<small>${c.unit}</small>` : ''}</span>${c.delta ? `<span class="d">${esc(c.delta)}</span>` : ''}</div></div><div class="ring-label">${esc(c.short)}</div>`);
     b.onclick = () => openStory(i); rings.append(b);
   });
   if (!D) { $('#now').innerHTML = `<div class="note warn">Данные дня не загрузились — запустите сервер приложения на :8000. Ассистент работает и так.</div>`; $('#tiles').innerHTML = ''; $('#soon').innerHTML = ''; return; }
