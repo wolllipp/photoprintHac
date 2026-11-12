@@ -32,8 +32,10 @@ uv run pytest
 | Собираем | `POST /projects/{id}/build`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel` |
 | Отбор фото | `GET/PATCH /projects/{id}/selection` |
 | Книга и цена | `GET /catalog/quote`, `/catalog/products`, `/catalog/delivery` |
-| Оформление | `POST /orders` |
+| Оформление | `POST /orders` (книга или фотопечать `prints`, допуслуги `extras`, промокод `promo_code`) |
+| Правка книги | `GET /projects/{id}/pages`, `PUT /projects/{id}/pages/{position}` |
+| Поддержка | `POST/GET /orders/{id}/support` — обращение по заказу |
 | Отслеживание | `GET /orders`, `GET /orders/{id}` |
 | Демо | `POST /dev/orders/{id}/advance[?done=6]`, `POST /dev/points` (только DEMO_MODE) |
 
-Пока нет: претензии по браку, события клиентского пути, Insight, ассистент, фотопечать в заказе, реальная оплата.
+Пока нет: события клиентского пути для Insight, реальная оплата. Ассистент — `services/assistant`, дашборд — `design/insight`.
