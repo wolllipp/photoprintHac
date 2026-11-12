@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Identity, Integer, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Identity, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -70,3 +70,17 @@ class PointsLedger(Base):
     reason: Mapped[str] = mapped_column(String(30))  # referral|story_conversion|moment|order_payment
     order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id"))
     at: Mapped[datetime] = created_at()
+
+
+class SupportTicket(Base):
+    """Обращение в поддержку по конкретному заказу (ТЗ, путь клиента п. 8). Поддержка и Insight видят тему и заказ."""
+    __tablename__ = "support_tickets"
+    id: Mapped[uuid.UUID] = uuid_pk()
+    number: Mapped[int] = mapped_column(Integer, Identity(start=10001), unique=True)
+    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    topic: Mapped[str] = mapped_column(String(20))  # defect | delay | layout | delivery | other
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open | answered | closed
+    answer: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_at()

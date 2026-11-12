@@ -66,7 +66,10 @@ export type PlacedOrder = {
   serverId?: string;
   /** что сейчас происходит на этапе — одной строкой */
   live: string;
+  /** обращения в поддержку по этому заказу */
+  support?: SupportTicket[];
 };
+export type SupportTicket = { number: number; topic: string; text: string; at: number; status: 'open' | 'answered' | 'closed'; slaHours: number };
 
 /** Заказ, который уже в пути (его же показывает плитка на главной). */
 /** Уже полученные заказы — те же книги, что в ленте «Ваши книги» на главной. */
@@ -136,6 +139,7 @@ type Store = {
   placeOrder: (total: number, spentPoints?: number, server?: { id: string; number: number }) => PlacedOrder | null;
   /** этап заказа обновился на сервере */
   setOrderStage: (id: string, stage: number) => void;
+  addSupport: (orderId: string, t: SupportTicket) => void;
   /** «Повторить»: состав заказа — сразу на оформление */
   repeatOrder: (id: string) => number;
   /** «Заказать»: эта позиция и есть заказ — без корзины, сразу на оформление */
@@ -333,6 +337,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hiddenDrafts,
       hideDraft: (id) => setHiddenDrafts((h) => (h.includes(id) ? h : [...h, id])),
       setOrderStage: (id, stage) => setOrders((o) => o.map((x) => (x.id === id && x.stage !== stage ? { ...x, stage } : x))),
+      addSupport: (orderId, t) => setOrders((o) => o.map((x) => (x.id === orderId ? { ...x, support: [t, ...(x.support ?? [])] } : x))),
       placeOrder: (total, spentPoints = 0, server) => {
         const item = cart[0];
         if (!item) return null;

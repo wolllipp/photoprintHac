@@ -240,3 +240,8 @@ export async function orderStage(serverId: string) {
   const o = await api.get<{ stage: string }>(`/orders/${serverId}`);
   return ORDER_STAGE[o.stage] ?? 0;
 }
+
+/** Обращение в поддержку по заказу на сервере (тема и текст) — номер обращения и срок ответа. */
+export async function supportOnServer(serverId: string, topic: string, text: string) {
+  return api.post<{ number: number; status: 'open'; sla_hours: number }>(`/orders/${serverId}/support`, { topic, text });
+}

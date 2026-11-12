@@ -11,7 +11,7 @@ from app.api.projects import locked_owned_project
 from app.config import settings
 from app.db import get_session
 from app.models import (DeliveryMethod, Order, OrderItem, OrderStage, Photo, PickupPoint, PointsLedger, Product,
-                        ProductOption, ProjectPhoto, ProjectStatus, Stage, User)
+                        ProductOption, ProjectPhoto, ProjectStatus, Stage, SupportTicket, User)
 from app.pricing import PricingError, book_price, delivery_cost, eta
 from app.security.auth import registered_user
 
@@ -180,3 +180,45 @@ async def get_order(order_id: uuid.UUID, user: User = Depends(registered_user), 
         pr = await s.get(Project, item.project_id)
         pages = pr.page_count if pr else None
     return order_out(o, stages, pages)
+
+
+# Обращение в поддержку по заказу: тема, текст, номер обращения. Срок ответа — ДОПУЩЕНИЕ (SLA поддержки задаёт заказчик).
+TOPICS = {"defect": "Брак печати", "delay": "Задерживается", "layout": "Ошибка в книге", "delivery": "Доставка", "other": "Другое"}
+SLA_HOURS = 4
+
+
+class TicketIn(BaseModel):
+    topic: str = Field(pattern="^(" + "|".join(TOPICS) + ")$")
+    text: str = Field(min_length=3, max_length=2000)
+
+
+def ticket_out(t: SupportTicket, order_number: int) -> dict:
+    return {"id": str(t.id), "number": t.number, "order_number": order_number, "topic": t.topic,
+            "topic_title": TOPICS[t.topic], "text": t.text, "status": t.status, "answer": t.answer,
+            "created_at": t.created_at.isoformat(), "sla_hours": SLA_HOURS}
+
+
+async def own_order(s: AsyncSession, order_id: uuid.UUID, user: User) -> Order:
+    o = await s.get(Order, order_id)
+    if o is None or o.user_id != user.id:
+        raise HTTPException(404, "заказ не найден")
+    return o
+
+
+@router.post("/orders/{order_id}/support")
+async def create_ticket(order_id: uuid.UUID, body: TicketIn, user: User = Depends(registered_user),
+                        s: AsyncSession = Depends(get_session)):
+    o = await own_order(s, order_id, user)
+    t = SupportTicket(order_id=o.id, user_id=user.id, topic=body.topic, text=body.text.strip())
+    s.add(t)
+    await s.commit()
+    await s.refresh(t)
+    return ticket_out(t, o.number)
+
+
+@router.get("/orders/{order_id}/support")
+async def order_tickets(order_id: uuid.UUID, user: User = Depends(registered_user), s: AsyncSession = Depends(get_session)):
+    o = await own_order(s, order_id, user)
+    rows = (await s.execute(select(SupportTicket).where(SupportTicket.order_id == o.id)
+                            .order_by(SupportTicket.created_at.desc()))).scalars().all()
+    return [ticket_out(t, o.number) for t in rows]

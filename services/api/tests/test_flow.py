@@ -600,3 +600,21 @@ async def test_print_order_without_book(client):
     assert o["total"] == "11.10"               # + Европочта 5,90
     assert (await client.post("/orders", headers=uh, json={**body, "prints": []})).status_code == 422
 
+
+
+async def test_support_ticket_is_linked_to_order(client):
+    """Обращение в поддержку — по конкретному заказу; чужой заказ не найти."""
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    photos = (await client.post("/photos", headers=gh, files=[("files", ("s.png", png(5), "image/png"))])).json()
+    uh = auth((await client.post("/auth/otp/verify", headers=gh, json={"phone": "+375295554433", "code": "0000"})).json()["token"])
+    o = (await client.post("/orders", headers=uh, json={"product": "print_chemical", "format": "10x15", "delivery": "europost_pvz",
+                                                          "payment": "card", "prints": [{"photo_id": photos[0]["id"], "qty": 1}]})).json()
+    r = await client.post(f"/orders/{o['id']}/support", headers=uh, json={"topic": "defect", "text": "Полоса на третьем фото"})
+    assert r.status_code == 200, r.text
+    t = r.json()
+    assert t["order_number"] == o["number"] and t["topic_title"] == "Брак печати" and t["status"] == "open" and t["number"] >= 10001
+    listed = (await client.get(f"/orders/{o['id']}/support", headers=uh)).json()
+    assert [x["number"] for x in listed] == [t["number"]]
+    assert (await client.post(f"/orders/{o['id']}/support", headers=uh, json={"topic": "nope", "text": "абв"})).status_code == 422
+    other = auth((await client.post("/auth/otp/verify", json={"phone": "+375296667788", "code": "0000"})).json()["token"])
+    assert (await client.get(f"/orders/{o['id']}/support", headers=other)).status_code == 404

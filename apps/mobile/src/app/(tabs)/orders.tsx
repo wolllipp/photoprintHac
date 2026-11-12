@@ -15,6 +15,7 @@ import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useSharedValue,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { orderStage } from '@/api/book';
+import { SupportSheet, topicTitle } from '@/components/supportSheet';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
@@ -44,6 +45,8 @@ export default function Orders() {
   );
   // какой заказ показываем на экране блокировки (превью)
   const [lock, setLock] = useState<PlacedOrder | null>(null);
+  // обращение в поддержку — по конкретному заказу
+  const [support, setSupport] = useState<PlacedOrder | null>(null);
   const [onLock, setOnLock] = useState<string | null>(null);
   // раскрыт только что оплаченный заказ; остальные — строками
   const [openId, setOpenId] = useState<string | null>(() => (orders[0]?.fresh ? orders[0].id : null));
@@ -95,7 +98,7 @@ export default function Orders() {
                     </Tap>
                   ) : null}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
+                    <Tap style={s.btn} onPress={() => setSupport(o)} accessibilityRole="button" accessibilityLabel={`Проблема с заказом «${o.title}»`}>
                       <Text style={s.btnText} numberOfLines={1}>Есть проблема?</Text>
                     </Tap>
                     {o.items?.length ? (
@@ -113,6 +116,14 @@ export default function Orders() {
                       </Tap>
                     ) : null}
                   </View>
+                  {o.support?.length ? (
+                    <View style={s.ticket}>
+                      <Text style={s.ticketTitle} numberOfLines={1}>
+                        Обращение №{o.support[0].number} · {topicTitle(o.support[0].topic)}
+                      </Text>
+                      <Text style={s.ticketSub}>{o.support[0].status === 'open' ? `ждёт ответа · до ${o.support[0].slaHours} ч` : 'есть ответ'}</Text>
+                    </View>
+                  ) : null}
                 </OrderRow>
               </Animated.View>
             ))}
@@ -157,6 +168,8 @@ export default function Orders() {
           </>
         )}
       </ScrollView>
+
+      {support ? <SupportSheet order={orders.find((x) => x.id === support.id) ?? support} onClose={() => setSupport(null)} /> : null}
 
       {/* превью статуса на экране блокировки (Live Activity) */}
       <Modal visible={lock !== null} transparent animationType="fade" onRequestClose={() => setLock(null)}>
@@ -382,6 +395,9 @@ const s = StyleSheet.create({
   btnMain: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   btnDone: { backgroundColor: colors.tealTint },
   btnText: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg, textAlign: 'center' },
+  ticket: { backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 2 },
+  ticketTitle: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
+  ticketSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   tl: { paddingTop: 2 },
   tlRow: { flexDirection: 'row', gap: 12 },
   tlRail: { width: 18, alignItems: 'center' },
