@@ -248,7 +248,41 @@ const InsightData = (() => {
     };
   }
 
+  /* ---------- Прогноз спроса и мощности по неделям (сценарий 5.2.4, notes/18 п. 4) ---------- */
+  // Неделя k прогноза начинается через 7·k дней после конца данных; спрос берётся из той же недели прошлого года (история — ровно 52 недели).
+  // ДОПУЩЕНИЯ (до решения Алеси): рост к прошлому году задаёт пользователь (0 / +10 / +20 %), тренд по одному году не считаем;
+  // мощность линии — паспортная (ERP, последняя неделя); переплёт — люди, вышедшие в ту же неделю прошлого года (штат как в прошлом сезоне),
+  // × 0,7 книги на человека за смену (70 книг в полном масштабе, масштаб 1:100). Неделя дефицита — первая, где спрос > 90 % мощности ресурса.
+  const FC_THRESHOLD = 0.9, BIND_RATE = 0.7, BIND_DEPT = 1; // dicts.hrDepts[1] — «Переплёт»
+  let FC = null;
+  function fcBase() {
+    if (FC) return FC;
+    const NW = Math.floor(D.days / 7), NL = D.dicts.lines.length;
+    const dem = Array.from({ length: NW }, () => new Float64Array(NL)), books = new Float64Array(NW), bind = new Float64Array(NW);
+    D.orders.forEach(o => { const w = Math.floor(o.day / 7); if (w >= NW) return; dem[w][o.line] += o.units; if (D.dicts.isBook[o.product]) books[w] += o.units; });
+    D.hr.forEach(h => { const w = Math.floor(h.day / 7); if (w < NW && h.dept === BIND_DEPT) bind[w] += h.scheduled - h.absent; });
+    const cap = D.dicts.lines.map((_, l) => S("capacity", D.days - 7, D.days - 1, [l]));
+    return FC = { NW, dem, books, bind, cap };
+  }
+  function forecast({ growth = 0, lines = null, products = null } = {}) {
+    const B = fcBase(), g = 1 + growth, names = D.dicts.lines;
+    const res = (lines || names.map((_, i) => i)).map(l => ({ id: "line-" + l, line: l, name: names[l], kind: "line" }));
+    if (!products || products.some(p => D.dicts.isBook[p])) res.push({ id: "bind", name: "Переплёт", kind: "people" });
+    const weeks = [];
+    for (let k = 0; k < B.NW; k++) {
+      const r = res.map(x => {
+        const demand = (x.kind === "line" ? B.dem[k][x.line] : B.books[k]) * g, capacity = x.kind === "line" ? B.cap[x.line] : B.bind[k] * BIND_RATE;
+        return { ...x, demand, capacity, load: div(demand, capacity) || 0 };
+      });
+      const peak = r.reduce((a, b) => (b.load > a.load ? b : a)), ln = r.filter(x => x.kind === "line");
+      const start = D.days + 7 * k;
+      weeks.push({ k, start: isoOf(start), end: isoOf(start + 6), res: r, peak, lineLoad: div(ln.reduce((s, x) => s + x.demand, 0), ln.reduce((s, x) => s + x.capacity, 0)), deficit: peak.load > FC_THRESHOLD });
+    }
+    return { weeks, first: weeks.find(w => w.deficit) || null, threshold: FC_THRESHOLD, growth, from: isoOf(D.days), sources: ["erp", "hr"],
+      method: "Спрос недели — заказы той же недели прошлого года (ERP) с поправкой на рост. Мощность — паспорт линий (ERP); переплёт — вышедшие люди той же недели прошлого года (HR) × 70 книг за смену. Дефицит — спрос выше 90 % мощности." };
+  }
+
   return { load, boot, kpis, sources: () => SOURCES.map(s => ({ ...s, ...freshness(s) })), quality, contract, depts: () => DEPTS, statusText: s => STATUS_TEXT[s], dayOf, isoOf, meta: () => D.meta, days: () => D.days,
-    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines };
+    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast };
 })();
 InsightData.boot();

@@ -519,6 +519,7 @@ const DEMO = {
     defects: { name: "mart_defects_weekly", kind: "Витрина", detail: "Ricoh, две последние недели: брак {ricohNow}, норма {ricohNorm}. Ночные смены {nightNow}, дневные {dayNow}." },
     downtime: { name: "журнал простоев оборудования", kind: "Журнал", detail: "Ricoh, ночная смена, неделя с простоем: {downtime}." },
     material: { name: "накладные на материалы, октябрь и ноябрь", kind: "Документ", detail: "Замена материала на Ricoh: {batchFrom} заменён на {batchTo}." },
+    forecast: { name: "прогноз спроса и мощности по неделям", kind: "Витрина", detail: "Спрос — заказы той же недели прошлого года (ERP), мощность — паспорт линий (ERP) и люди переплёта (HR). Пересчёт после загрузки ERP и HR." },
     regulation: { name: "регламент калибровки печатных линий, п. 4", kind: "Документ", detail: "Пункт о калибровке оборудования после простоя. Текст иллюстративный." },
     finance: { name: "mart_margin_weekly", kind: "Витрина", detail: "Premium, две последние недели: скидка {discNow}, норма {discNorm}." },
     payroll: { name: "mart_payroll_summary", kind: "Витрина", detail: "Только итог по компании, без строк по сотрудникам: {payrollNow} выручки." },
@@ -536,6 +537,7 @@ const DEMO = {
     talks: {
       "D-117": "Директор: по скидкам на Premium уходим вдвое выше нормы.\nДиректор по развитию: давайте согласовывать со мной всё, что выше нормы.",
       "D-119": "Руководитель смен: людей ночью не хватает, перераспределю смены на ноябрь.\nДиректор: хорошо. Проверим эффект через две недели.",
+      "D-120": "Начальник производства: в сезон фотохимия упрётся в Fuji Frontier, часть заказов переведём на цифровую печать Ricoh.\nДиректор: согласен. Срочные заказы — в приоритет.",
       retry: "Директор: калибровка не помогла, брак на Ricoh остался.\nТехнолог: проверим партию до запуска и закрепим контроль за сменами.",
     },
     // after: срок в днях от даты встречи
@@ -545,6 +547,7 @@ const DEMO = {
       { id: "p3", dev: "D-118", title: "Проверить укомплектованность ночных смен на линии Ricoh", owner: "Руководитель смен", after: 10, isDecision: false, done: "График ночных смен на ноябрь укомплектован" },
       { id: "p4", dev: "D-117", title: "Согласовывать скидки на Premium выше нормы с директором по развитию", owner: "Директор по развитию", after: 6, isDecision: true, done: "Порядок согласования скидок разослан менеджерам" },
       { id: "p5", dev: "D-119", title: "Перераспределить людей между сменами на ноябрь", owner: "Руководитель смен", after: 8, isDecision: true, done: "Обновлённый график смен утверждён" },
+      { id: "p7", dev: "D-120", title: "На сезон перевести часть фотопечати с Fuji Frontier на Ricoh, срочные заказы — в приоритет", owner: "Начальник производства", after: 14, isDecision: true, done: "План загрузки линий на сезон утверждён" },
       { id: "p6", dev: "D-118", retry: true, title: "Проверять партию до запуска и закрепить контроль калибровки за сменами", owner: "Технолог печати", after: 3, isDecision: true, done: "Чек-лист проверки партии внедрён на всех сменах" },
     ],
   },
@@ -555,6 +558,7 @@ const DEMO = {
       "Почему упала маржа на Premium?",
       "Покажи зарплаты операторов ночной смены",
       "Какой будет выручка в декабре?",
+      "Когда в сезон не хватит мощности?",
     ],
     answers: {
       cause: "Доля брака на Ricoh выросла до {ricohNow} при норме {ricohNorm}. Сильнее всего отклонение объясняет измерение «{topDim}»: по всем линиям значение «{topVal}» даёт {topShare} прироста брака при {topVol} объёма. На ночных сменах Ricoh брак {nightNow}, на дневных {dayNow}. В те же недели был простой {downtime} и смена партии бумаги.{extra} Совпадение по времени не доказывает причину.",
@@ -598,16 +602,19 @@ const DEMO = {
     orphans: [{ ref: "Заказ № 4791502", detail: "Нет клиента, строка отложена на разбор" }],
     schemaErrors: [],
   },
-  deviationsMeta: { main: "D-118", discount: "D-117", staffing: "D-119" },
+  deviationsMeta: { main: "D-118", discount: "D-117", staffing: "D-119", season: "D-120" },
   // ДОПУЩЕНИЕ: причины, решения и итоговые значения для D-117 и D-119 придуманы для демо.
   startNotices: [
     { role: "ceo", text: "Новое отклонение: брак на линии Ricoh выше нормы", href: "#/deviations/D-118" },
     { role: "ceo", text: "Новое отклонение: скидка на Premium выше нормы", href: "#/deviations/D-117" },
     { role: "ceo", text: "Новое отклонение: укомплектованность смен ниже порога", href: "#/deviations/D-119" },
+    { role: "ceo", text: "Прогноз: в сезон не хватит мощности линии", href: "#/deviations/D-120" },
   ],
   otherCases: {
     "D-117": { title: "Средняя скидка на Premium выше нормы", doneTitle: "Средняя скидка на Premium снизилась до", cause: "Скидка на Premium выше нормы, причина уточняется.", ask: 2, period: 30 },
     "D-119": { title: "Укомплектованность смен ниже порога", doneTitle: "Укомплектованность смен выросла до", cause: "В сменах меньше людей, чем по плану, причина уточняется.", period: 30 },
+    // Этап 3: отклонение по прогнозу. Название, причина и значение считаются из InsightData.forecast (см. seasonDeviation)
+    "D-120": { title: "Прогноз: дефицит мощности в сезон", doneTitle: "Прогноз загрузки в пиковую неделю снижен до", cause: "По прогнозу в сезон спрос превысит 90 % мощности линии.", ask: 5, period: 30 },
   },
 };
 
@@ -629,6 +636,8 @@ const INITIAL = () => ({
   chat: [], typing: null, journal: DEMO.journal.slice(), attackDone: false, attackAnswer: "", visited: {}, form: blankForm(), errors: {}, history: [], pendingAsk: null, fileNote: "", line: null, month: null, barMetric: "turnover", barRange: 6,
   /* Этап 2: подразделение руководителя (роль head) и фильтры главной: подразделение и продукт (УП-03) */
   dept: "prod", fDept: null, fProduct: null, calAnchor: DEMO.meta.today, calDay: DEMO.meta.today, edit: false, doneTasks: {},
+  /* Этап 3: прогноз — горизонт (4 недели или сезон) и рост спроса к прошлому году */
+  fcHorizon: 4, fcGrowth: 0,
 });
 let S = INITIAL();
 let typingTimer = null;
@@ -671,7 +680,7 @@ const caseOf = id => id === DEMO.deviationsMeta.main ? S : (S.others[id] = S.oth
 const OPEN_T = ["assigned", "working", "returned"];
 const TSTATUS = { assigned: ["Назначена", "b-open"], working: ["В работе", "b-work"], returned: ["На доработке", "b-open"], submitted: ["Отчёт на приёмке", "b-check"], accepted: ["Принята", "b-done"] };
 const taskBadge = t => `<span class="badge ${TSTATUS[t.status][1]}">${TSTATUS[t.status][0]}</span>`;
-const caseIds = () => [DEMO.deviationsMeta.main, DEMO.deviationsMeta.discount, DEMO.deviationsMeta.staffing];
+const caseIds = () => [DEMO.deviationsMeta.main, DEMO.deviationsMeta.discount, DEMO.deviationsMeta.staffing, DEMO.deviationsMeta.season];
 function mkTask(o) { return { id: `T-${S.taskSeq++}`, status: "assigned", report: null, attach: [], returnFiles: [], rounds: [], comment: "", request: null, overdue: false, reminded: false, log: [{ at: S.today, who: "Руководитель", text: "Задача назначена" }], ...o }; }
 function tasksOf(C) {
   const d = C.decision; if (!d) return [];
@@ -707,6 +716,12 @@ const takeFiles = key => { const f = (S.draftFiles[key] || []).slice(); S.draftF
 const logHtml = t => `<ol class="tlog">${t.log.slice().reverse().map(l => `<li><span class="tlog-at">${dueShort(l.at)}</span><span class="tlog-who">${esc(l.who)}</span><span>${esc(l.text)}</span></li>`).join("")}</ol>`;
 const termOf = t => t.status === "accepted" ? `принята ${dueShort(t.acceptedOn || S.today)}` : t.overdue ? `срок был ${dueShort(t.due)}` : `до ${dueShort(t.due)}`;
 function otherInfo(id) {
+  if (id === DEMO.deviationsMeta.season) {
+    const d = seasonDeviation(), C = caseOf(id), r = fcRisk(d.f);
+    const cause = r ? `${r.res.name}: в неделю ${fcRange(r.week)} спрос ${fPct(r.res.load)} мощности при пороге ${fPct0(d.norm)}. ${cap1(r.step)}.` : DEMO.otherCases[id].cause;
+    return { ...DEMO.otherCases[id], d, cause, limit: d.norm, goal: `цель: загрузка ≤ ${fPct0(d.norm)}`, labels: ["Прогноз пика", "Порог"],
+      title: r ? `Прогноз: дефицит мощности ${r.res.name} ${fcRange(r.week)}` : DEMO.otherCases[id].title, value: C.sim === "ok" ? .86 : C.sim === "bad" ? d.now * .98 : d.now };
+  }
   const up = id === DEMO.deviationsMeta.staffing, d = up ? staffingDeviation() : discountDeviation(), C = caseOf(id);
   const limit = up ? R.staffingMin : d.norm * R.recoverFactor, ok = up ? .97 : d.norm * 1.1, bad = up ? d.now + .005 : d.now * .97;
   return { ...DEMO.otherCases[id], d, limit, goal: `цель ${up ? "≥" : "≤"} ${fPct(limit)}`, value: C.sim === "ok" ? ok : C.sim === "bad" ? bad : d.now };
@@ -726,6 +741,11 @@ function staffingDeviation() {
   const now = ratio(inW(DEMO.hr, R.current[0], R.current[1]), "staffed", "planned");
   const norm = ratio(inW(DEMO.hr, R.baseline[0], R.baseline[1]), "staffed", "planned");
   return { id: DEMO.deviationsMeta.staffing, norm, now, triggered: now < R.staffingMin };
+}
+/* Отклонение по прогнозу (этап 3): первая неделя, где спрос ресурса выше 90 % мощности. Считается по всей компании, без фильтров главной */
+function seasonDeviation() {
+  const f = InsightData.forecast({ growth: S.fcGrowth }), w = f.first;
+  return { id: DEMO.deviationsMeta.season, f, norm: f.threshold, now: w ? w.peak.load : 0, triggered: !!w };
 }
 const DIMS = [["line", "Линия"], ["product", "Продукт"], ["shift", "Смена"], ["operator", "Сотрудник"], ["supplier", "Поставщик и партия"], ["week", "Время, неделя"]];
 function decompose() {
@@ -817,7 +837,8 @@ function sliceNote(k) {
   return "";
 }
 /* Главные плитки для выбранного подразделения; все 17 — в «Все показатели» */
-const HEADLINE = { all: ["turnover", "ontime", "defect", "sla"], prod: ["ontime", "sameday", "defect", "load"], sales: ["turnover", "check", "discount", "conversion"],
+/* «Пульс компании» по ТЗ 5.3: оборот, маржа, в срок, брак, клиенты, SLA, загрузка, обеспеченность (+ критические отклонения над плитками) */
+const HEADLINE = { all: ["turnover", "margin", "ontime", "defect", "clients", "sla", "load", "staffing"], prod: ["ontime", "sameday", "defect", "load"], sales: ["turnover", "check", "discount", "conversion"],
   support: ["sla"], fin: ["margin", "turnover"], hr: ["staffing", "absence"] };
 const filterLabel = () => [S.fDept ? deptOf(S.fDept).name : "Вся компания", S.fProduct != null ? InsightData.products()[S.fProduct] : S.line ? "линия " + S.line : "все продукты"].join(" · ");
 /* Фильтр одной кнопкой с выпадающим списком: в строке видно только текущее значение. Выбранный фильтр подсвечен */
@@ -832,14 +853,15 @@ function pulseHtml() {
   const r = homeRange(), own = S.role === "head" ? S.dept : null;
   const tile = id => { const k = kpiById(id); if (!kpiOpen(k)) return `<div class="kpi-tile"><span class="lg-label">${esc(k.label)}</span><p class="note small">${esc(closedText(k))}.</p></div>`;
     const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
-    return `<div class="kpi-tile"><span class="lg-label">${k.link ? `<a class="kpi-link" href="${k.link}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
+    return `<div class="kpi-tile"><span class="lg-label">${k.link ? `<a class="kpi-link" href="${k.link}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
   const filters = [fbMenu("Период", "period", [[2, "2 недели"], [4, "4 недели"], [8, "8 недель"]], S.period, 4),
     fbMenu("Подразделение", "fDept", [["all", "Все"]].concat(InsightData.depts().map(d => [d.id, d.name])), S.fDept || "all", own || "all"),
     fbMenu("Продукт", "fProduct", [["all", "Все"]].concat(PRODUCT_SHORT.map((p, i) => [i, p])), S.fProduct == null ? "all" : S.fProduct, "all")];
   const changed = (S.fDept || null) !== own || S.fProduct != null || S.period !== 4;
-  return `<section class="sheet pulse" aria-label="Показатели и фильтры"><div class="pulse-head"><h2>Показатели <span class="pulse-range">${esc(r.label)}</span></h2>
+  const crit = deviationRows().filter(x => x.status !== "done").length;
+  return `<section class="sheet pulse" aria-label="Пульс компании и фильтры"><div class="pulse-head"><h2>Пульс компании <span class="pulse-range">${esc(r.label)}</span></h2>
     <div class="fb" role="group" aria-label="Фильтры показателей">${filters.join("")}${changed ? `<button class="fb-reset" data-act="fReset">Сбросить</button>` : ""}</div></div>
-    <p class="pulse-scope muted small">${esc(filterLabel())}</p><div class="kpi-row">${HEADLINE[S.fDept || "all"].map(tile).join("")}</div></section>`;
+    <p class="pulse-scope muted small">${esc(filterLabel())}${S.role === "manager" ? "" : ` · <a class="pulse-crit" href="#/deviations">критических отклонений: ${crit}</a>`}</p><div class="kpi-row">${HEADLINE[S.fDept || "all"].map(tile).join("")}</div></section>`;
 }
 const fmtLoad = iso => { const t = new Date(iso); return `${String(t.getUTCDate()).padStart(2, "0")}.${String(t.getUTCMonth() + 1).padStart(2, "0")}, ${String((t.getUTCHours() + 3) % 24).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`; };
 /* Цвет статуса и «Как считается»: формула, источник, обновление и норма видны у каждого показателя (УП-02) */
@@ -1053,7 +1075,7 @@ const roleName = () => ({ ceo: "Руководитель", head: "Руковод
 const ROLE_API = { ceo: "director", head: "head", manager: "employee", admin: "analyst" };
 const deptOf = id => InsightData.depts().find(d => d.id === id);
 /* Отклонения по подразделениям: руководитель подразделения видит только свои (УП-05) */
-const DEV_DEPT = { "D-118": ["prod"], "D-117": ["sales"], "D-119": ["hr", "prod"] };
+const DEV_DEPT = { "D-118": ["prod"], "D-117": ["sales"], "D-119": ["hr", "prod"], "D-120": ["prod", "hr"] };
 const devVisible = id => S.role !== "head" || (DEV_DEPT[id] || []).includes(S.dept);
 const isCeo = () => S.role === "ceo";
 
@@ -1076,8 +1098,8 @@ function homeRange() {
   return { a, b: L, pa: a - n, pb: a - 1, label: `${weekLabel(a)}–${weekRange(L).split("–")[1]}` };
 }
 const compact = (v, id) => { const k = kpiById(id); return v == null ? "—" : k.pp ? NF1.format(v * 100) + "%" : k.fmt(v); };
-function barsHtml(items, act) {
-  const max = Math.max(...items.map(x => x.value), 0) || 1;
+function barsHtml(items, act, maxV) {
+  const max = maxV || Math.max(...items.map(x => x.value), 0) || 1;
   return `<div class="barchart${items.length > 8 ? " dense" : ""}">${items.map(x => {
     const inner = `<span class="bar-track"><span class="bar-fill${x.selected ? " sel" : ""}${x.partial ? " partial" : ""}" style="height:${Math.max(6, x.value / max * 84).toFixed(1)}%"><span class="bar-val">${esc(x.text)}</span></span></span><span class="bar-label">${esc(x.label)}</span>`;
     return act ? `<button class="bar-col" data-act="${act}" data-arg="${esc(x.key)}" aria-pressed="${!!x.selected}" aria-label="${esc(x.long || x.label)}: ${esc(x.text)}${x.partial ? ", месяц ещё не закончился" : ""}">${inner}</button>` : `<div class="bar-col">${inner}</div>`;
@@ -1164,6 +1186,62 @@ function caseBase(id) {
   const pm = meetOf(id), planned = !!pm;
   return { stage: "open", planned, group: planned ? "meeting" : "decide", badge, next: planned ? `Встреча ${whenText(pm)}` : "Нужно решение" };
 }
+/* ---------- Прогноз спроса и мощности (этап 3, сценарий 5.2.4). Числа считает InsightData.forecast ---------- */
+const cap1 = s => s.charAt(0).toUpperCase() + s.slice(1);
+const MONTHS_GEN = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const fcDay = iso => `${+iso.slice(8)} ${MONTHS_GEN[+iso.slice(5, 7) - 1]}`;
+const fPct0 = v => NF0.format(v * 100) + " %";
+/* «17–23 мая 2027»: год пишем, только если он не текущий */
+function fcRange(w) {
+  const y = w.end.slice(0, 4) !== S.today.slice(0, 4) ? " " + w.end.slice(0, 4) : "";
+  return w.start.slice(5, 7) === w.end.slice(5, 7) ? `${+w.start.slice(8)}–${fcDay(w.end)}${y}` : `${fcDay(w.start)} – ${fcDay(w.end)}${y}`;
+}
+const fcSeasonYear = () => +S.today.slice(0, 4) + (S.today.slice(5) > "07-01" ? 1 : 0);
+/* Сезон у заказчика: 1 апреля – 1 июля (notes/18 п. 4) */
+function fcSeason(f) { const y = fcSeasonYear(); return f.weeks.filter(w => w.end >= `${y}-04-01` && w.start <= `${y}-06-30`); }
+/* Прогноз по фильтрам главной: продукт или линия сужают ресурсы */
+function fcData() { const c = kctx(); return InsightData.forecast({ growth: S.fcGrowth, lines: c.lines, products: c.products }); }
+/* Куда можно перевести заказы перегруженной линии: фотохимию — на цифровую печать. Для книжных линий замены нет. ДОПУЩЕНИЕ */
+const ALT_LINE = { "Fuji Frontier": "Ricoh" };
+function fcRisk(f) {
+  const w = f.first; if (!w) return null;
+  const r = w.peak, line = r.kind === "line", alt = line && w.res.find(x => x.name === ALT_LINE[r.name]);
+  const step = !line ? `нанять временных сотрудников переплёта к ${fcDay(addDays(w.start, -7))}`
+    : alt && alt.load < .75 ? `перевести часть заказов на ${alt.name} (там загрузка ${fPct(alt.load)}), срочные заказы — в приоритет`
+    : "сверхурочные смены и временный персонал печати, срочные заказы — в приоритет";
+  return { week: w, res: r, step, owner: line ? "Начальник производства" : "HR-директор", due: addDays(w.start, -21) };
+}
+function fcChartHtml(f, weeks) {
+  const max = Math.max(1.2, ...weeks.map(w => w.peak.load)), pct = v => NF0.format(v * 100) + "%";
+  /* Подпись в две строки: число, под ним месяц (только у первой недели и при смене месяца). Высота подписи у всех одинаковая,
+     поэтому столбики стоят на одной линии и порог не рвётся */
+  const items = weeks.map((w, i) => ({ key: w.start, label: String(+w.start.slice(8)) + (i && w.start.slice(5, 7) === weeks[i - 1].start.slice(5, 7) ? "" : "\n" + MONTHS_GEN[+w.start.slice(5, 7) - 1]), value: w.peak.load, text: pct(w.peak.load), selected: w.deficit }));
+  const label = `Загрузка самого загруженного ресурса по неделям, порог ${pct(f.threshold)}: ${weeks.map(w => `${fcDay(w.start)} ${pct(w.peak.load)}${w.deficit ? ", дефицит" : ""}`).join("; ")}`;
+  return `<div class="fc-chart" style="--thr:${(f.threshold / max * 84).toFixed(1)}%" role="img" aria-label="${esc(label)}">${barsHtml(items, null, max)}</div>
+    <p class="fc-legend muted small" aria-hidden="true"><i></i>порог ${fPct0(f.threshold)}: выше — дефицит, такие недели выделены</p>`;
+}
+function fcSumHtml(list) {
+  const pk = list.reduce((a, b) => (b.peak.load > a.peak.load ? b : a)), n = list.filter(w => w.deficit).length;
+  return `<p class="fc-sum">${n ? `<b>Дефицит: ${n} ${plural(n, "неделя", "недели", "недель")} из ${list.length}.</b> Сильнее всего ${fcRange(pk)}: ${esc(pk.peak.name)}, спрос ${fPct(pk.peak.load)} мощности.`
+    : `<b>Дефицита нет.</b> Пик загрузки ${fPct(pk.peak.load)}: ${esc(pk.peak.name)}, ${fcRange(pk)}.`}</p>`;
+}
+const fcHowHtml = f => `<details class="kpi-how"><summary>Как считается</summary><div class="how-pop"><p><b>Метод.</b> ${esc(f.method)}</p>
+  <p><b>Источник.</b> ERP (заказы, линии), HR (смены переплёта) · пересчёт после каждой загрузки</p>
+  <p><b>Допущение.</b> Истории ровно год, поэтому тренд не считается: рост к прошлому году выбирается кнопками. Штат на сезон — как в прошлом году.</p></div></details>`;
+function fcRiskHtml(f, list) {
+  const r = fcRisk(f);
+  if (!r) return `<div class="fc-risk"><span class="lg-label">Неделя дефицита</span><p class="fc-week">Нет</p><p class="small">По прогнозу на год вперёд спрос не выходит за ${fPct0(f.threshold)} мощности.</p></div>`;
+  const id = DEMO.deviationsMeta.season, s = caseState(id), sameCase = seasonDeviation().f.first?.peak.id === r.res.id;
+  const link = sameCase && devVisible(id) ? `<a class="btn btn-outline btn-sm" href="#/deviations/${id}">Открыть карточку решения</a>` : "";
+  const more = list.includes(r.week) ? "" : `<button class="btn btn-quiet btn-sm" data-act="fcHorizon" data-arg="season">Показать сезон</button>`;
+  return `<div class="fc-risk"><div class="fc-risk-head"><span class="lg-label">Неделя дефицита</span>${sameCase ? s.badge : ""}</div>
+    <p class="fc-week num">${fcRange(r.week)}</p><p class="small">${esc(r.res.name)}: спрос ${fPct(r.res.load)} мощности при пороге ${fPct0(f.threshold)}.</p>
+    <dl class="fc-dl"><dt>Владелец</dt><dd>${esc(r.owner)}</dd><dt>Шаг</dt><dd>${esc(cap1(r.step))}</dd><dt>Решить до</dt><dd>${fcDay(r.due)}</dd></dl>
+    ${link || more ? `<div class="actions">${link}${more}</div>` : ""}</div>`;
+}
+/* Прогноз на плитке «Загрузка мощности»: первая неделя прогноза по линиям */
+function fcTileHtml() { const w = fcData().weeks[0]; return w && w.lineLoad != null ? `<span class="kpi-fc">Прогноз на ${fcRange(w)}: ${fPct(w.lineLoad)}</span>` : ""; }
+
 const WIDGETS = {
   hero: { title: "Главное сегодня", html() {
     const rows = deviationRows();
@@ -1214,10 +1292,19 @@ const WIDGETS = {
     const groups = KPI.filter(g => !S.fDept || g.dept === S.fDept);
     return `<div class="sheet"><div class="w-head"><h2>Все показатели: ${esc(r.label)}</h2><span class="muted small">${esc(filterLabel())} · ${KPI_ALL.length} KPI, формула и источник в «Как считается»</span></div><div class="ledger${groups.length === 1 ? " one" : ""}">${groups.map(g => `<div class="lg-col"><h2>${esc(g.group)}</h2>${g.items.map(row).join("")}</div>`).join("")}</div></div>`;
   } },
+  forecast: { title: "Прогноз спроса и мощности", html() {
+    const f = fcData(), season = S.fcHorizon === "season", list = season ? fcSeason(f) : f.weeks.slice(0, 4);
+    const seg = (act, items, cur, label) => `<div class="seg seg-sm" role="group" aria-label="${label}">${items.map(([v, t]) => `<button data-act="${act}" data-arg="${v}" aria-pressed="${String(cur) === String(v)}">${t}</button>`).join("")}</div>`;
+    return `<div class="sheet fc"><div class="w-head"><h2>Прогноз спроса и мощности</h2>${seg("fcHorizon", [[4, "4 недели"], ["season", "Сезон"]], S.fcHorizon, "Горизонт прогноза")}</div>
+      <p class="muted small fc-scope">${season ? `Сезон 1 апреля – 1 июля ${fcSeasonYear()}` : `4 недели с ${fcDay(f.from)}`} · ${esc(filterLabel())}</p>
+      <div class="fc-body"><div class="fc-main">${fcSumHtml(list)}${fcChartHtml(f, list)}
+        <div class="fc-tools"><span class="muted small">Рост спроса к прошлому году</span>${seg("fcGrowth", [[0, "0 %"], [0.1, "+10 %"], [0.2, "+20 %"]], S.fcGrowth, "Рост спроса к прошлому году")}</div>${fcHowHtml(f)}</div>
+      ${fcRiskHtml(f, list)}</div></div>`;
+  } },
   ask: { title: "Спросить ассистента", html: () => `<div class="sheet"><h2>Спросить ассистента</h2><div class="chips">${DEMO.assistant.presets.slice(0, 3).map((p, i) => `<a class="chip" href="#/assistant" data-act="askPreset" data-arg="${i}">${esc(p)}</a>`).join("")}</div></div>` },
 };
 /* Размер плитки постоянный и не зависит от места. Сетка из трёх колонок: 4 = одна колонка, 8 = две, 12 = весь ряд */
-const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 } };
+const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, forecast: { full: true, spans: [12], pref: 12 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 } };
 /* Каждая плитка встаёт в первое свободное место, куда помещается. Пустые ячейки запоминаем, чтобы показать их при настройке */
 function packLayout(ids) {
   const spans = {}, pos = {}, options = {}, rows = [], holes = [];
@@ -1243,8 +1330,8 @@ function packLayout(ids) {
   return { spans, pos, options, holes };
 }
 const packSpans = ids => packLayout(ids).spans;
-const DEFAULT_LAYOUT = ["hero", "bars", "quality", "calendar", "goals", "decisions", "allKpi"];
-const LAYOUT_KEY = "picpac-insight-layout-v2";
+const DEFAULT_LAYOUT = ["hero", "bars", "forecast", "calendar", "quality", "goals", "decisions", "allKpi"];
+const LAYOUT_KEY = "picpac-insight-layout-v3"; // v3: добавлен прогноз (этап 3)
 /* Плитки «Показатели» теперь закреплены над сеткой: из сохранённой раскладки их (и любые неизвестные виджеты) просто убираем, остальное сохраняем */
 function loadLayout() {
   try { const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY)), v = Array.isArray(raw) ? raw.filter(id => WIDGETS[id]) : null; if (v && v.includes("hero")) return v; } catch (e) { /* хранилище недоступно */ }
@@ -1275,6 +1362,7 @@ function deviationRows() {
   if (m.triggered) out.push({ id: m.id, title: mainTitle(), value: fPct(mainNow()), norm: fPct(m.norm), status: S.status });
   if (disc.triggered) other(disc);
   if (st.triggered && (isCeo() || (S.role === "head" && DEV_DEPT[st.id].includes(S.dept)))) other(st);
+  const fc = seasonDeviation(); if (fc.triggered) other(fc);
   return out.filter(r => devVisible(r.id));
 }
 function vDeviations() {
@@ -1459,9 +1547,11 @@ function vDeviationDetail(id) {
   const head = `<a class="btn btn-outline btn-sm crumb" href="#/deviations"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>Все отклонения</a><div class="page-head"><h1 tabindex="-1">${esc(row.title)}</h1></div>${row.status === "done" ? "" : caseTrack(id, C, enter, goal)}`;
   if (!main) {
     const I = otherInfo(id), stage = cardStage(C), meta = DEMO.otherCases[id];
-    const top = `<div class="card-top"><div class="hero-main"><span class="big num">${row.value}</span><span class="hero-cap">норма ${row.norm}</span></div>${meta.ask != null ? askBtn(id) : ""}</div><p class="cause">${esc(meta.cause)}</p>`;
-    const compare = `<section class="sheet"><h2>Сейчас и норма</h2>${barsHtml([{ label: "Сейчас", value: I.value, text: row.value, selected: true }, { label: "Норма", value: I.d.norm, text: row.norm }])}<p class="hero-cap">${goal}</p></section>`;
-    const x = { top, now: I.value, goal, was: fPct(I.d.now), closed: beforeAfter(fPct(I.d.now), row.value, goal, row.norm), cause: meta.cause };
+    const fcCase = id === DEMO.deviationsMeta.season, lb = I.labels || ["Сейчас", "Норма"];
+    const top = `<div class="card-top"><div class="hero-main"><span class="big num">${row.value}</span><span class="hero-cap">${fcCase ? "загрузка в пиковую неделю, порог" : "норма"} ${row.norm}</span></div>${meta.ask != null ? askBtn(id) : ""}</div><p class="cause">${esc(I.cause)}</p>`;
+    const compare = fcCase ? `<section class="sheet"><h2>Прогноз на сезон</h2>${fcChartHtml(I.d.f, fcSeason(I.d.f))}${fcHowHtml(I.d.f)}</section>`
+      : `<section class="sheet"><h2>${lb[0]} и ${lb[1].toLowerCase()}</h2>${barsHtml([{ label: lb[0], value: I.value, text: row.value, selected: true }, { label: lb[1], value: I.d.norm, text: row.norm }])}<p class="hero-cap">${goal}</p></section>`;
+    const x = { top, now: I.value, goal, was: fPct(I.d.now), closed: beforeAfter(fPct(I.d.now), row.value, goal, row.norm), cause: I.cause };
     if (stage === "closed") return closedScreen(head, C, x);
     return `${head}<div class="two card-grid${stage === "form" ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${compare}</div>${histHtml(C)}`;
   }
@@ -1512,6 +1602,7 @@ function intentOf(q) {
   if (/поставщик|партии|партия/.test(s)) return "supplier";
   if (/марж|скидк/.test(s)) return "margin";
   if (/noritsu|норитсу|fuji|фуджи/.test(s)) return "otherLine";
+  if (/мощност|дефицит|не хватит|загрузк|сезон|наня|найм/.test(s)) return "capacity";
   if (/брак|причин|ricoh/.test(s)) return "cause";
   if (/прогноз|декабр|будет/.test(s)) return "forecast";
   if (/выручк/.test(s)) return "revenue";
@@ -1526,6 +1617,7 @@ const INTENT = {
   payrollCeo: { sources: [], used: "нет, зарплатные данные не публикуются", result: "Отказ: зарплаты не раскрываются", kind: "deny", refuse: true },
   payrollDenied: { sources: [], used: "нет, инструмента нет у роли", result: "Отказ по правам", kind: "deny", refuse: true },
   forecast: { sources: [], used: "нет подходящей витрины", result: "«Не знаю», не хватает данных", kind: "ok", unknown: true },
+  capacity: { sources: ["forecast"], used: "прогноз спроса и мощности (ERP, HR)", result: "Ответ со ссылкой", kind: "ok" },
   attack: { sources: [], used: "нет, инструменты не вызывались", result: "Инструкция заблокирована", kind: "block", refuse: true },
   unknown: { sources: [], used: "нет подходящей витрины", result: "«Не знаю»", kind: "ok", unknown: true },
 };
@@ -1533,6 +1625,13 @@ const nowStamp = () => { const n = S.journal.length; return `${S.today.slice(8)}
 function answerText(intent, q) {
   const f = factsFull(), A = DEMO.assistant.answers;
   if (intent === "unknown") return "Не знаю. В доступных витринах и документах нет данных для ответа на этот вопрос.";
+  if (intent === "capacity") {
+    const fc = InsightData.forecast({ growth: S.fcGrowth }), r = fcRisk(fc), near = fc.weeks.slice(0, 4).reduce((a, b) => (b.peak.load > a.peak.load ? b : a));
+    const g = S.fcGrowth ? `+${Math.round(S.fcGrowth * 100)} %` : "0 %";
+    const head = `В ближайшие 4 недели дефицита нет: пик ${fPct(near.peak.load)}, ${near.peak.name}, ${fcRange(near)}.`;
+    return r ? `${head} Первая неделя дефицита по прогнозу — ${fcRange(r.week)}: ${r.res.name} загружена на ${fPct(r.res.load)} при пороге ${fPct0(fc.threshold)}. Предлагаю: ${r.step}. Владелец — ${r.owner.toLowerCase()}, решить до ${fcDay(r.due)}. Спрос взят из той же недели прошлого года, рост ${g}; это прогноз, а не факт.`
+      : `${head} На год вперёд спрос не выходит за ${fPct0(fc.threshold)} мощности (рост ${g}).`;
+  }
   if (intent === "otherLine") {
     f.lineName = /noritsu|норитсу/i.test(q) ? "Noritsu" : "Fuji Frontier";
     const l = r => r.line === f.lineName;
@@ -1558,6 +1657,7 @@ function vAssistant() {
     `<div class="msg ai${m.refuse ? " refuse" : ""}"><div>${esc(m.text)}</div>
      ${m.sources.length ? `<details class="more"><summary>Источники</summary>${sourcesHtml(m.sources)}</details>` : ""}
      ${m.intent === "cause" ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.main)}">Открыть разбор отклонения</a>` : ""}
+     ${m.intent === "capacity" && devVisible(DEMO.deviationsMeta.season) && deviationRows().some(r => r.id === DEMO.deviationsMeta.season) ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.season)}">Открыть карточку решения</a>` : ""}
      ${m.intent === "stop" ? "" : `<div class="msg-meta"><span class="badge b-ai">Ответ AI</span></div>`}</div>`).join("")
     : `<p class="muted">Задайте вопрос о показателях компании. Ассистент видит только данные вашей роли и отвечает со ссылкой на источник.</p>`;
   return `<div class="page-head"><div><h1 tabindex="-1">Ассистент</h1></div></div>
@@ -1684,7 +1784,7 @@ function outliers() {
   return BASE.filter((r, i) => Math.abs(rows[i] - m) > 3 * sd);
 }
 /* Источники, их свежесть и связность (УП-01, сценарий 5.2.5), сверка 1С и ERP и контракт события (лекция заказчика, слайд 37) */
-function sourcesHtml() {
+function qualitySourcesHtml() {
   const Q = InsightData.quality(), C = InsightData.contract(), n = v => v ? `<b>${fInt(v)}</b>` : `<span class="muted">0</span>`;
   const rows = Q.sources.map(s => `<tr><td><b>${esc(s.name)}</b><span class="muted small src-keys">${esc(s.keys.join(", "))}</span></td><td>${esc(s.cadence)}</td>
     <td>${esc(fmtLoad(s.lastLoad))} <span class="badge ${s.fresh ? "b-done" : "b-open"}">${s.fresh ? "свежие" : "устарели"}</span></td>
@@ -1711,7 +1811,7 @@ function vData() {
   const result = !L ? "" : `<h2>Выгрузка загружена</h2><ul class="load-result">${L.lines.map(l => `<li>${esc(l.text)}</li>`).join("")}</ul>`;
   return `<div class="page-head"><div><h1 tabindex="-1">Качество данных</h1><p class="lead">${L ? `Данные загружены ${dueShort(L.date)}` : esc(I.source)}. Загружено ${fInt(total)} ${plural(total, "строка", "строки", "строк")}.</p></div></div>
   ${load || result ? `<section class="sheet">${result}${load ? `<div class="actions">${load}</div>` : ""}</section>` : ""}
-  ${sourcesHtml()}
+  ${qualitySourcesHtml()}
   <section class="sheet"><h2>Проверки последней выгрузки</h2><div class="table-wrap"><table><thead><tr><th>Проверка</th><th>Что проверяет</th><th class="r">Найдено</th><th>Результат</th></tr></thead><tbody>
   ${checks.map(c => `<tr><td><b>${esc(c.name)}</b>${c.items.length ? `<details class="more"><summary>Подробнее</summary><ul class="sources col">${c.items.map(x => `<li><span class="src-name">${esc(x.ref)}</span><span class="muted">${esc(x.detail)}</span></li>`).join("")}</ul></details>` : ""}</td><td>${esc(c.desc)}</td><td class="r num">${fInt(c.items.length)}</td><td><span class="badge ${lab[c.st][1]}">${lab[c.st][0]}</span></td></tr>`).join("")}
   </tbody></table></div></section>`;
@@ -1963,6 +2063,8 @@ const ACT = {
   period: a => { S.period = +a; },
   fDept: a => { S.fDept = a === "all" ? null : a; announce("Подразделение: " + (S.fDept ? deptOf(S.fDept).name : "все")); },
   fReset: () => { S.fDept = S.role === "head" ? S.dept : null; S.fProduct = null; S.period = 4; announce("Фильтры сброшены"); },
+  fcHorizon: a => { S.fcHorizon = a === "season" ? "season" : 4; announce(S.fcHorizon === "season" ? "Прогноз на сезон" : "Прогноз на 4 недели"); },
+  fcGrowth: a => { S.fcGrowth = +a; announce("Рост спроса: " + (S.fcGrowth ? "+" + Math.round(S.fcGrowth * 100) + " %" : "0 %")); },
   fProduct: a => { S.fProduct = a === "all" ? null : +a; announce("Продукт: " + (S.fProduct == null ? "все" : InsightData.products()[S.fProduct])); },
   month: a => { S.month = a; },
   barMetric: a => { S.barMetric = a; },

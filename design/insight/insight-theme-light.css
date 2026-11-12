@@ -203,3 +203,4 @@ html[data-theme="light"] .chip-tog[aria-pressed="true"] { background: rgba(204, 
 html[data-theme="light"] .chip-tog[aria-pressed="true"] small { color: var(--ink-2); }
 /* Наведение на круглые кнопки светлее покоя, как у остальных кнопок светлой темы */
 @media (hover: hover) and (pointer: fine) { html[data-theme="light"] .round:hover, html[data-theme="light"] .avatar:hover { background: rgba(255, 255, 255, .92); } }
+html[data-theme="light"] .fc-risk { background: rgba(255, 255, 255, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8); }
