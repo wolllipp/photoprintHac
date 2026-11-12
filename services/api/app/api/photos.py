@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from PIL import ExifTags, Image, UnidentifiedImageError
 
@@ -87,9 +87,25 @@ async def upload(files: list[UploadFile] = File(...), taken_at: list[str] = Form
 
 
 @router.get("/photos/{photo_id}/file")
-async def photo_file(photo_id: uuid.UUID, user: User = Depends(current_user),
-                     s: AsyncSession = Depends(get_session)):
+async def photo_file(photo_id: uuid.UUID, w: int | None = Query(None, ge=200, le=4000),
+                     user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
+    """Фото владельца. w — уменьшенная копия для экрана (длинная сторона, px): 25–30 оригиналов по 12 Мпикс
+    вешали редактор на телефоне. Копия делается один раз и лежит рядом с оригиналом; в печать идёт оригинал."""
     p = await s.get(Photo, photo_id)
     if p is None or p.owner_id != user.id:  # чужие фото не видны
         raise HTTPException(404, "фото не найдено")
-    return FileResponse(p.path)
+    if not w:
+        return FileResponse(p.path)
+    small = Path(f"{p.path}.w{w}.jpg")
+    if not small.exists():
+        def make():
+            from PIL import ImageOps
+            with Image.open(p.path) as im:
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                im.thumbnail((w, w))
+                im.save(small, "JPEG", quality=82)
+        try:
+            await asyncio.to_thread(make)
+        except Exception:
+            return FileResponse(p.path)  # не вышло уменьшить — отдаём оригинал, как раньше
+    return FileResponse(small, media_type="image/jpeg")

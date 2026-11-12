@@ -11,7 +11,8 @@ import { takenAt, uploadCopy } from '@/data/picked';
 import { setRemoteSource } from '@/data/photos';
 
 // фото, которое есть только на сервере, показываем по его адресу с токеном в заголовке
-setRemoteSource((id) => ({ uri: `${API_URL}/photos/${id}/file`, headers: authHeaders() }));
+// для экрана — копия 1200 px (сервер делает её один раз): оригиналы по 12 Мпикс вешали редактор
+setRemoteSource((id) => ({ uri: `${API_URL}/photos/${id}/file?w=1200`, headers: authHeaders() }));
 
 /** Какой id на сервере у фото с телефона — чтобы при правке не загружать его повторно. */
 const idOfUri = new Map<string, string>();
