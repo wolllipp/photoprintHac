@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { checkOnServer, loadServerBook, savePage, serverBook } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
+import { PageOrder } from '@/components/pageOrder';
 import { features } from '@/data/features';
 import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
@@ -248,6 +249,42 @@ export default function Review() {
     else delete crop[String(k)];
     editPage(cropFor.page, { ...p, crop: Object.keys(crop).length ? crop : undefined }, c ? 'Кадр сохранён' : 'Кадр как было');
   };
+  // порядок страниц: плитки — страницы, разворот на две страницы — одна плитка
+  const [orderOpen, setOrderOpen] = useState(false);
+  const units = useMemo(() => {
+    const out: number[][] = [];
+    for (let k = 0; k < pages.length; k++) {
+      if (isSpread(pages[k].layout) && k + 1 < pages.length) {
+        out.push([k, k + 1]);
+        k++;
+      } else out.push([k]);
+    }
+    return out;
+  }, [pages]);
+  const openOrder = () => {
+    if (fixing) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setMenu(null);
+    setOrderOpen(true);
+  };
+  const applyOrder = (order: number[]) => {
+    setOrderOpen(false);
+    // новое место → какая страница там была
+    const flat = order.flatMap((u) => units[u]);
+    if (flat.every((old, pos) => old === pos)) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setEdits((e) => {
+      const next = { ...e };
+      flat.forEach((old, pos) => {
+        if (old !== pos) next[pos] = pages[old];
+      });
+      return next;
+    });
+    // замечания переезжают вместе со своими страницами
+    setPins((ps) => ps.map((p) => ({ ...p, page: Math.max(0, flat.indexOf(p.page)) })));
+    setUndo(null);
+    setNotice('Порядок страниц изменён');
+  };
   // пропорции места на странице — рамка в окне кадрирования такая же
   const cropAspect = (page: number, slot: number) => {
     const p = pages[page];
@@ -444,8 +481,11 @@ export default function Review() {
                 <Pressable
                   style={StyleSheet.absoluteFill}
                   onPress={(e) => tapPage(k, e, cw, ch)}
+                  // долгое нажатие — «Порядок страниц»: перетащить страницу на другое место
+                  onLongPress={openOrder}
+                  delayLongPress={380}
                   accessibilityRole="button"
-                  accessibilityLabel={`Страница ${k + 1}. Нажмите на фото, чтобы заменить его, поменять раскладку или оставить замечание`}
+                  accessibilityLabel={`Страница ${k + 1}. Нажмите на фото, чтобы заменить его, поменять раскладку или оставить замечание. Долгое нажатие — поменять порядок страниц`}
                 />
                 {/* точки замечаний */}
                 {[...mine, ...(draft && draft.page === k && !pins.some((x) => x.id === draft.id) ? [draft] : [])].map((pin) => (
@@ -562,6 +602,27 @@ export default function Review() {
           onLayout={setLayout}
           onComment={commentHere}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+
+      {orderOpen ? (
+        <PageOrder
+          aspect={pageW / pageH}
+          items={units.map((u) => ({
+            key: `p${u[0]}`,
+            label: u.length > 1 ? `стр. ${u[0] + 1}–${u[1] + 1}` : `стр. ${u[0] + 1}`,
+            wide: u.length > 1,
+            render: (w, h) =>
+              u.length > 1 ? (
+                <View style={{ width: w, height: h, justifyContent: 'center' }}>
+                  <PageView page={pages[u[0]]} w={w} h={w / 2} />
+                </View>
+              ) : (
+                <PageView page={pages[u[0]]} w={w} h={h} />
+              ),
+          }))}
+          onDone={applyOrder}
+          onClose={() => setOrderOpen(false)}
         />
       ) : null}
 
