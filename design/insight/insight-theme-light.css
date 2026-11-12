@@ -1,0 +1,205 @@
+/* Светлая тема для glass.html. Меняет ТОЛЬКО цвета и материал стекла; шрифты, размеры и раскладка остаются как в тёмной.
+   Палитра из мобильного приложения (apps/mobile/src/theme.ts): коралл — действие, бирюзовый — «всё хорошо», тёплые карточки.
+   Включается атрибутом data-theme="light" на <html> (кнопка в верхней панели). Первая часть собрана из insight-light.css:
+   белые полупрозрачные цвета тёмного стекла заменены чернилами. Вторая часть (в конце) — палитра приложения и фон. */
+html[data-theme="light"] { --sand: rgba(35, 43, 42, 0.055); --sand-2: rgba(35, 43, 42, 0.083); --line: rgba(35, 43, 42, 0.099); --teal-tint: rgba(35, 43, 42, 0.066); --warn-tint: rgba(35, 43, 42, 0.055); --glass-card: rgba(35, 43, 42, 0.05); --glass-edge: rgba(35, 43, 42, 0.11); --bar: rgba(35, 43, 42, 0.341); }
+html[data-theme="light"] .dark-card .hero-cap, html[data-theme="light"] .dark-card .muted { color: rgba(35, 43, 42, 0.429); }
+html[data-theme="light"] .dark-card .was { color: rgba(35, 43, 42, 0.385); }
+html[data-theme="light"] .dark-card .arrow { color: rgba(35, 43, 42, 0.385); }
+html[data-theme="light"] .dark-card .beforeafter .muted { color: rgba(35, 43, 42, 0.429); }
+html[data-theme="light"] .cal-day.sel { color: rgba(35, 43, 42, 0.9); }
+html[data-theme="light"] .w-tools button { background: rgba(35, 43, 42, 0.077); }
+html[data-theme="light"] #nav a[aria-current="page"] { background: rgba(35, 43, 42, 0.121); }
+html[data-theme="light"] .nav-sub[aria-pressed="true"] { background: rgba(35, 43, 42, 0.099); }
+html[data-theme="light"] .int-tile { background: rgba(35, 43, 42, 0.077); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .nav-sub:hover, html[data-theme="light"] #nav a:hover:not([aria-current]) { background: rgba(35, 43, 42, 0.066); }
+html[data-theme="light"] .menu-pop a:hover, html[data-theme="light"] .menu-pop button:hover { background: rgba(35, 43, 42, 0.066); }
+}
+html[data-theme="light"] .btn-outline, html[data-theme="light"] .btn-quiet { background: rgba(35, 43, 42, 0.066); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .seg { background: rgba(35, 43, 42, 0.066); }
+html[data-theme="light"] .seg button[aria-pressed="true"] { background: rgba(35, 43, 42, 0.9); }
+html[data-theme="light"] .chip { background: rgba(35, 43, 42, 0.044); border-color: rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .menu-pop button[aria-pressed="true"] { background: rgba(35, 43, 42, 0.077); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .btn-outline:hover, html[data-theme="light"] .btn-quiet:hover, html[data-theme="light"] .btn-dark:hover, html[data-theme="light"] .chip:hover { background: rgba(35, 43, 42, 0.121); }
+}
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] button.bar-col:hover .bar-fill:not(.sel) { background: rgba(35, 43, 42, 0.9); }
+}
+html[data-theme="light"] .field input:not([type=checkbox]):not([type=file]), html[data-theme="light"] .field select, html[data-theme="light"] .field textarea, html[data-theme="light"] .field-inline select { border-color: rgba(35, 43, 42, 0.165); }
+html[data-theme="light"] .add-widget { border-color: rgba(35, 43, 42, 0.248); }
+html[data-theme="light"] .editing .w-body > .sheet { box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.187); }
+html[data-theme="light"] .bar .f-vol { background: rgba(35, 43, 42, 0.385); }
+html[data-theme="light"] .chart-tip { background: rgba(35, 43, 42, 0.9); }
+html[data-theme="light"] .editing .w-body > .sheet { box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.231); }
+html[data-theme="light"] .widget.dragging .w-body > .sheet { box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.275), 0 30px 60px rgba(25, 16, 13, .55); }
+html[data-theme="light"] .w-size button[aria-pressed="true"] .t { background: rgba(35, 43, 42, 0.193); }
+html[data-theme="light"] .slot { border: 1.5px dashed rgba(35, 43, 42, 0.22); }
+html[data-theme="light"] #nav a[aria-current="page"] { background: rgba(35, 43, 42, 0.9); }
+html[data-theme="light"] .goal-list label { background: rgba(35, 43, 42, 0.044); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.077); }
+html[data-theme="light"] .goal-list input, html[data-theme="light"] .proposal input[type=checkbox] { border: 1.5px solid rgba(35, 43, 42, 0.358); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .goal-list label:hover { background: rgba(35, 43, 42, 0.072); }
+}
+html[data-theme="light"] .nav-tip { background: rgba(35, 43, 42, 0.9); }
+html[data-theme="light"] .meet-steps li:not(:last-child)::after { background: rgba(35, 43, 42, 0.165); }
+html[data-theme="light"] .step-n { box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.193); }
+html[data-theme="light"] .meet-steps li.done .step-n { background: rgba(35, 43, 42, 0.11); }
+html[data-theme="light"] .talk-box { background: rgba(35, 43, 42, 0.04); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.077); }
+html[data-theme="light"] .tb-btn { background: rgba(35, 43, 42, 0.066); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.143); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .tb-btn:hover { background: rgba(35, 43, 42, 0.121); }
+}
+html[data-theme="light"] .talk-box textarea { scrollbar-color: rgba(35, 43, 42, 0.165) transparent; }
+html[data-theme="light"] .field textarea:focus-visible, html[data-theme="light"] .pick-btn:focus-visible { box-shadow: 0 0 0 3px rgba(35, 43, 42, 0.11); }
+html[data-theme="light"] .pick-btn { border: 1px solid rgba(35, 43, 42, 0.165); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .pick-btn:hover:enabled { background: rgba(35, 43, 42, 0.066); }
+}
+html[data-theme="light"] .pop-list { scrollbar-color: rgba(35, 43, 42, 0.165) transparent; }
+html[data-theme="light"] .pop-list button[aria-selected="true"] { background: rgba(35, 43, 42, 0.077); }
+html[data-theme="light"] .dp-grid button.today:not(.sel) { box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.303); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .pop-list button:hover, html[data-theme="light"] .dp-grid button:hover:enabled:not(.sel), html[data-theme="light"] .dp-head .round-sm:hover:enabled { background: rgba(35, 43, 42, 0.077); }
+}
+html[data-theme="light"] .ag-dev.focus { background: rgba(35, 43, 42, 0.055); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.165); }
+html[data-theme="light"] .nav-pill { background: rgba(35, 43, 42, 0.9); }
+html[data-theme="light"] .ag-row input[type=checkbox] { border: 1.5px solid rgba(35, 43, 42, 0.358); }
+html[data-theme="light"] .dev-group h2 span { background: rgba(35, 43, 42, 0.077); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .dev-row:hover { background: rgba(35, 43, 42, 0.088); }
+}
+html[data-theme="light"] .dev-dots i { background: rgba(35, 43, 42, 0.11); }
+html[data-theme="light"] .dev-dots i.past { background: rgba(35, 43, 42, 0.33); }
+html[data-theme="light"] .dev-row.is-closed { background: rgba(35, 43, 42, 0.04); }
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="light"] .side, html[data-theme="light"] .page-wrap { background: var(--glass); -webkit-backdrop-filter: blur(40px) saturate(125%); backdrop-filter: blur(40px) saturate(125%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), 0 30px 70px rgba(122, 90, 72, .18); }
+html[data-theme="light"] .sheet, html[data-theme="light"] .state, html[data-theme="light"] .skel, html[data-theme="light"] .task-card, html[data-theme="light"] .round, html[data-theme="light"] .avatar, html[data-theme="light"] .btn-dark, html[data-theme="light"] .filter-chip { background: var(--glass-card); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .85), 0 1px 2px rgba(122, 90, 72, .06), 0 14px 34px rgba(122, 90, 72, .08); }
+html[data-theme="light"] .sheet.plain { background: none; box-shadow: none; }
+@media (prefers-reduced-transparency: reduce) {
+html[data-theme="light"] .side, html[data-theme="light"] .page-wrap { background: #FBF7F1; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+html[data-theme="light"] .dark-card { background: linear-gradient(135deg, rgba(255, 255, 255, .82) 0%, rgba(255, 233, 224, .78) 55%, rgba(255, 208, 192, .72) 100%); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), 0 1px 2px rgba(122, 90, 72, .06), 0 18px 44px rgba(204, 96, 91, .14); }
+html[data-theme="light"] .widget.dragging .w-body > .sheet.dark-card { background: linear-gradient(135deg, #FFFFFF, #FFE3D9); }
+html[data-theme="light"] .dark-card .hero-cap, html[data-theme="light"] .dark-card .muted, html[data-theme="light"] .dark-card .beforeafter .muted, html[data-theme="light"] .dark-card .was, html[data-theme="light"] .dark-card .arrow { color: var(--ink-3); }
+html[data-theme="light"] .brand-logo { color: var(--coral); }
+html[data-theme="light"] .brand-sub { color: var(--ink-3); }
+html[data-theme="light"] .nav-pill { background: rgba(255, 255, 255, .95); box-shadow: 0 1px 2px rgba(122, 90, 72, .1), 0 8px 20px rgba(122, 90, 72, .14); }
+html[data-theme="light"] #nav a[aria-current="page"] { background: none; box-shadow: none; color: #232B2A; }
+html[data-theme="light"] .seg button[aria-pressed="true"] { background: rgba(255, 255, 255, .95); color: #232B2A; box-shadow: 0 1px 2px rgba(122, 90, 72, .12), 0 6px 14px rgba(122, 90, 72, .12); }
+html[data-theme="light"] .line-dot { background: var(--ink-3); }
+html[data-theme="light"] .line-dot.bad { background: var(--coral); }
+html[data-theme="light"] .btn-go { background: #3B4B4A; color: #FFFFFF; }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .btn-go:hover { background: #2F3D3C; }
+}
+html[data-theme="light"] .btn-done { background: #3B4B4A; color: #FFFFFF; }
+html[data-theme="light"] .btn-outline, html[data-theme="light"] .btn-quiet { background: rgba(255, 255, 255, .6); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .14); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .btn-outline:hover, html[data-theme="light"] .btn-quiet:hover, html[data-theme="light"] .btn-dark:hover, html[data-theme="light"] .chip:hover { background: rgba(255, 255, 255, .92); }
+}
+html[data-theme="light"] .chip { background: rgba(255, 255, 255, .55); border-color: rgba(35, 43, 42, .14); color: var(--ink); }
+html[data-theme="light"] .menu-pop, html[data-theme="light"] .pop { background: #FFFFFF; color: var(--ink); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 22px 50px rgba(122, 90, 72, .24); }
+html[data-theme="light"] .toast, html[data-theme="light"] .w-tools { background: #FFFFFF; color: var(--ink); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 18px 44px rgba(122, 90, 72, .22); }
+html[data-theme="light"] .chart-tip { background: #FFFFFF; color: #232B2A; box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 16px 36px rgba(122, 90, 72, .22); }
+html[data-theme="light"] .nav-tip { background: #FFFFFF; color: #232B2A; box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 14px 34px rgba(122, 90, 72, .24); }
+html[data-theme="light"] .ch-pills g { filter: drop-shadow(0 3px 7px rgba(122, 90, 72, .3)); }
+html[data-theme="light"] .meet-steps li.cur .step-n { background: #3B4B4A; color: #FFFFFF; }
+html[data-theme="light"] .meet-steps li.cur:last-child .step-n { background: var(--teal); color: #16524C; }
+html[data-theme="light"] .dp-grid button.sel { background: #3B4B4A; color: #FFFFFF; }
+html[data-theme="light"] .goal-list input:checked, html[data-theme="light"] .proposal input[type=checkbox]:checked, html[data-theme="light"] .ag-row input[type=checkbox]:checked { background-color: #3B4B4A; border-color: #3B4B4A; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7.500l2.800 2.800L11 4.500'/%3E%3C/svg%3E"); }
+html[data-theme="light"] .ag-row input[type=checkbox] { border-color: rgba(35, 43, 42, .36); }
+html[data-theme="light"] .ag-dev.focus { background: rgba(255, 255, 255, .7); box-shadow: inset 0 0 0 1px rgba(204, 96, 91, .35); }
+html[data-theme="light"] .closed-ico { background: var(--teal); color: #16524C; }
+html[data-theme="light"] .dev-row.is-closed .dev-dots i { background: var(--teal); }
+html[data-theme="light"] .bar-fill { background: rgba(59, 75, 74, .22); }
+html[data-theme="light"] .bar-fill.sel { background: linear-gradient(180deg, #E8857A, #CC605B); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] button.bar-col:hover .bar-fill:not(.sel) { background: rgba(59, 75, 74, .4); }
+}
+html[data-theme="light"] .dev-row { background: rgba(255, 255, 255, .58); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .85), 0 10px 26px rgba(122, 90, 72, .08); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .dev-row:hover { background: rgba(255, 255, 255, .9); }
+}
+html[data-theme="light"] .dev-row.is-closed { background: rgba(255, 255, 255, .34); }
+html[data-theme="light"] .dev-dots i { background: rgba(35, 43, 42, .14); }
+html[data-theme="light"] .dev-dots i.past { background: rgba(35, 43, 42, .4); }
+html[data-theme="light"] .dev-dots i.now { background: var(--coral); }
+html[data-theme="light"] .dev-group h2 span { background: rgba(35, 43, 42, .08); }
+html[data-theme="light"] .b-open { color: var(--coral-link); }
+html[data-theme="light"] .b-work { color: #8A5A12; }
+html[data-theme="light"] .b-check { color: var(--ink-2); }
+html[data-theme="light"] .b-done { color: var(--teal-ink); }
+html[data-theme="light"] .dark-card .b-open, html[data-theme="light"] .dark-card .b-work, html[data-theme="light"] .dark-card .b-check, html[data-theme="light"] .dark-card .b-done { color: var(--ink-2); }
+html[data-theme="light"] .dark-card .b-open::before { background: var(--coral); }
+html[data-theme="light"] .goal-meta.late, html[data-theme="light"] .step-c .late { color: var(--coral-link); }
+html[data-theme="light"] .err { color: var(--coral-link); }
+html[data-theme="light"] .pick-btn { background: rgba(255, 255, 255, .6); }
+html[data-theme="light"] .field input:not([type=checkbox]):not([type=file]), html[data-theme="light"] .field select, html[data-theme="light"] .field textarea, html[data-theme="light"] .field-inline select { background: rgba(255, 255, 255, .6); border-color: rgba(35, 43, 42, .18); color: var(--ink); }
+html[data-theme="light"] .kpi-tile, html[data-theme="light"] .note, html[data-theme="light"] .note.warn, html[data-theme="light"] .note.teal, html[data-theme="light"] .cal-events a, html[data-theme="light"] .cal-events span, html[data-theme="light"] .round-sm, html[data-theme="light"] .msg.ai, html[data-theme="light"] .msg.ai.refuse { background: rgba(255, 255, 255, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8); color: var(--ink); }
+html[data-theme="light"] :focus-visible { outline-color: var(--ink-2); }
+html[data-theme="light"] .field textarea:focus-visible, html[data-theme="light"] .pick-btn:focus-visible { border-color: #3B4B4A; }
+html[data-theme="light"] .avatar { color: var(--ink); }
+html[data-theme="light"] .avatar:focus-visible, html[data-theme="light"] .round:focus-visible { outline-color: var(--ink-2); }
+
+/* ---------- Палитра приложения picPac (theme.ts) ---------- */
+html[data-theme="light"] {
+  --coral: #CC605B; --coral-act: #B84F4B; --coral-link: #A9443F; --coral-bright: #CC605B; --coral-tint: rgba(204, 96, 91, .12);
+  --page: #F9F4EE; --white: #FFFFFF;
+  --ink: #1D2120; --ink-2: #3B4B4A; --ink-3: #5F6664;
+  --teal: #82DFD6; --teal-ink: #1F6F67; --teal-tint: rgba(130, 223, 214, .25);
+  --good: #1F6F67; --warn: #A84F00; --warn-tint: rgba(255, 243, 227, .85);
+  --glass: rgba(255, 255, 255, .55); --glass-card: rgba(255, 255, 255, .62); --glass-inset: rgba(255, 255, 255, .5); --glass-edge: rgba(255, 255, 255, .85); --glass-solid: #FFFFFF;
+}
+/* Фон: та же композиция из двух коралловых пятен, что и в тёмной, на тёплом бежевом (card из приложения #F1EAE3) */
+html[data-theme="light"] body {
+  background:
+    radial-gradient(48% 46% at 100% 0%, rgba(204, 96, 91, .26), rgba(204, 96, 91, .09) 45%, transparent 78%),
+    radial-gradient(40% 42% at 0% 100%, rgba(204, 96, 91, .16), rgba(204, 96, 91, .05) 45%, transparent 78%),
+    linear-gradient(160deg, #FBF6F0 0%, #F1EAE3 100%);
+  background-attachment: fixed; color: var(--ink);
+}
+/* «Хорошо» — бирюзовый, как в приложении: отметки закрытого и шагов */
+html[data-theme="light"] .closed-ico, html[data-theme="light"] .meet-steps li.cur:last-child .step-n { background: var(--teal); color: #16524C; }
+html[data-theme="light"] .dev-row.is-closed .dev-dots i { background: var(--teal); }
+html[data-theme="light"] .b-done { color: var(--teal-ink); }
+html[data-theme="light"] .b-work { color: var(--warn); }
+
+/* ---------- Авто: белое полупрозрачное стекло тёмной темы, переведённое в чернила — компоненты, которых не было в старом insight-light.css (встречи, итоги, файлы, лента, ассистент) ---------- */
+html[data-theme="light"] .tl-item { background: rgba(35, 43, 42, 0.066); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.132); }
+html[data-theme="light"] .files li { background: rgba(35, 43, 42, 0.11); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.176); }
+html[data-theme="light"] .who-ico { background: rgba(35, 43, 42, 0.176); }
+html[data-theme="light"] .ask { background: rgba(35, 43, 42, 0.055); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.132); }
+html[data-theme="light"] .goal-link { background: rgba(35, 43, 42, 0.088); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .toast-act { background: rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .watch { background: rgba(35, 43, 42, 0.055); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.132); }
+html[data-theme="light"] .eff-bar { background: rgba(35, 43, 42, 0.132); }
+html[data-theme="light"] .meet-form input:not([type=file]), html[data-theme="light"] .oc input:not([type=file]), html[data-theme="light"] .topic-add input { border: 1px solid rgba(35, 43, 42, 0.33); }
+html[data-theme="light"] .chip-tog { background: rgba(35, 43, 42, 0.066); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.176); }
+html[data-theme="light"] .chip-tog[aria-pressed="true"] { background: rgba(35, 43, 42, 0.154); box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.77); }
+html[data-theme="light"] .ct-box { border: 1.5px solid rgba(35, 43, 42, 0.605); }
+html[data-theme="light"] .topics li { background: rgba(35, 43, 42, 0.088); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .oc-kind { background: rgba(35, 43, 42, 0.11); }
+html[data-theme="light"] .oc-task { background: rgba(35, 43, 42, 0.055); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.132); }
+@media (hover: hover) and (pointer: fine) {
+html[data-theme="light"] .f-x:hover { background: rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .sw-more > summary:hover { background: rgba(35, 43, 42, 0.132); }
+html[data-theme="light"] .goal-link:hover { background: rgba(35, 43, 42, 0.154); }
+html[data-theme="light"] .chip-tog:hover { background: rgba(35, 43, 42, 0.132); }
+}
+
+/* ---------- Ручные исправления светлой темы ---------- */
+/* Перетаскиваемая плитка: в insight.css у неё плотный тёмный фон, на светлой теме текст пропадал */
+html[data-theme="light"] .widget.dragging .w-body > .sheet { background: rgba(255, 255, 255, .96); }
+/* Панель демо: тёмная подложка давала контраст текста 1,4 */
+html[data-theme="light"] .demobar { background: rgba(255, 255, 255, .72); border-bottom-color: var(--line); color: var(--ink); }
+html[data-theme="light"] .demobar-note, html[data-theme="light"] .demobar .field-inline { color: var(--ink-2); }
+/* Фон этих кнопок в светлой теме белый, а текст оставался белым */
+html[data-theme="light"] .filter-chip, html[data-theme="light"] .btn-dark { color: var(--ink); }
+/* Выбранный участник или вопрос повестки: как выбранная карточка в приложении — коралловая обводка и лёгкая заливка, а не серая плашка */
+html[data-theme="light"] .chip-tog[aria-pressed="true"] { background: rgba(204, 96, 91, .09); box-shadow: inset 0 0 0 1.5px rgba(204, 96, 91, .6); }
+/* Мелкая подпись в выбранном вопросе: на подкрашенной подложке серый давал 4,28 при норме 4,5 */
+html[data-theme="light"] .chip-tog[aria-pressed="true"] small { color: var(--ink-2); }
+/* Наведение на круглые кнопки светлее покоя, как у остальных кнопок светлой темы */
+@media (hover: hover) and (pointer: fine) { html[data-theme="light"] .round:hover, html[data-theme="light"] .avatar:hover { background: rgba(255, 255, 255, .92); } }

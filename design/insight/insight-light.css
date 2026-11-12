@@ -1,0 +1,217 @@
+:root {
+  /* Светлый вариант: бумага, чернила и коралл с сайта picPac */
+  --coral: #CC605B; --coral-act: #B84F4B; --coral-link: #A9443F; --coral-tint: rgba(204, 96, 91, .12); --coral-bright: #CC605B;
+  --page: #F9F4EE; --sand: rgba(35, 43, 42, .04); --sand-2: rgba(35, 43, 42, .07); --line: rgba(35, 43, 42, .1); --white: #FFFFFF;
+  --ink: #232B2A; --ink-2: #3B4B4A; --ink-3: #5B6664;
+  --teal: #82DFD6; --teal-ink: #1F6F67; --teal-tint: rgba(130, 223, 214, .25);
+  --good: #1F7A6E; --warn: #8A5A12; --warn-tint: rgba(240, 190, 110, .2);
+  --glass: rgba(255, 255, 255, .6); --glass-card: rgba(255, 255, 255, .52); --glass-inset: rgba(255, 255, 255, .55); --glass-edge: rgba(255, 255, 255, .8); --glass-solid: #FFFFFF;
+}
+
+/* ---------- Белые полупрозрачные цвета из тёмного варианта, переведённые в чернила ---------- */
+:root { --sand: rgba(35, 43, 42, 0.055); --sand-2: rgba(35, 43, 42, 0.083); --line: rgba(35, 43, 42, 0.099); --teal-tint: rgba(35, 43, 42, 0.066); --warn-tint: rgba(35, 43, 42, 0.055); --glass-card: rgba(35, 43, 42, 0.05); --glass-edge: rgba(35, 43, 42, 0.11); --bar: rgba(35, 43, 42, 0.341); }
+.dark-card .hero-cap, .dark-card .muted { color: rgba(35, 43, 42, 0.429); }
+.dark-card .was { color: rgba(35, 43, 42, 0.385); }
+.dark-card .arrow { color: rgba(35, 43, 42, 0.385); }
+.dark-card .beforeafter .muted { color: rgba(35, 43, 42, 0.429); }
+.cal-day.sel { color: rgba(35, 43, 42, 0.9); }
+.w-tools button { background: rgba(35, 43, 42, 0.077); }
+#nav a[aria-current="page"] { background: rgba(35, 43, 42, 0.121); }
+.nav-sub[aria-pressed="true"] { background: rgba(35, 43, 42, 0.099); }
+.int-tile { background: rgba(35, 43, 42, 0.077); }
+@media (hover: hover) and (pointer: fine) {
+.nav-sub:hover, #nav a:hover:not([aria-current]) { background: rgba(35, 43, 42, 0.066); }
+.menu-pop a:hover, .menu-pop button:hover { background: rgba(35, 43, 42, 0.066); }
+}
+.btn-outline, .btn-quiet { background: rgba(35, 43, 42, 0.066); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.154); }
+.seg { background: rgba(35, 43, 42, 0.066); }
+.seg button[aria-pressed="true"] { background: rgba(35, 43, 42, 0.9); }
+.chip { background: rgba(35, 43, 42, 0.044); border-color: rgba(35, 43, 42, 0.154); }
+.menu-pop button[aria-pressed="true"] { background: rgba(35, 43, 42, 0.077); }
+@media (hover: hover) and (pointer: fine) {
+.btn-outline:hover, .btn-quiet:hover, .btn-dark:hover, .chip:hover { background: rgba(35, 43, 42, 0.121); }
+}
+@media (hover: hover) and (pointer: fine) {
+button.bar-col:hover .bar-fill:not(.sel) { background: rgba(35, 43, 42, 0.9); }
+}
+.field input:not([type=checkbox]):not([type=file]), .field select, .field textarea, .field-inline select { border-color: rgba(35, 43, 42, 0.165); }
+.add-widget { border-color: rgba(35, 43, 42, 0.248); }
+.editing .w-body > .sheet { box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.187); }
+.bar .f-vol { background: rgba(35, 43, 42, 0.385); }
+.chart-tip { background: rgba(35, 43, 42, 0.9); }
+.editing .w-body > .sheet { box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.231); }
+.widget.dragging .w-body > .sheet { box-shadow: inset 0 0 0 1.5px rgba(35, 43, 42, 0.275), 0 30px 60px rgba(25, 16, 13, .55); }
+.w-size button[aria-pressed="true"] .t { background: rgba(35, 43, 42, 0.193); }
+.slot { border: 1.5px dashed rgba(35, 43, 42, 0.22); }
+#nav a[aria-current="page"] { background: rgba(35, 43, 42, 0.9); }
+.goal-list label { background: rgba(35, 43, 42, 0.044); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.077); }
+.goal-list input, .proposal input[type=checkbox] { border: 1.5px solid rgba(35, 43, 42, 0.358); }
+@media (hover: hover) and (pointer: fine) {
+.goal-list label:hover { background: rgba(35, 43, 42, 0.072); }
+}
+.nav-tip { background: rgba(35, 43, 42, 0.9); }
+.meet-steps li:not(:last-child)::after { background: rgba(35, 43, 42, 0.165); }
+.step-n { box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.193); }
+.meet-steps li.done .step-n { background: rgba(35, 43, 42, 0.11); }
+.talk-box { background: rgba(35, 43, 42, 0.04); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.077); }
+.tb-btn { background: rgba(35, 43, 42, 0.066); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.143); }
+@media (hover: hover) and (pointer: fine) {
+.tb-btn:hover { background: rgba(35, 43, 42, 0.121); }
+}
+.talk-box textarea { scrollbar-color: rgba(35, 43, 42, 0.165) transparent; }
+.field textarea:focus-visible, .pick-btn:focus-visible { box-shadow: 0 0 0 3px rgba(35, 43, 42, 0.11); }
+.pick-btn { border: 1px solid rgba(35, 43, 42, 0.165); }
+@media (hover: hover) and (pointer: fine) {
+.pick-btn:hover:enabled { background: rgba(35, 43, 42, 0.066); }
+}
+.pop-list { scrollbar-color: rgba(35, 43, 42, 0.165) transparent; }
+.pop-list button[aria-selected="true"] { background: rgba(35, 43, 42, 0.077); }
+.dp-grid button.today:not(.sel) { box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.303); }
+@media (hover: hover) and (pointer: fine) {
+.pop-list button:hover, .dp-grid button:hover:enabled:not(.sel), .dp-head .round-sm:hover:enabled { background: rgba(35, 43, 42, 0.077); }
+}
+.ag-dev.focus { background: rgba(35, 43, 42, 0.055); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, 0.165); }
+.nav-pill { background: rgba(35, 43, 42, 0.9); }
+.ag-row input[type=checkbox] { border: 1.5px solid rgba(35, 43, 42, 0.358); }
+.dev-group h2 span { background: rgba(35, 43, 42, 0.077); }
+@media (hover: hover) and (pointer: fine) {
+.dev-row:hover { background: rgba(35, 43, 42, 0.088); }
+}
+.dev-dots i { background: rgba(35, 43, 42, 0.11); }
+.dev-dots i.past { background: rgba(35, 43, 42, 0.33); }
+.dev-row.is-closed { background: rgba(35, 43, 42, 0.04); }
+
+/* ---------- Ручная настройка светлого варианта ---------- */
+html { color-scheme: light; }
+body { background: var(--page) url("bg-light.svg") center / cover no-repeat fixed; color: var(--ink); }
+
+/* Матовое стекло: как калька на отпечатке. Внешние панели размывают фон, внутренние только светлее */
+.side, .page-wrap { background: var(--glass); -webkit-backdrop-filter: blur(40px) saturate(125%); backdrop-filter: blur(40px) saturate(125%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), 0 30px 70px rgba(122, 90, 72, .18); }
+.sheet, .state, .skel, .task-card, .round, .avatar, .btn-dark, .filter-chip { background: var(--glass-card); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .85), 0 1px 2px rgba(122, 90, 72, .06), 0 14px 34px rgba(122, 90, 72, .08); }
+.sheet.plain { background: none; box-shadow: none; }
+@media (prefers-reduced-transparency: reduce) { .side, .page-wrap { background: #FBF7F1; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+
+/* Главная карточка держит тёплый блик плёнки вместо фото */
+.dark-card { background: linear-gradient(135deg, rgba(255, 255, 255, .82) 0%, rgba(255, 233, 224, .78) 55%, rgba(255, 208, 192, .72) 100%); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), 0 1px 2px rgba(122, 90, 72, .06), 0 18px 44px rgba(204, 96, 91, .14); }
+.widget.dragging .w-body > .sheet.dark-card { background: linear-gradient(135deg, #FFFFFF, #FFE3D9); }
+.dark-card .hero-cap, .dark-card .muted, .dark-card .beforeafter .muted, .dark-card .was, .dark-card .arrow { color: var(--ink-3); }
+
+/* Цифры ведут экран: крупно и тонко */
+h1 { font-weight: 400; letter-spacing: -.01em; }
+h2 { font-weight: 500; }
+.big { font-weight: 300; font-size: 72px; letter-spacing: -.025em; }
+.kpi-val { font-weight: 300; font-size: 40px; letter-spacing: -.02em; }
+.dev-val { font-weight: 300; font-size: 34px; letter-spacing: -.02em; }
+.metric .big { font-size: 52px; }
+.closed-sheet .big { font-size: 84px; }
+.cause-lead { font-weight: 500; }
+.lg-value, .mp-val { font-weight: 400; }
+
+/* Логотип и навигация */
+.brand-logo { color: var(--coral); }
+.brand-sub { color: var(--ink-3); }
+.nav-pill { background: rgba(255, 255, 255, .95); box-shadow: 0 1px 2px rgba(122, 90, 72, .1), 0 8px 20px rgba(122, 90, 72, .14); }
+#nav a[aria-current="page"] { background: none; box-shadow: none; color: #232B2A; }
+.seg button[aria-pressed="true"] { background: rgba(255, 255, 255, .95); color: #232B2A; box-shadow: 0 1px 2px rgba(122, 90, 72, .12), 0 6px 14px rgba(122, 90, 72, .12); }
+.line-dot { background: var(--ink-3); }
+.line-dot.bad { background: var(--coral); }
+
+/* Кнопка перехода: фирменный тёмный с сайта */
+.btn-go { background: #3B4B4A; color: #FFFFFF; }
+@media (hover: hover) and (pointer: fine) { .btn-go:hover { background: #2F3D3C; } }
+.btn-done { background: #3B4B4A; color: #FFFFFF; }
+.btn-outline, .btn-quiet { background: rgba(255, 255, 255, .6); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .14); }
+@media (hover: hover) and (pointer: fine) { .btn-outline:hover, .btn-quiet:hover, .btn-dark:hover, .chip:hover { background: rgba(255, 255, 255, .92); } }
+.chip { background: rgba(255, 255, 255, .55); border-color: rgba(35, 43, 42, .14); color: var(--ink); }
+
+/* Всплывающие слои непрозрачные */
+.menu-pop, .pop { background: #FFFFFF; color: var(--ink); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 22px 50px rgba(122, 90, 72, .24); }
+.toast, .w-tools { background: #FFFFFF; color: var(--ink); box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 18px 44px rgba(122, 90, 72, .22); }
+.chart-tip { background: #FFFFFF; color: #232B2A; box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 16px 36px rgba(122, 90, 72, .22); }
+.nav-tip { background: #FFFFFF; color: #232B2A; box-shadow: inset 0 0 0 1px rgba(35, 43, 42, .08), 0 14px 34px rgba(122, 90, 72, .24); }
+.ch-pills g { filter: drop-shadow(0 3px 7px rgba(122, 90, 72, .3)); }
+
+/* Шаги, выбор, отметки */
+.meet-steps li.cur .step-n { background: #3B4B4A; color: #FFFFFF; }
+.meet-steps li.cur:last-child .step-n { background: var(--teal); color: #16524C; }
+.dp-grid button.sel { background: #3B4B4A; color: #FFFFFF; }
+.goal-list input:checked, .proposal input[type=checkbox]:checked, .ag-row input[type=checkbox]:checked { background-color: #3B4B4A; border-color: #3B4B4A; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7.500l2.800 2.800L11 4.500'/%3E%3C/svg%3E"); }
+.ag-row input[type=checkbox] { border-color: rgba(35, 43, 42, .36); }
+.ag-dev.focus { background: rgba(255, 255, 255, .7); box-shadow: inset 0 0 0 1px rgba(204, 96, 91, .35); }
+@keyframes focus-in { from { background: rgba(255, 196, 180, .7); } }
+.closed-ico { background: var(--teal); color: #16524C; }
+.dev-row.is-closed .dev-dots i { background: var(--teal); }
+
+/* Столбцы */
+.bar-fill { background: rgba(59, 75, 74, .22); }
+.bar-fill.sel { background: linear-gradient(180deg, #E8857A, #CC605B); }
+@media (hover: hover) and (pointer: fine) { button.bar-col:hover .bar-fill:not(.sel) { background: rgba(59, 75, 74, .4); } }
+
+/* Строки списка */
+.dev-row { background: rgba(255, 255, 255, .58); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .85), 0 10px 26px rgba(122, 90, 72, .08); }
+@media (hover: hover) and (pointer: fine) { .dev-row:hover { background: rgba(255, 255, 255, .9); } }
+.dev-row.is-closed { background: rgba(255, 255, 255, .34); }
+.dev-dots i { background: rgba(35, 43, 42, .14); }
+.dev-dots i.past { background: rgba(35, 43, 42, .4); }
+.dev-dots i.now { background: var(--coral); }
+.dev-group h2 span { background: rgba(35, 43, 42, .08); }
+
+/* Статусы и текст */
+.b-open { color: var(--coral-link); }
+.b-work { color: #8A5A12; }
+.b-check { color: var(--ink-2); }
+.b-done { color: var(--teal-ink); }
+.dark-card .b-open, .dark-card .b-work, .dark-card .b-check, .dark-card .b-done { color: var(--ink-2); }
+.dark-card .b-open::before { background: var(--coral); }
+.goal-meta.late, .step-c .late { color: var(--coral-link); }
+.err { color: var(--coral-link); }
+.pick-btn { background: rgba(255, 255, 255, .6); }
+.field input:not([type=checkbox]):not([type=file]), .field select, .field textarea, .field-inline select { background: rgba(255, 255, 255, .6); border-color: rgba(35, 43, 42, .18); color: var(--ink); }
+.kpi-tile, .note, .note.warn, .note.teal, .cal-events a, .cal-events span, .round-sm, .msg.ai, .msg.ai.refuse { background: rgba(255, 255, 255, .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8); color: var(--ink); }
+:focus-visible { outline-color: var(--ink-2); }
+.field textarea:focus-visible, .pick-btn:focus-visible { border-color: #3B4B4A; }
+.avatar { color: var(--ink); }
+.avatar:focus-visible, .round:focus-visible { outline-color: var(--ink-2); }
+
+/* ---------- Два цвета сайта: песочный и коралловый. Всё остальное нейтральный тёплый тон ---------- */
+:root {
+  --ink: #2F2926; --ink-2: #5A4E48; --ink-3: #6F645D;
+  --coral: #CC605B; --coral-act: #B84F4B; --coral-link: #A9443F; --coral-bright: #CC605B; --coral-tint: rgba(204, 96, 91, .1);
+  --teal: #5A4E48; --teal-ink: #5A4E48; --teal-tint: rgba(90, 78, 72, .1);
+  --good: #5A4E48; --warn: #5A4E48; --warn-tint: rgba(90, 78, 72, .08);
+  --line: rgba(47, 41, 38, .1); --glass: rgba(255, 255, 255, .5); --glass-card: rgba(255, 255, 255, .46);
+}
+body { color: var(--ink); }
+.side, .page-wrap { -webkit-backdrop-filter: blur(30px) saturate(105%); backdrop-filter: blur(30px) saturate(105%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .75), 0 30px 70px rgba(110, 90, 72, .16); }
+.sheet, .state, .skel, .task-card, .round, .avatar, .btn-dark, .filter-chip { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), 0 12px 30px rgba(110, 90, 72, .07); }
+
+/* Главная карточка такая же стеклянная, только светлее */
+.dark-card { background: rgba(255, 255, 255, .68); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), 0 16px 38px rgba(110, 90, 72, .1); }
+.widget.dragging .w-body > .sheet.dark-card { background: #FFFFFF; }
+
+/* Типографика как на референсах: тонко и крупно */
+.home-head h1 { font-size: 46px; font-weight: 300; }
+h1 { font-weight: 300; }
+h2 { font-weight: 400; }
+.sheet h2, .dev-group h2 { font-size: 19px; font-weight: 400; }
+
+/* Тонкая линия графика, отметка только на последней точке */
+.ch-main { stroke-width: 2; }
+.ch-dots circle:not(:last-child) { opacity: 0; }
+
+/* Коралл только там, где нужно действие или показатель вне нормы */
+.btn-go, .btn-done { background: #5A4E48; color: #FFFFFF; }
+@media (hover: hover) and (pointer: fine) { .btn-go:hover { background: #4A403B; } }
+.meet-steps li.cur .step-n, .meet-steps li.cur:last-child .step-n, .dp-grid button.sel { background: #5A4E48; color: #FFFFFF; }
+.goal-list input:checked, .proposal input[type=checkbox]:checked, .ag-row input[type=checkbox]:checked { background-color: #5A4E48; border-color: #5A4E48; }
+.closed-ico { background: #5A4E48; color: #FFFFFF; }
+.bar-fill { background: rgba(90, 78, 72, .18); }
+.bar-fill.sel { background: var(--coral); }
+@media (hover: hover) and (pointer: fine) { button.bar-col:hover .bar-fill:not(.sel) { background: rgba(90, 78, 72, .32); } }
+.dev-dots i { background: rgba(47, 41, 38, .14); }
+.dev-dots i.past { background: rgba(47, 41, 38, .34); }
+.dev-dots i.now { background: #5A4E48; }
+.dev-row.is-closed .dev-dots i { background: rgba(47, 41, 38, .34); }
+.b-work, .b-check, .b-done { color: var(--ink-2); }
+.line-dot { background: rgba(47, 41, 38, .4); }
+@keyframes focus-in { from { background: rgba(204, 96, 91, .14); } }
