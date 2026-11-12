@@ -123,10 +123,11 @@ export default function Review() {
     const base: Page[] = fromServer
       ? Array.from({ length: pagesN }, (_, k) => (fromServer.pages[k] as Page | undefined) ?? { layout: 'one', photos: [] })
       : makePages(pagesN);
-    return base.map((x, k) => edits[k] ?? x);
+    // в Lite сквозных листов нет: фото на весь разворот встаёт на свою страницу, следующая — снова своя
+    return base.map((x, k) => edits[k] ?? x).map((x) => (tariff === 'lite' && isSpread(x.layout) ? { ...x, layout: SIMPLE[Math.min(4, slotsOf(x.layout))] } : x));
     // loadedTick — книга догрузилась с сервера
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagesN, edits, fromServer, loadedTick]);
+  }, [pagesN, edits, fromServer, loadedTick, tariff]);
 
   // каждая правка страницы (замена фото, макет, подпись, «Исправить») сохраняется на сервере — книга не теряется
   const synced = useRef<Record<number, string>>({});
@@ -266,9 +267,26 @@ export default function Review() {
   };
   // редактор подписи страницы
   const [captionFor, setCaptionFor] = useState<number | null>(null);
+  // макет без подписи с тем же числом фото — пустая подпись не занимает место на странице
+  const plainLayout = (layout: string) => (layoutOf(layout).caption ? SIMPLE[Math.min(4, Math.max(1, slotsOf(layout)))] : layout);
   const saveCaption = (page: number, text: string, layout: string) => {
     const p = pages[page];
-    editPage(page, { ...withLayout(p, layout), caption: text.trim() || undefined, fx: p.fx }, 'Подпись сохранена');
+    const v = text.trim();
+    if (!v) {
+      // подпись не написали — страница снова обычная
+      editPage(page, { ...withLayout(p, plainLayout(layout)), caption: undefined, fx: p.fx }, 'Без подписи');
+    } else {
+      editPage(page, { ...withLayout(p, layout), caption: v, fx: p.fx }, 'Подпись сохранена');
+    }
+    setCaptionFor(null);
+  };
+  // закрыли редактор, а на странице макет с подписью без текста (например, только что выбрали его) — убираем пустое место
+  const closeCaption = () => {
+    if (captionFor === null) return;
+    const p = pages[captionFor];
+    if (layoutOf(p.layout).caption && !p.caption) {
+      editPage(captionFor, { ...withLayout(p, plainLayout(p.layout)), fx: p.fx }, 'Без подписи');
+    }
     setCaptionFor(null);
   };
   const commentHere = () => {
@@ -535,7 +553,8 @@ export default function Review() {
           page={pages[menu.page]}
           pageN={menu.page + 1}
           slot={menu.slot}
-          canSpread={menu.page < pagesN - 1}
+          // сквозной лист: не на последней странице и не в Lite (там разворот не печатается одним листом)
+          canSpread={menu.page < pagesN - 1 && tariff !== 'lite'}
           bottom={insets.bottom}
           onReplace={() => replaceFromGallery().catch(() => {})}
           onRemove={removePhoto}
@@ -562,7 +581,7 @@ export default function Review() {
           pageN={captionFor + 1}
           bottom={insets.bottom}
           onSave={(text, layout) => saveCaption(captionFor, text, layout)}
-          onClose={() => setCaptionFor(null)}
+          onClose={closeCaption}
         />
       ) : null}
 
@@ -662,7 +681,7 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
           </View>
         );
       })}
-      {/* сквозной разворот: на Classic и Lite по центру виден шов, на Premium — нет */}
+      {/* сквозной разворот: на Classic по центру виден шов, на Premium — нет; в Lite сквозных листов нет */}
       {seam ? <View pointerEvents="none" style={[s.seam, { left: w / 2 - 6 }]} /> : null}
       {def.caption ? (
         <View style={[{ position: 'absolute', justifyContent: 'center' }, box(def.caption)]}>
@@ -775,6 +794,10 @@ const PLACE_NAME: Record<CaptionAt, string> = { top: 'Сверху', bottom: 'С
 /** Готовые подписи в демо: дата и место — из снимков, «придумать» — от ИИ. */
 const CAPTION_DATE = '12 июля 2026 · Карелия';
 const CAPTION_AI = 'Вечер, когда солнце никак не хотело садиться';
+/** Длина подписи: две строки на странице (сервер принимает до 300 — с запасом). */
+const CAPTION_MAX = 90;
+/** Замечание для ИИ — коротко, одной мыслью (сервер принимает до 500). */
+const NOTE_MAX = 200;
 
 /**
  * Подпись страницы: текст (свой, «дата и место» или «придумать ИИ») и где она стоит — сверху, снизу, слева, справа.
@@ -823,6 +846,7 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
             <TextInput
               value={text}
               onChangeText={setText}
+              maxLength={CAPTION_MAX}
               placeholder="Например: лето у бабушки"
               placeholderTextColor={colors.mut2}
               style={s.input}
@@ -833,6 +857,10 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
               accessibilityLabel="Текст подписи"
             />
           </View>
+          {/* подпись — две строки на странице: длиннее не влезет в печать */}
+          <Text style={[s.counter, text.length >= CAPTION_MAX && { color: colors.coralAction }]}>
+            {text.length} / {CAPTION_MAX}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="always">
             <Tap style={s.chip} onPress={() => setText(CAPTION_DATE)} accessibilityRole="button">
               <Text style={s.chipText}>Дата и место</Text>
@@ -948,6 +976,7 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
                 onChangeText={setText}
                 onSubmitEditing={() => onSave(text)}
                 ref={input}
+                maxLength={NOTE_MAX}
                 placeholder={listening ? 'Слушаю…' : 'Например: убери это фото'}
                 placeholderTextColor={colors.mut2}
                 returnKeyType="done"
@@ -1100,6 +1129,7 @@ const s = StyleSheet.create({
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sheetTitle: { fontSize: 21, lineHeight: 26, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   sheetSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  counter: { fontSize: 12, fontFamily: fonts.medium, color: colors.mut2, textAlign: 'right', marginTop: -6, paddingHorizontal: 4 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 6, paddingLeft: 14 },
   ring: { position: 'absolute', left: -2, right: -2, top: -2, bottom: -2, borderRadius: 22 },
   halo: {

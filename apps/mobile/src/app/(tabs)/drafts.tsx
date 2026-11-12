@@ -7,9 +7,9 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { PlusIcon } from 'phosphor-react-native';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,11 +48,25 @@ export default function Drafts() {
   const insets = useSafeAreaInsets();
   const { lastBook, started, hiddenDrafts, hideDraft, setLastBook, orderNow, serverDrafts } = useStore();
 
+  // порядок — каким он был, когда открыли вкладку: открыли книгу — редактор сразу отмечает её «свежей»,
+  // и без снимка карточка улетала наверх ещё до того, как открылся редактор
+  const startedNow = useRef(started);
+  useEffect(() => {
+    startedNow.current = started;
+  }, [started]);
+  const [shownAt, setShownAt] = useState(started);
+  useFocusEffect(
+    useCallback(() => {
+      setShownAt(startedNow.current);
+    }, []),
+  );
+  const at = (id: string) => shownAt[id] ?? started[id];
+
   // только то, что человек сам начал; свежие — сверху. Идеи ИИ живут в кружках на главной, сюда не попадают
   const items: Item[] = Object.entries(started)
     .filter(([id]) => !hiddenDrafts.includes(id) && (drafts[id] || serverDrafts[id]))
-    .sort((a, b) => b[1] - a[1])
-    .map(([id, at], i) => {
+    .sort((a, b) => at(b[0]) - at(a[0]))
+    .map(([id], i) => {
       // демо-книга — из данных; книга с сервера — из её карточки (открывается по id проекта и подгружается с сервера)
       const d = drafts[id] ?? serverDrafts[id];
       const server = !drafts[id];
@@ -66,7 +80,7 @@ export default function Drafts() {
         pages: fromPreview ? Number(fromPreview.params.pages ?? d.pages) : d.pages,
         format: fromPreview ? fromPreview.params.format ?? d.format : d.format,
         photos: d.photos,
-        savedAt: at,
+        savedAt: at(id),
         open: () =>
           router.push({
             pathname: '/review',
