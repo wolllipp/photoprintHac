@@ -82,19 +82,30 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
     onSeen(items[page].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
-  // новый кадр — полоска с нуля
-  useEffect(() => {
-    progress.set(0);
-  }, [page, frame, progress]);
+  // сколько осталось кадру — считаем по часам, а не по полоске: значение полоски на JS-стороне отстаёт,
+  // и сразу после смены кадра читалось «почти 1» → таймер срабатывал мгновенно и история пролистывалась вся сама
+  const leftMs = useRef(FRAME_MS);
+  const startedAt = useRef(0);
+  const shown = useRef('');
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
+    const key = `${page}-${frame}`;
+    if (key !== shown.current) {
+      // новый кадр — полоска и время с нуля
+      shown.current = key;
+      leftMs.current = FRAME_MS;
+      startedAt.current = 0;
+      progress.set(0);
+    }
     if (paused) {
+      if (startedAt.current) leftMs.current = Math.max(0, leftMs.current - (Date.now() - startedAt.current));
+      startedAt.current = 0;
       cancelAnimation(progress);
       return;
     }
-    const left = Math.max(0, 1 - progress.value);
-    progress.set(withTiming(1, { duration: FRAME_MS * left, easing: Easing.linear }));
-    timer.current = setTimeout(next, FRAME_MS * left);
+    startedAt.current = Date.now();
+    progress.set(withTiming(1, { duration: leftMs.current, easing: Easing.linear }));
+    timer.current = setTimeout(next, leftMs.current);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
