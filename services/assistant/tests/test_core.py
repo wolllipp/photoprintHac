@@ -154,7 +154,10 @@ def test_deck_per_kpi_and_recent_files():
     n = artifacts.quarterly_deck(CEO, per_kpi=False).data["slides"]
     m = artifacts.quarterly_deck(CEO, per_kpi=True).data["slides"]
     assert m == n + len(artifacts._kpi_table("ceo"))
-    assert artifacts.recent_files(CEO).artifacts
+    from app import workspace
+    r = artifacts.quarterly_deck({**CEO, "session": "t1"}, per_kpi=False)
+    workspace.adopt("t1", r.artifacts[0])
+    assert artifacts.recent_files({**CEO, "session": "t1"}).artifacts
 
 
 def test_number_check_catches_two_digit_invented():
@@ -187,3 +190,47 @@ def test_agent_review_loop_lets_model_fix_answer(monkeypatch):
     ev = list(agent.run("ceo", "дай ссылку на встречу", None))
     final = next(e for e in ev if e["type"] == "answer")["text"]
     assert "Проверка ответа нашла проблемы" in seen[1] and "не могу" in final and not any(e["type"] == "notice" for e in ev)
+
+
+def test_sandbox_workspace_persists_and_edits_file():
+    from app import workspace
+    from app.tools import sandbox
+    ctx = {**CEO, "session": "t2"}
+    r = sandbox.run_python(ctx, "import matplotlib.pyplot as plt\nfig, ax = plt.subplots(); ax.plot([1,2,3]); fig.savefig('g.png')\n"
+                                "from pptx import Presentation\np = Presentation(); s = p.slides.add_slide(p.slide_layouts[5]); s.shapes.title.text = 'Первый'; p.save('d.pptx')\nprint(len(DATA) > 0)")
+    assert {"g.png", "d.pptx"} <= set(r.data["files"]) and r.data["printed"] == "True"
+    # следующий запрос открывает тот же файл и дополняет его
+    r2 = sandbox.run_python(ctx, "from pptx import Presentation\np = Presentation('d.pptx')\ns = p.slides.add_slide(p.slide_layouts[5]); s.shapes.title.text = 'Второй'\ns.shapes.add_picture('g.png', 0, 0)\np.save('d.pptx')")
+    assert r2.data["files"] == ["d.pptx"]
+    assert "Второй" in sandbox.read_file(ctx, "d.pptx").data["content"] and "Первый" in sandbox.read_file(ctx, "d.pptx").data["content"]
+    assert [a["name"] for a in r.artifacts if a["kind"] == "image"] == ["g.png"]
+
+
+def test_sandbox_blocks_escape_and_other_sessions():
+    from app.tools import sandbox
+    ctx = {**CEO, "session": "t3"}
+    for bad in ("import os", "import subprocess", "import pptx\npptx.os.system('ls')", "open('/etc/passwd').read()", "x = (1).__class__"):
+        r = sandbox.run_python(ctx, bad)
+        assert "error" in r.data, bad
+    assert "error" in sandbox.read_file(ctx, "../t2/d.pptx").data  # чужая папка недоступна
+
+
+def test_system_knowledge_available():
+    from app.tools import knowledge
+    r = knowledge.search_docs(CEO, "что умеет ассистент и как устроена система Insight")
+    assert "Insight" in str(r.data["found"]) and "mart_" not in str(r.sources)
+
+
+def test_build_deck_appends_and_rejects_leaks_and_empty_slides():
+    from app.tools import compose
+    from app import workspace
+    ctx = {**CEO, "session": "t4", "evidence": ""}
+    bad = compose.build_deck(ctx, "T", [{"title": "Только график", "chart": {"metric": "defect_rate"}}])
+    assert "error" in bad.data and "без текста" in bad.data["error"]
+    bad = compose.build_deck(ctx, "T", [{"title": "A", "bullets": ["тезис про систему"], "source": "kpi_overview[line=Ricoh]"}])
+    assert "error" in bad.data and "kpi_overview" in bad.data["error"]
+    r = compose.build_deck(ctx, "T", [{"title": "A", "bullets": ["первый тезис про систему"]}])
+    name = r.data["file"]
+    r2 = compose.build_deck(ctx, "T", [{"title": "B", "bullets": ["второй тезис про роли"]}], append_to=name)
+    assert r2.data["file"] == name and r2.data["slides"] == r.data["slides"] + 1
+    assert "второй тезис" in workspace.read_text("t4", name)

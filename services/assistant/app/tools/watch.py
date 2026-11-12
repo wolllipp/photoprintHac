@@ -40,7 +40,7 @@ def threshold_watch(ctx, metric, threshold, weeks=2):
     def commit():
         WATCHES.append(dict(metric=metric, threshold=threshold, weeks=weeks))
         return f"Правило включено: {metric} > {threshold} {weeks} нед. подряд."
-    return Result(data=dict(status="ждёт подтверждения", summary="правило наблюдения"),
+    return Result(data=dict(status="карточка показана пользователю", summary="правило наблюдения"),
                   proposal=Proposal(f"Следить за показателем: {metric} > {threshold}", dict(недель_подряд=weeks), commit))
 
 

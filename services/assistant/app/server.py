@@ -27,6 +27,7 @@ def role_of(x_role: str | None) -> str:
 class ChatIn(BaseModel):
     message: str
     history: list[dict] = []
+    session: str = ""
 
 
 @app.get("/meta")
@@ -40,7 +41,7 @@ def meta(x_role: str | None = Header(None)):
 def chat(body: ChatIn, x_role: str | None = Header(None)):
     role = role_of(x_role)
     def gen():
-        for ev in agent.run(role, body.message, body.history):
+        for ev in agent.run(role, body.message, body.history, {"session": body.session}):
             yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
@@ -52,12 +53,12 @@ def action(pid: str, verb: str, x_role: str | None = Header(None)):
     return policy.Pending.resolve(pid, role_of(x_role), verb == "confirm")
 
 
-@app.get("/files/{name}")
+@app.get("/files/{name:path}")
 def files(name: str):
     p = (OUT / name).resolve()
-    if p.parent != OUT.resolve() or not p.exists():
+    if not p.is_relative_to(OUT.resolve()) or not p.is_file():
         raise HTTPException(404)
-    return FileResponse(p, filename=name)
+    return FileResponse(p, filename=p.name)
 
 
 @app.get("/audit")

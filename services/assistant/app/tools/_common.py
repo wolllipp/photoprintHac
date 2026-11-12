@@ -14,11 +14,11 @@ OUT.mkdir(exist_ok=True)
 INK, ACC, MUTE, BAD = "#1d1d1b", "#e8a900", "#8a8a85", "#c0392b"  # жёлтый, чёрный, белый — цвета компании
 
 SRC = {
-    "defects": dict(name="mart_defects_weekly", kind="витрина", detail="брак по линиям, сменам, операторам, поставщикам"),
-    "finance": dict(name="mart_margin_weekly", kind="витрина", detail="выручка, себестоимость, скидки"),
-    "hr": dict(name="mart_staffing_weekly", kind="витрина", detail="укомплектованность, переработка (только руководитель)"),
-    "clients": dict(name="mart_clients_weekly", kind="витрина", detail="клиенты, повторные заказы, претензии"),
-    "tasks": dict(name="реестр задач", kind="система", detail="задачи, ответственные, сроки"),
+    "defects": dict(name="Брак по неделям", kind="данные производства", detail="по линиям, сменам, поставщикам"),
+    "finance": dict(name="Выручка и маржа по неделям", kind="данные производства", detail="выручка, себестоимость, скидки"),
+    "hr": dict(name="Персонал по неделям", kind="данные производства", detail="укомплектованность, переработка (только руководитель)"),
+    "clients": dict(name="Клиенты по неделям", kind="данные производства", detail="повторные заказы, претензии"),
+    "tasks": dict(name="Задачи", kind="CRM", detail="ответственные, сроки"),
 }
 
 

@@ -637,7 +637,7 @@ const INITIAL = () => ({
   me: "Технолог печати", taskSeq: 301, lastAssigned: null, undoAssign: null,
   draftText: {}, draftFiles: {}, taskErr: {}, review: {}, reviewText: {}, answerText: {},
   askOpen: {}, askKind: {}, askText: {}, askDue: {}, taskEdit: null, editDraft: { owner: "", due: "", criteria: "" }, addTask: null, newTask: { title: "", owner: "", due: "", criteria: "" },
-  chat: [], typing: null, journal: DEMO.journal.slice(), attackDone: false, attackAnswer: "", visited: {}, form: blankForm(), errors: {}, history: [], pendingAsk: null, fileNote: "", line: null, month: null, barMetric: "rev", barRange: 6, calAnchor: DEMO.meta.today, calDay: DEMO.meta.today, edit: false, doneTasks: {},
+  chat: [], chats: null, cur: null, draft: "", histOpen: false, typing: null, journal: DEMO.journal.slice(), attackDone: false, attackAnswer: "", visited: {}, form: blankForm(), errors: {}, history: [], pendingAsk: null, fileNote: "", line: null, month: null, barMetric: "rev", barRange: 6, calAnchor: DEMO.meta.today, calDay: DEMO.meta.today, edit: false, doneTasks: {},
 });
 let S = INITIAL();
 let typingTimer = null;
@@ -1508,14 +1508,22 @@ function answerText(intent, q) {
 /* ---------- Агент: живой ассистент (services/assistant), при недоступности остаётся сценарный режим макета ---------- */
 const AGENT_URL = window.INSIGHT_AGENT_URL || "http://localhost:8001";
 let agentCtl = null;
-const mdLite = t => esc(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\[(\d+(?:,\s*\d+)*)\]/g, '<sup class="cite">$1</sup>').replace(/\n/g, "<br>");
+const mdLite = t => {
+  const inl = x => esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\[(\d+(?:,\s*\d+)*)\]/g, '<sup class="cite">$1</sup>');
+  const out = []; let list = null;
+  for (const line of String(t).split("\n")) {
+    const li = line.match(/^\s*(?:[-•*]|\d+[.)])\s+(.*)/);
+    if (li) { if (!list) out.push(list = []); list.push(li[1]); } else { list = null; if (line.trim()) out.push(inl(line)); }
+  }
+  return out.map(x => Array.isArray(x) ? `<ul>${x.map(i => `<li>${inl(i)}</li>`).join("")}</ul>` : `<p>${x}</p>`).join("");
+};
 async function askAgent(q) {
-  const m = { who: "ai", agent: true, text: "", steps: [], artifacts: [], proposals: [], sources: [], notice: "", live: true, intent: "agent" };
+  const m = { who: "ai", agent: true, text: "", steps: [], artifacts: [], proposals: [], sources: [], notice: "", live: true, intent: "agent" }, chatRef = S.chat;
   agentCtl = new AbortController();
   const history = S.chat.filter(x => x.text && (x.who === "me" || x.agent)).slice(-7, -1).map(x => ({ role: x.who === "me" ? "user" : "assistant", content: x.text }));
-  const r = await fetch(AGENT_URL + "/chat", { method: "POST", signal: agentCtl.signal, headers: { "Content-Type": "application/json", "X-Role": S.role }, body: JSON.stringify({ message: q, history }) });
+  const r = await fetch(AGENT_URL + "/chat", { method: "POST", signal: agentCtl.signal, headers: { "Content-Type": "application/json", "X-Role": S.role }, body: JSON.stringify({ message: q, history, session: sessionId() }) });
   if (!r.ok || !r.body) throw new Error("agent " + r.status);
-  S.chat.push(m); render();
+  chatRef.push(m); render();
   const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "";
   for (;;) {
     const { done, value } = await rd.read(); if (done) break;
@@ -1523,7 +1531,7 @@ async function askAgent(q) {
     while ((i = buf.indexOf("\n\n")) >= 0) {
       const ev = JSON.parse(buf.slice(0, i).replace(/^data: /, "")); buf = buf.slice(i + 2);
       if (ev.type === "tool") m.steps.push({ id: ev.id, label: ev.label, st: "run" });
-      else if (ev.type === "tool_result") { const st = m.steps.find(x => x.id === ev.id); if (st) { st.st = ev.status; st.sum = ev.summary; } }
+      else if (ev.type === "tool_result") { const st = m.steps.find(x => x.id === ev.id); if (st) { st.st = ev.status; st.sum = String(ev.id).startsWith("review") ? "" : ev.summary; } }
       else if (ev.type === "artifact") m.artifacts.push(ev);
       else if (ev.type === "proposal") m.proposals.push({ ...ev, state: "pending" });
       else if (ev.type === "notice") { m.notice = ev.text; if (/Заблокировано/.test(ev.text)) m.refuse = true; }
@@ -1537,7 +1545,8 @@ async function askAgent(q) {
 }
 function ask(q) {
   q = q.trim(); if (!q || S.typing) return;
-  S.chat.push({ who: "me", text: q }); S.typing = q; render();
+  const cc = curChat(); if (!cc.title) cc.title = q.length > 44 ? q.slice(0, 42) + "…" : q;
+  S.draft = ""; S.chat.push({ who: "me", text: q }); S.typing = q; render();
   askAgent(q).catch(e => { if (e.name === "AbortError") return; if (!S.chat.some(x => x.live)) askScripted(q); else { const l = S.chat.find(x => x.live); l.text = l.text || "Связь с ассистентом прервалась."; } })
     .finally(() => { S.chat.forEach(x => { x.live = false; }); S.typing = null; render(); focusChat(); });
 }
@@ -1556,29 +1565,59 @@ function askScripted(q) {
     S.typing = null; render(); announce("Ассистент: " + text); focusChat();
   }, 700);
 }
+/* История чатов: в макете прошлые беседы заготовлены, новая создаётся кнопкой. Рабочая папка на сервере у каждого чата своя */
+const SESSION_BASE = Math.random().toString(36).slice(2, 8);
+const mockAi = (text, extra = {}) => ({ who: "ai", agent: true, text, steps: [], artifacts: [], proposals: [], sources: [], notice: "", live: false, ...extra });
+function ensureChats() {
+  if (S.chats) return;
+  S.chats = [
+    { id: "c0", title: "", group: "Сегодня", msgs: S.chat },
+    { id: "h1", title: "Почему вырос брак на линии Ricoh", group: "Вчера", msgs: [{ who: "me", text: "Почему вырос брак на линии Ricoh?" },
+      mockAi("Брак на Ricoh за две недели вырос с 1,4% до 3,1%. Основной вклад даёт ночная смена на новой партии бумаги [1]. Совпадение по времени не доказывает причину: нужна проверка калибровки.", { steps: [{ id: "1", label: "Разбираю причины отклонения", st: "ok" }], sources: [{ n: 1, name: "Брак по неделям", kind: "данные производства", detail: "по линиям, сменам, поставщикам" }] })] },
+    { id: "h2", title: "Квартальная презентация для совета", group: "Вчера", msgs: [{ who: "me", text: "Подготовь презентацию по итогам квартала" }, mockAi("Презентация собрана: сводка, отклонения, решения и риски. Файл ниже.", { artifacts: [{ kind: "file", name: "quarter.pptx", title: "Итоги квартала", url: "#" }] })] },
+    { id: "h3", title: "Что будет с маржой Premium при купоне 25%", group: "На этой неделе", msgs: [{ who: "me", text: "Что будет с маржой Premium, если ограничить купон 25%?" }, mockAi("При ограничении купона на 25% маржа Premium вырастет примерно на 2,1 п.п., выручка просядет на 1,3%. Расчёт по данным за 8 недель.")] },
+    { id: "h4", title: "Опрос начальников смен о простоях", group: "На этой неделе", msgs: [{ who: "me", text: "Узнай у начальника ночной смены, почему был простой" }, mockAi("Сообщение подготовлено, отправится после вашего подтверждения.")] },
+    { id: "h5", title: "Прогноз спроса на весну", group: "Раньше", msgs: [{ who: "me", text: "Покажи прогноз спроса и мощности на 8 недель" }, mockAi("Дефицит мощности возможен через 6 недель: прогноз заказов превышает мощность линий.")] },
+  ];
+  S.cur = "c0";
+}
+const curChat = () => (ensureChats(), S.chats.find(c => c.id === S.cur));
+const sessionId = () => SESSION_BASE + "-" + S.cur;
 const focusChat = () => { const el = document.getElementById("chat-input"); if (el) el.focus(); };
+const MIC = '<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>';
+const SEND = '<path d="M12 19V5M5 12l7-7 7 7"/>';
+const PLUS = '<path d="M12 5v14M5 12h14"/>';
+const svg = d => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 function vAssistant() {
-  const agentMsg = m => `<div class="msg ai agent${m.refuse ? " refuse" : ""}">
-     ${m.steps.length ? `<ul class="steps">${m.steps.map(x => `<li class="st-${x.st}"><span class="st-dot"></span>${esc(x.label)}${x.sum ? `<em> · ${esc(x.sum)}</em>` : ""}</li>`).join("")}</ul>` : ""}
-     ${m.live && !m.text ? `<div class="muted small">Думаю…</div>` : ""}
+  ensureChats();
+  const agentMsg = m => `<div class="cg-ai${m.refuse ? " refuse" : ""}">
+     ${m.steps.length ? (m.live ? `<ul class="steps">${m.steps.map(x => `<li class="st-${x.st}"><span class="st-dot"></span>${esc(x.label)}${x.sum ? `<em> · ${esc(x.sum)}</em>` : ""}</li>`).join("")}</ul>`
+        : `<details class="more cg-steps"><summary>Что я сделал (${m.steps.length})</summary><ul class="steps">${m.steps.map(x => `<li class="st-${x.st}"><span class="st-dot"></span>${esc(x.label)}${x.sum ? `<em> · ${esc(x.sum)}</em>` : ""}</li>`).join("")}</ul></details>`) : ""}
+     ${m.live && !m.text ? `<div class="muted small cg-think">Думаю…</div>` : ""}
      ${m.notice ? `<div class="note warn small">${esc(m.notice)}</div>` : ""}
      ${m.text ? `<div class="ans">${mdLite(m.text)}</div>` : ""}
-     ${m.artifacts.map(a => a.kind === "image" ? `<a href="${AGENT_URL + a.url}" target="_blank" rel="noopener"><img class="art-img" src="${AGENT_URL + a.url}" alt="${esc(a.title)}"></a>` : `<a class="art-file" href="${AGENT_URL + a.url}" download><b>${esc((a.name.split(".").pop() || "").toUpperCase())}</b>${esc(a.title)}</a>`).join("")}
+     ${m.artifacts.map(a => a.kind === "image" ? `<a href="${AGENT_URL + a.url}" target="_blank" rel="noopener"><img class="art-img" src="${AGENT_URL + a.url}" alt="${esc(a.title)}"></a>` : `<a class="art-file" href="${a.url === "#" ? "#/assistant" : AGENT_URL + a.url}" download><b>${esc((a.name.split(".").pop() || "").toUpperCase())}</b>${esc(a.title)}</a>`).join("")}
      ${m.proposals.map(p => `<div class="proposal ${p.state}"><div><b>${esc(p.title)}</b></div><div class="small muted">${Object.entries(p.details || {}).map(([k, v]) => esc(k) + ": " + esc(v)).join(" · ")}</div>
         ${p.state === "pending" ? `<div class="actions"><button class="btn btn-primary btn-sm" data-act="agentAct" data-arg="${esc(p.id)}:confirm">Подтвердить${p.risk === "external" ? " и отправить" : ""}</button><button class="btn btn-quiet btn-sm" data-act="agentAct" data-arg="${esc(p.id)}:reject">Отклонить</button></div>` : `<div class="small">${p.state === "done" ? esc(p.result || "Выполнено") : "Отклонено, ничего не выполнено"}</div>`}</div>`).join("")}
-     ${m.sources.length ? `<details class="more"><summary>Источники (${m.sources.length})</summary><ol class="srcs">${m.sources.map(x => `<li><b>${esc(x.name)}</b> <span class="muted">${esc(x.kind)}${x.detail ? ", " + esc(x.detail) : ""}</span></li>`).join("")}</ol></details>` : ""}
-     ${m.live ? "" : `<div class="msg-meta"><span class="badge b-ai">Ответ AI</span></div>`}</div>`;
-  const msgs = S.chat.length ? S.chat.map(m => m.who === "me" ? `<div class="msg me">${esc(m.text)}</div>` : m.agent ? agentMsg(m) :
-    `<div class="msg ai${m.refuse ? " refuse" : ""}"><div>${esc(m.text)}</div>
+     ${m.sources.length ? `<details class="more"><summary>Источники (${m.sources.length})</summary><ol class="srcs">${m.sources.map(x => `<li><b>${esc(x.name)}</b> <span class="muted">${esc(x.kind)}${x.detail ? ", " + esc(x.detail) : ""}</span></li>`).join("")}</ol></details>` : ""}</div>`;
+  const msgs = S.chat.map(m => m.who === "me" ? `<div class="cg-me"><div>${esc(m.text)}</div></div>` : m.agent ? agentMsg(m) :
+    `<div class="cg-ai${m.refuse ? " refuse" : ""}"><div class="ans">${esc(m.text)}</div>
      ${m.sources.length ? `<details class="more"><summary>Источники</summary>${sourcesHtml(m.sources)}</details>` : ""}
-     ${m.intent === "cause" ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.main)}">Открыть разбор отклонения</a>` : ""}
-     ${m.intent === "stop" ? "" : `<div class="msg-meta"><span class="badge b-ai">Ответ AI</span></div>`}</div>`).join("")
-    : `<p class="muted">Задайте вопрос о показателях компании. Ассистент видит только данные вашей роли и отвечает со ссылкой на источник.</p>`;
-  return `<div class="page-head"><div><h1 tabindex="-1">Ассистент</h1></div></div>
-  <div class="two"><section class="sheet"><div class="chat" id="chat" role="log" aria-label="Диалог с ассистентом">${msgs}</div>
-    ${S.typing ? `<div class="typing"><span>Ищу в витринах и документах…</span><button class="btn btn-quiet btn-sm" data-act="stop">Остановить</button></div>` : ""}
-    <form class="chat-form" data-form="ask"><div class="field"><label for="chat-input">Ваш вопрос</label><input id="chat-input" autocomplete="off"></div><button class="btn btn-primary" type="submit">Спросить</button></form></section>
-  <aside class="sheet"><h2>Попробуйте спросить</h2><div class="chips">${DEMO.assistant.presets.map((p, i) => `<button class="chip" data-act="preset" data-arg="${i}">${esc(p)}</button>`).join("")}</div></aside></div>`;
+     ${m.intent === "cause" ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.main)}">Открыть разбор отклонения</a>` : ""}</div>`).join("");
+  const hero = `<div class="cg-hero"><h1 tabindex="-1">Чем помочь?</h1><p class="muted">Спросите о показателях, попросите посчитать, построить график или собрать презентацию. Я вижу только данные вашей роли.</p>
+    <div class="cg-presets">${DEMO.assistant.presets.slice(0, 4).map((x, i) => `<button class="cg-preset" data-act="preset" data-arg="${i}">${esc(x)}</button>`).join("")}</div></div>`;
+  const groups = []; S.chats.filter(c => c.title || c.id === S.cur).forEach(c => { let g = groups.find(x => x.name === c.group); if (!g) groups.push(g = { name: c.group, items: [] }); g.items.push(c); });
+  const hist = `<aside class="cg-hist${S.histOpen ? " open" : ""}" aria-label="История чатов">
+    <button class="cg-new" data-act="newChat"${S.typing ? " disabled" : ""}>${svg(PLUS)}Новый чат</button>
+    <div class="cg-list">${groups.map(g => `<p class="cg-grp">${esc(g.name)}</p>${g.items.map(c => `<button class="cg-item${c.id === S.cur ? " cur" : ""}" data-act="openChat" data-arg="${esc(c.id)}"${S.typing ? " disabled" : ""}>${esc(c.title || "Новый чат")}</button>`).join("")}`).join("")}</div></aside>`;
+  return `<div class="cg">${hist}
+    <section class="cg-main"><div class="cg-bar"><button class="round cg-toggle" data-act="toggleHist" aria-label="История чатов">${svg('<path d="M4 6h16M4 12h16M4 18h10"/>')}</button><span class="cg-title">${esc(curChat().title || "Новый чат")}</span></div>
+      <div class="cg-scroll" id="chat" role="log" aria-label="Диалог с ассистентом"><div class="cg-col">${S.chat.length ? msgs : hero}</div></div>
+      <div class="cg-compose"><form class="cg-box" data-form="ask"><label for="chat-input" class="sr">Ваш вопрос</label>
+        <textarea id="chat-input" rows="1" placeholder="Спросите ассистента" autocomplete="off">${esc(S.draft)}</textarea>
+        <button type="button" class="cg-ic" data-act="mic" aria-label="Голосовой ввод">${svg(MIC)}</button>
+        ${S.typing ? `<button type="button" class="cg-send stop" data-act="stop" aria-label="Остановить">■</button>` : `<button class="cg-send" type="submit" aria-label="Отправить">${svg(SEND)}</button>`}</form>
+        <p class="cg-foot">Ассистент может ошибаться. Проверяйте важные числа по источникам.</p></div></section></div>`;
 }
 
 /* ---------- Экран: встречи ---------- */
@@ -1890,9 +1929,11 @@ function render(focusKey) {
   renderNav(path);
   renderTop();
   document.title = (route ? route.label + " · " : "") + "picPac Insight";
+  document.body.classList.toggle("chat-page", path === "assistant");
   const chatBox = document.getElementById("chat");
   if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
   if (focusKey) { const el = document.querySelector(focusKey); if (el) el.focus(); }
+  const ci = document.getElementById("chat-input"); if (ci) growBox(ci);
   if (path === "assistant") playChat(); else if (!S.chat.length) chatShown = 0;
   if (pendingEnter) { pendingEnter = false; enterView(path + (id ? "/" + id : "")); if (firstPaint) { firstPaint = false; enterShell(); } }
 }
@@ -1976,6 +2017,10 @@ const ACT = {
   toggleBar: () => { document.body.classList.toggle("bar-hidden"); return "skip"; },
   hideBar: () => { document.body.classList.add("bar-hidden"); toast("Панель скрыта. Вернуть: Alt+D"); return "skip"; },
   agentAct: a => { agentAct(a); return "skip"; },
+  newChat: () => { if (S.typing) return "skip"; ensureChats(); const c = S.chats[0]; if (c.msgs.length || c.title) { const id = "n" + Date.now().toString(36); S.chats.unshift({ id, title: "", group: "Сегодня", msgs: [] }); } S.cur = S.chats[0].id; S.chat = S.chats[0].msgs; S.histOpen = false; chatShown = 0; return "render"; },
+  openChat: a => { if (S.typing) return "skip"; ensureChats(); const c = S.chats.find(x => x.id === a); if (c) { S.cur = c.id; S.chat = c.msgs; chatShown = 0; S.histOpen = false; } return "render"; },
+  toggleHist: () => { S.histOpen = !S.histOpen; return "render"; },
+  mic: () => { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) { toast("Голосовой ввод: в продукте локальный Whisper, в браузере макета он недоступен"); return "skip"; } const r = new SR(); r.lang = "ru-RU"; r.onresult = e => { const el = document.getElementById("chat-input"); if (el) { el.value = (el.value + " " + e.results[0][0].transcript).trim(); S.draft = el.value; } }; r.start(); toast("Говорите…"); return "skip"; },
   stop: () => { if (agentCtl) agentCtl.abort(); clearTimeout(typingTimer); S.typing = null; S.chat.push({ who: "ai", text: "Ответ остановлен.", sources: [], intent: "stop" }); },
   preset: a => { ask(DEMO.assistant.presets[+a]); return "skip"; },
   askCause: a => { const info = DEMO.otherCases[a], q = DEMO.assistant.presets[info && info.ask != null ? info.ask : 0]; if (S.chat.some(m => m.who === "me" && m.text === q)) S.chatTo = q; else S.pendingAsk = q; return "nav"; },
@@ -2292,6 +2337,9 @@ document.addEventListener("click", ev => {
   if (!document.activeElement || document.activeElement === document.body) focusHeading();
 });
 function setPath(path, v) { const p = path.split("."); let o = S; for (let i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = v; }
+const growBox = el => { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 200) + "px"; };
+document.addEventListener("input", ev => { if (ev.target.id === "chat-input") { S.draft = ev.target.value; growBox(ev.target); } });
+document.addEventListener("keydown", ev => { if (ev.target.id === "chat-input" && ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); ask(ev.target.value); } });
 document.addEventListener("input", ev => {
   const t = ev.target;
   if (t.dataset.bind) { setPath(t.dataset.bind, t.value); if (/^(draftText|reviewText|answerText|askText|newTask|editDraft)\./.test(t.dataset.bind)) S.taskErr = {}; if (t.dataset.bind.startsWith("out.")) S.outErr = {}; if (t.dataset.bind === "rec.text") S.rec.err = ""; else

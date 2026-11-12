@@ -87,4 +87,7 @@ def route(role: str, question: str, limit: int = 8) -> list[Tool]:
             break
         if t not in picked and t.group in ("analysis", "knowledge"):
             picked.append(t)
+    for t in avail:  # рабочее место и знания о системе доступны всегда
+        if (t.group == "workspace" or t.name == "search_docs") and t not in picked:
+            picked.append(t)
     return picked

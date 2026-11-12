@@ -190,6 +190,8 @@ def workbook_xlsx(ctx, product="Фотокнига Premium"):
       "Показать недавно созданные файлы и графики (презентации, документы, таблицы), чтобы скачать их ещё раз. Ссылок наружу ассистент не создаёт.",
       keywords=("скачать", "скачай", "ссылк", "файл", "где презентац", "дай ее", "дай её"))
 def recent_files(ctx):
-    files = sorted((f for f in OUT.iterdir() if f.suffix in (".pptx", ".docx", ".xlsx", ".ics")), key=lambda f: -f.stat().st_mtime)[:3]
+    from .. import workspace as W
+    sid = ctx.get("session", "")
+    files = sorted((f for f in W.path(sid).iterdir() if f.suffix in (".pptx", ".docx", ".xlsx", ".ics")), key=lambda f: -f.stat().st_mtime)[:3]
     return Result(data=dict(files=[f.name for f in files], summary=f"файлов: {len(files)}"),
-                  artifacts=[file_artifact(f.name, f.name) for f in files])
+                  artifacts=[W.artifact(sid, f.name) for f in files])

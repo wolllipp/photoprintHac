@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from ..registry import Result, tool
 
@@ -12,14 +13,17 @@ DOCS = [
     dict(id="HR-02", title="Сезонный найм", text="Вакансии на сезон (1 апреля — 1 июля) открываются не позже чем за 8 недель до начала. Обучение временного сотрудника 3 дня."),
     dict(id="CLM-01", title="Претензии по браку", text="Подтверждённый дефект печати — бесплатная перепечатка без возврата книги. Достаточно фото дефекта. Срок перепечатки 3–5 рабочих дней."),
 ]
+GUIDES = [dict(id=f.stem, title=(f.read_text(encoding="utf-8").splitlines() or [f.stem])[0].lstrip("# "), text=f.read_text(encoding="utf-8"), full=True)
+          for f in sorted((Path(__file__).resolve().parents[2] / "docs").glob("*.md"))]
 _w = lambda s: {x[:5] for x in re.findall(r"[а-яёa-z0-9]{4,}", s.lower())}
 
 
-@tool("search_docs", "knowledge", "Ищу в регламентах", "Поиск по регламентам и политикам компании, возвращает цитату и номер документа.",
-      {"query": {"type": "string"}}, required=["query"], keywords=("регламент", "политик", "норма", "правил", "как положено", "допустим"))
+@tool("search_docs", "knowledge", "Ищу в документах", "Поиск по регламентам компании и по описанию системы Insight и самого ассистента (что умеет, как устроен, роли, показатели), а также по руководству по сборке файлов. Возвращает цитату или документ целиком.",
+      {"query": {"type": "string"}}, required=["query"], keywords=("регламент", "политик", "норма", "правил", "как положено", "допустим", "систем", "ассистент", "insight", "инсайт", "ты умеешь", "что умеешь", "руководств"))
 def search_docs(ctx, query):
     q = _w(query)
-    hits = sorted(((len(q & _w(d["title"] + " " + d["text"])), d) for d in DOCS), key=lambda x: -x[0])
+    hits = sorted(((len(q & _w(d["title"] + " " + d["text"])), d) for d in DOCS + GUIDES), key=lambda x: -x[0])
     hits = [d for s, d in hits if s > 0][:2]
-    return Result(data=dict(found=[dict(id=d["id"], title=d["title"], quote=d["text"]) for d in hits] or "ничего не найдено", summary=f"документов: {len(hits)}"),
-                  sources=[dict(name=f"{d['id']} {d['title']}", kind="документ", detail=d["text"][:80]) for d in hits])
+    return Result(data=dict(found=[dict(id=d["id"], title=d["title"], quote=d["text"][:5000]) for d in hits] or "ничего не найдено", summary=f"документов: {len(hits)}"),
+                  sources=[dict(name=d["title"], kind="документ", detail=d["text"][:80].replace("\n", " ")) for d in hits if not d.get("full")] or
+                          [dict(name=d["title"], kind="описание системы", detail="") for d in hits])

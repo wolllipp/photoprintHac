@@ -37,7 +37,7 @@ def propose_task(ctx, title, owner, due):
         t = dict(id=f"T-{208 + len(TASKS) - 2}", title=title, owner=owner, due=due, status="назначена", by_assistant=True)
         TASKS.append(t)
         return f"Задача {t['id']} создана: «{title}», {owner}, до {due}."
-    return Result(data=dict(status="ждёт подтверждения человеком", summary=f"задача для {owner}"),
+    return Result(data=dict(status="карточка показана пользователю", summary=f"задача для {owner}"),
                   proposal=Proposal(f"Создать задачу: {title}", dict(ответственный=owner, срок=due), commit))
 
 
@@ -51,7 +51,7 @@ def ask_colleague(ctx, role, question):
         if not r["delivered"]:
             return f"Не удалось отправить: {role} ({r.get('error', 'ошибка')})."
         return f"Отправлено: {role}. " + (f"Ответ: «{r['reply']}»" if r["reply"] else "Ответа пока нет, он придёт позже.")
-    return Result(data=dict(status="ждёт подтверждения человеком", summary=f"сообщение для {role}"),
+    return Result(data=dict(status="карточка показана пользователю", summary=f"сообщение для {role}"),
                   proposal=Proposal(f"Написать: {role}", dict(текст=question), commit))
 
 
@@ -67,7 +67,7 @@ def poll_group(ctx, roles, question):
             x = MSG.send(r, question)
             out.append(f"{r}: " + (x["reply"] or ("ответа пока нет" if x["delivered"] else "не доставлено")))
         return "Результат опроса:\n" + "\n".join(out)
-    return Result(data=dict(status="ждёт подтверждения человеком", summary=f"опрос: {len(roles)} получателей"),
+    return Result(data=dict(status="карточка показана пользователю", summary=f"опрос: {len(roles)} получателей"),
                   proposal=Proposal(f"Опросить: {', '.join(roles)}", dict(вопрос=question), commit))
 
 

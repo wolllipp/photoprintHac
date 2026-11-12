@@ -21,12 +21,15 @@ uv run pytest                                 # 23 теста, модель не
 | `app/policy.py` | маскирование ПДн, `<untrusted_data>`, подтверждения (`Pending`), журнал (`Audit`), поиск чисел без источника |
 | `app/llm.py` | адаптер OpenAI-совместимой модели |
 | `app/server.py` | `POST /chat` (SSE), `POST /actions/{id}/confirm|reject`, `/files/*`, `/audit`, `/meta` |
+| `app/workspace.py` | рабочая папка каждого чата (`out/ws/<чат>/`): файлы живут между вопросами, их можно открыть и дополнить |
+| `docs/*.md` | знания ассистента о системе Insight и о себе, руководство по сборке файлов; находятся через `search_docs` |
 | `app/store.py` | данные: `data/demo.json` выгружен из `insight.js`, цифры совпадают с макетом |
 | `app/tools/*.py` | плагины: **новый инструмент = новый файл или функция с `@tool`**, ядро не меняется |
 
 ## Инструменты (30, доступны и по MCP)
-- **analysis:** `kpi_overview`, `explain_deviation`, `compare_periods`, `what_if`, `forecast_demand`, `spc_chart`, `check_effect`, `abc_xyz`, `unit_economics`, `run_python` (песочница)
-- **artifacts:** `build_deck` и `build_docx` (содержимое проектирует сама модель, числа проверяются по данным диалога), `quarterly_deck` (готовый шаблон), `make_chart`, `pareto_defects`, `quarterly_deck` (pptx), `report_docx` (записка, ответ по претензии), `workbook_xlsx` (модель с формулами)
+- **analysis:** `kpi_overview`, `explain_deviation`, `compare_periods`, `what_if`, `forecast_demand`, `spc_chart`, `check_effect`, `abc_xyz`, `unit_economics`
+- **workspace** (общие инструменты, как у Claude Code: «инструменты + свобода»): `run_python` — код Python с файлами в папке чата (matplotlib, python-pptx, python-docx, openpyxl, numpy, данные в `DATA`), `list_files`, `read_file` (текст pptx/docx/xlsx). Один график или расчёт можно использовать в следующем шаге: файлы остаются в папке чата. Готовые инструменты ниже остаются быстрыми путями для типовых задач
+- **artifacts:** `build_deck` (в т.ч. `append_to` — добавить слайды в готовую презентацию) и `build_docx` (содержимое проектирует сама модель, числа проверяются по данным диалога), `quarterly_deck` (готовый шаблон), `make_chart`, `pareto_defects`, `quarterly_deck` (pptx), `report_docx` (записка, ответ по претензии), `workbook_xlsx` (модель с формулами)
 - **people:** `schedule_meeting` (приглашение .ics; ссылку Google Meet/Teams ассистент создать не может без подключённого календаря и говорит об этом), `prepare_meeting`, `list_tasks`, `propose_task`, `ask_colleague`, `poll_group`, `meeting_protocol`, `check_replies`
 - **watch:** `morning_brief`, `threshold_watch`, `data_quality_check`, `customer_feedback`
 - **knowledge:** `search_docs`
@@ -38,8 +41,8 @@ uv run pytest                                 # 23 теста, модель не
 - Роль `manager` не получает кадровые показатели; роли `admin` ассистент отказывает (403). Инструмента нет в списке роли, и вызов по имени отклоняется на сервере.
 - Запись и отправка сообщений только карточкой подтверждения; подтвердить может тот, для кого подготовлено, один раз.
 - Инструкция в запросе («игнорируй предыдущие…») блокируется до модели; тексты клиентов и записей идут модели как данные.
-- Числа в ответе, которых нет в результатах инструментов, помечаются «требует уточнения».
-- `run_python`: белый список импортов, без `open/exec/eval`, лимит CPU и времени, оператор скрыт от `manager`.
+- Числа в ответе, которых нет в результатах инструментов, показываются пользователю («Проверьте: …»), а модель получает замечание и переотвечает.
+- `run_python`: белый список импортов (в т.ч. pptx/docx/openpyxl/matplotlib), запрет `os/sys/subprocess/exec/eval`, `open` только в папке чата, лимит CPU и 60 с, оператор скрыт от `manager`, чужая папка чата недоступна.
 
 ## Замер модели (12.11, MacBook, Ollama)
 `uv run python tests/eval_model.py`: 10 русских вопросов, **10/10** по выбору нужного инструмента (8 задач и 2 отказа: зарплаты у менеджера и инъекция в запросе), утечек кадровых данных нет. Время ответа **3–9 с** на `qwen3:4b-instruct`.
