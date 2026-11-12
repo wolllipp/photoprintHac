@@ -142,12 +142,14 @@ export default function Review() {
       .then(setOwnPhotos)
       .catch(() => {});
   }, [params.projectId]);
+  // в своей книге — только фото, которых в книге ещё нет: одно и то же фото дважды не ставим
   const source = useMemo<Pic[]>(() => {
     if (!params.projectId) return POOL;
     const inBook = new Set(pages.flatMap((p) => p.photos).filter(Boolean).map(String));
-    const all = [...new Set([...ownPhotos, ...inBook])];
-    return [...all.filter((k) => !inBook.has(k)), ...all.filter((k) => inBook.has(k))];
+    return [...new Set(ownPhotos)].filter((k) => !inBook.has(k));
   }, [params.projectId, ownPhotos, pages]);
+  // макет на больше фото, чем есть свободных: не дублируем, а спрашиваем — добавить из галереи или оставить рамки пустыми
+  const [needPhotos, setNeedPhotos] = useState<{ page: number; layout: string; slot: number; need: number } | null>(null);
 
   // каждая правка страницы (замена фото, макет, подпись, «Исправить») сохраняется на сервере — книга не теряется
   const synced = useRef<Record<number, string>>({});
@@ -317,9 +319,32 @@ export default function Review() {
   const setLayout = (id: string) => {
     if (!menu) return;
     const page = menu.page;
+    const have = pages[page].photos.filter(Boolean).length;
+    const missing = slotsOf(id) - have - source.length;
+    if (params.projectId && missing > 0) {
+      setMenu(null);
+      setNeedPhotos({ page, layout: id, slot: menu.slot, need: missing });
+      return;
+    }
     editPage(page, withLayout(pages[page], id, menu.slot, source), `Макет: ${layoutOf(id).name.toLowerCase()}`);
     // макет с подписью — сразу просим текст и место подписи
     if (layoutOf(id).caption) setTimeout(() => setCaptionFor(page), 280);
+  };
+  // не хватает фото на макет: добрать из галереи (новые встают в рамки) или оставить пустые рамки
+  const fillFromGallery = async () => {
+    if (!needPhotos) return;
+    const { page, layout, slot } = needPhotos;
+    setNeedPhotos(null);
+    const inBook = pages.flatMap((pg) => pg.photos).filter((x): x is string => typeof x === 'string');
+    const picked = await pickPhotos(inBook);
+    if (!picked || !picked.fresh.length) return;
+    editPage(page, withLayout(pages[page], layout, slot, [...source, ...picked.fresh]), `Макет: ${layoutOf(layout).name.toLowerCase()}`);
+  };
+  const keepEmpty = () => {
+    if (!needPhotos) return;
+    const { page, layout, slot } = needPhotos;
+    setNeedPhotos(null);
+    editPage(page, withLayout(pages[page], layout, slot, source), 'Пустые рамки — заполните перед заказом');
   };
   // редактор подписи страницы
   const [captionFor, setCaptionFor] = useState<number | null>(null);
@@ -622,6 +647,29 @@ export default function Review() {
           onComment={commentHere}
           onClose={() => setMenu(null)}
         />
+      ) : null}
+
+      {needPhotos ? (
+        <>
+          <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setNeedPhotos(null)} accessibilityRole="button" accessibilityLabel="Закрыть" />
+          </Animated.View>
+          <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, s.sheetAbs, { bottom: -SHEET_TAIL, paddingBottom: insets.bottom + 12 + SHEET_TAIL }]}>
+            <Text style={s.sheetTitle}>Не хватает фото</Text>
+            <Text style={s.sheetSub}>
+              Для макета «{layoutOf(needPhotos.layout).name}» нужно ещё {needPhotos.need} фото: свободных в книге нет, а одно фото дважды не ставим.
+            </Text>
+            <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={() => fillFromGallery().catch(() => {})} accessibilityRole="button">
+              <Text style={s.saveText}>Добавить {needPhotos.need} из галереи</Text>
+            </Tap>
+            <Tap style={[s.chip, { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 14 }]} onPress={keepEmpty} accessibilityRole="button">
+              <Text style={s.chipText}>Оставить пустые рамки</Text>
+            </Tap>
+            <Tap style={{ alignItems: 'center', paddingVertical: 10 }} onPress={() => setNeedPhotos(null)} accessibilityRole="button">
+              <Text style={[s.chipText, { color: colors.mut }]}>Отмена</Text>
+            </Tap>
+          </Animated.View>
+        </>
       ) : null}
 
       {orderOpen ? (
