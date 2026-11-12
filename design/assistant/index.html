@@ -712,16 +712,35 @@ $('#form').addEventListener('submit', (e) => { e.preventDefault(); if (busy) bus
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
 if (!SR) $('#mic').hidden = true;
+// почему не слушаем — понятной фразой; запасной путь на айфоне — микрофон на клавиатуре (та же диктовка iOS)
+const KEYBOARD = 'Или нажмите поле и микрофон на клавиатуре';
+const VOICE_ERR = {
+  'not-allowed': 'Разрешите микрофон: Настройки → Safari → Микрофон',
+  'service-not-allowed': 'Включите диктовку: Настройки → Основные → Клавиатура → Диктовка',
+  'audio-capture': 'Микрофон занят или недоступен',
+  'network': 'Распознаванию речи нужен интернет',
+  'no-speech': 'Не расслышали — скажите ещё раз',
+};
 $('#mic').onclick = () => {
   if (rec) return rec.stop();
   if (busy) return;
-  rec = new SR(); rec.lang = 'ru-RU'; rec.interimResults = true;
-  let fin = '';
-  rec.onstart = () => { $('#vf').classList.add('listening'); $('#mic').setAttribute('aria-pressed', 'true'); input.placeholder = 'Слушаю…'; };
-  rec.onresult = (e) => { let t = ''; for (const r of e.results) { t += r[0].transcript; if (r.isFinal) fin = t; } input.value = t; autosize(); sync(); };
-  rec.onerror = (e) => { if (e.error === 'not-allowed') toast('Разрешите микрофон в браузере'); };
-  rec.onend = () => { $('#vf').classList.remove('listening'); $('#mic').setAttribute('aria-pressed', 'false'); input.placeholder = 'Голосом или текстом'; rec = null; if (fin.trim()) ask(fin); };
-  rec.start();
+  // по http Safari не даёт микрофон совсем — говорим, а не молчим
+  if (!window.isSecureContext) { toast('Голос работает только по https-ссылке (новый QR-код). ' + KEYBOARD); input.focus(); return; }
+  let fin = '', heard = false;
+  try {
+    rec = new SR(); rec.lang = 'ru-RU'; rec.interimResults = true; rec.continuous = false;
+  } catch (e) { rec = null; toast('Распознавание речи недоступно. ' + KEYBOARD); input.focus(); return; }
+  // кнопка откликается сразу, не дожидаясь onstart (на iOS он приходит с задержкой или не приходит)
+  $('#vf').classList.add('listening'); $('#mic').setAttribute('aria-pressed', 'true'); input.placeholder = 'Слушаю…';
+  rec.onresult = (e) => { heard = true; let t = ''; for (const r of e.results) { t += r[0].transcript; if (r.isFinal) fin = t; } input.value = t; autosize(); sync(); };
+  rec.onerror = (e) => { toast((VOICE_ERR[e.error] || 'Не получилось включить голос (' + e.error + ')') + (e.error === 'no-speech' ? '' : '. ' + KEYBOARD)); };
+  rec.onend = () => {
+    $('#vf').classList.remove('listening'); $('#mic').setAttribute('aria-pressed', 'false'); input.placeholder = 'Голосом или текстом'; rec = null;
+    // на iOS финальный результат иногда не помечен — отправляем то, что услышали
+    const text = (fin || (heard ? input.value : '')).trim();
+    if (text) ask(text);
+  };
+  try { rec.start(); } catch (e) { rec = null; $('#vf').classList.remove('listening'); $('#mic').setAttribute('aria-pressed', 'false'); input.placeholder = 'Голосом или текстом'; toast('Не получилось включить голос. ' + KEYBOARD); input.focus(); }
 };
 
 sync();
