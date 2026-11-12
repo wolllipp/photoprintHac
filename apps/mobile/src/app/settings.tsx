@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProfileEdit, type EditWhat } from '@/components/profileEdit';
 import { Pik, Tap } from '@/components/ui';
 import { delivery, pickupPoints } from '@/data/demo';
+import { features } from '@/data/features';
 import { useStore } from '@/data/store';
 import { ease } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -111,9 +112,9 @@ export default function Profile() {
                 <Text style={s.rowSub}>с наших серверов, без возможности восстановить</Text>
               </View>
             </Animated.View>
-          ) : (
+          ) : features.deletePhotos ? (
             <Row title="Удалить мои фото" sub="сразу, не дожидаясь 30 дней после заказа" danger onPress={deletePhotos} />
-          )}
+          ) : null}
         </Animated.View>
 
         <Tap style={s.logout} onPress={logout} accessibilityRole="button">

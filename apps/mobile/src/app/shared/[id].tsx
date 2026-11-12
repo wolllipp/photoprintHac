@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { sharedAlbums } from '@/data/demo';
+import { features } from '@/data/features';
 import { pic, type PhotoName } from '@/data/photos';
 import { AnimatedNumber, enterItem, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -78,11 +79,16 @@ export default function Shared() {
               <Text style={s.link} selectable numberOfLines={1}>picpac.by/a/{p.id}</Text>
             </View>
           </View>
+          {/* ссылка заработает, когда альбомы будут на сервере (features.sharedLink); до тех пор не обещаем */}
+          {features.sharedLink ? (
           <Tap style={[s.btn, s.btnPrimary]} onPress={share} accessibilityRole="button" accessibilityLabel="Отправить ссылку на альбом">
             <ShareNetworkIcon size={18} color="#fff" weight="bold" />
             <Text style={s.btnPrimaryText}>Отправить ссылку</Text>
           </Tap>
-          {gift ? null : (
+          ) : (
+            <Text style={s.small}>Демо: отправка ссылки и QR-код появятся, когда альбом будет храниться на сервере</Text>
+          )}
+          {gift || !features.sharedLink ? null : (
           <Tap style={s.qrToggle} onPress={() => setQr((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: qr }}>
             <QrCodeIcon size={16} color={colors.coralLink} weight="bold" />
             <Text style={s.qrToggleText}>{qr ? 'Скрыть QR-код' : 'Показать QR-код — если все рядом'}</Text>

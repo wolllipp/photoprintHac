@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import type { Card } from '@/data/demo';
+import { features } from '@/data/features';
 import { useStore } from '@/data/store';
 import { ease } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -155,6 +156,8 @@ export default function Cards() {
             {cards[at]?.brand} •• {cards[at]?.last4} · {cards[at]?.bank}
             {cards[at]?.id === cardId ? ' · сейчас выбрана' : ''}
           </Text>
+          {/* новая карта — когда подключат эквайер (features.newCard): сейчас номер никуда не уходит */}
+          {features.newCard ? (
           <Tap style={s.addBtn} onPress={() => {
               setOpenAt(at);
               setAdding(true);
@@ -163,6 +166,7 @@ export default function Cards() {
             <PlusIcon size={16} color={colors.fg} weight="bold" />
             <Text style={s.addBtnText}>Добавить карту</Text>
           </Tap>
+          ) : null}
         </View>
       )}
 

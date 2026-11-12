@@ -15,6 +15,7 @@ import { loginErrorText, requestCode, verifyCode } from '@/api/client';
 import { ChoiceTile } from '@/components/choice';
 import { Tap } from '@/components/ui';
 import { delivery as METHODS, pickupPoints } from '@/data/demo';
+import { features } from '@/data/features';
 import { rub, useStore, type Address } from '@/data/store';
 import { SHEET_TAIL, sheetIn, sheetOut } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -190,16 +191,19 @@ function CardsForm({ onDone }: { onDone: () => void }) {
           </View>
         );
       })}
-      <Tap
-        style={s.add}
-        onPress={() => {
-          onDone();
-          router.push('/cards');
-        }}
-        accessibilityRole="button">
-        <PlusIcon size={18} color={colors.peachInk} weight="bold" />
-        <Text style={s.addText}>Добавить карту</Text>
-      </Tap>
+      {/* новая карта — когда подключат эквайер (features.newCard) */}
+      {features.newCard ? (
+        <Tap
+          style={s.add}
+          onPress={() => {
+            onDone();
+            router.push('/cards');
+          }}
+          accessibilityRole="button">
+          <PlusIcon size={18} color={colors.peachInk} weight="bold" />
+          <Text style={s.addText}>Добавить карту</Text>
+        </Tap>
+      ) : null}
     </View>
   );
 }

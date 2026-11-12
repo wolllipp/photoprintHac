@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { checkOnServer, loadServerBook, savePage, serverBook } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
+import { features } from '@/data/features';
 import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
 import { TariffSheet } from '@/components/tariffSheet';
@@ -886,9 +887,12 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
                 style={s.input}
                 accessibilityLabel="Замечание к этому месту"
               />
-            <Tap style={[s.mic, listening && s.micOn]} onPress={voice} accessibilityRole="button" accessibilityLabel={listening ? 'Слушаю' : 'Сказать голосом'}>
-              <MicrophoneIcon size={18} color="#fff" weight="fill" />
-            </Tap>
+            {/* голос — когда будет распознавание речи (features.voice) */}
+            {features.voice ? (
+              <Tap style={[s.mic, listening && s.micOn]} onPress={voice} accessibilityRole="button" accessibilityLabel={listening ? 'Слушаю' : 'Сказать голосом'}>
+                <MicrophoneIcon size={18} color="#fff" weight="fill" />
+              </Tap>
+            ) : null}
           </VoiceField>
           <Text style={s.quickLabel}>Поправить</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="always">

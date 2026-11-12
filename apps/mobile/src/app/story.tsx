@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { parseStory, type ParsedStory } from '@/ai/story';
 import { Tap } from '@/components/ui';
 import { bookPrice, fitFormat, tariffs } from '@/data/demo';
+import { features } from '@/data/features';
 import { pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { OverlapTitle } from '@/components/home';
@@ -163,7 +164,7 @@ export default function Story() {
             {/* кегль подстраивается под реальную ширину строки на этом телефоне */}
             <OverlapTitle text="Собрать книгу" size={64} maxWidth={width - 56} rgb="29,33,32" warm enter />
             <Animated.Text entering={FadeInDown.delay(260).duration(520).easing(ease.smoothOut)} style={s.sub}>
-              Опишите книгу словами или голосом — соберём её из ваших фото.
+              {features.voice ? 'Опишите книгу словами или голосом — соберём её из ваших фото.' : 'Опишите книгу словами — соберём её из ваших фото.'}
             </Animated.Text>
           </Animated.View>
         ) : (

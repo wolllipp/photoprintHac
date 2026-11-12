@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { VoiceGlow } from '@/components/voiceGlow';
+import { features } from '@/data/features';
 import { duration } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -47,7 +48,8 @@ export function Composer({
 }) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
-  const [listening, setListening] = useState(Boolean(startListening));
+  // голос — только когда есть распознавание речи (features.voice); иначе сразу поле для текста
+  const [listening, setListening] = useState(Boolean(startListening) && features.voice);
   const [heard, setHeard] = useState('');
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   useImperativeHandle(ref, () => ({ blur: () => input.current?.blur(), focus: () => input.current?.focus() }));
@@ -59,7 +61,7 @@ export function Composer({
 
   useEffect(() => {
     // клавиатура поднимается вместе с окном — одно движение снизу
-    const t = autoFocus && !startListening ? setTimeout(() => input.current?.focus(), 60) : undefined;
+    const t = autoFocus && !(startListening && features.voice) ? setTimeout(() => input.current?.focus(), 60) : undefined;
     return () => {
       if (t) clearTimeout(t);
     };
@@ -158,11 +160,13 @@ export function Composer({
                   </Tap>
                 ) : null}
                 <View style={{ flex: 1 }} />
-                <Tap style={s.ghostFlat} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Надиктовать">
-                  <MicrophoneIcon size={20} color={colors.fg} />
-                </Tap>
-                {text.trim() ? (
-                  <Tap style={[s.send, busy && { opacity: 0.35 }]} onPress={() => send(text)} disabled={busy} accessibilityRole="button" accessibilityLabel="Отправить">
+                {features.voice ? (
+                  <Tap style={s.ghostFlat} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Надиктовать">
+                    <MicrophoneIcon size={20} color={colors.fg} />
+                  </Tap>
+                ) : null}
+                {text.trim() || !features.voice ? (
+                  <Tap style={[s.send, (busy || !text.trim()) && { opacity: 0.35 }]} onPress={() => send(text)} disabled={busy || !text.trim()} accessibilityRole="button" accessibilityLabel="Отправить">
                     <ArrowUpIcon size={18} color="#fff" weight="bold" />
                   </Tap>
                 ) : (

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { tiles } from '@/data/demo';
+import { features } from '@/data/features';
 import { SHEET_TAIL, sheetIn } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -86,14 +87,17 @@ export function NewSheet({ visible, onClose, onPick, onDismissed }: { visible: b
             <ActionTile
               icon={<ArtWords />}
               title="По описанию"
-              sub="Напишите или скажите, о чём книга"
+              sub={features.voice ? 'Напишите или скажите, о чём книга' : 'Напишите, о чём книга'}
               onPress={() => pick('words')}
               corner={
-                <Tap onPress={() => pick('voice')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Рассказать голосом">
-                  <View style={s.mic}>
-                    <MicrophoneIcon size={16} color="#fff" weight="fill" />
-                  </View>
-                </Tap>
+                // голос — когда будет распознавание речи (features.voice)
+                features.voice ? (
+                  <Tap onPress={() => pick('voice')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Рассказать голосом">
+                    <View style={s.mic}>
+                      <MicrophoneIcon size={16} color="#fff" weight="fill" />
+                    </View>
+                  </Tap>
+                ) : undefined
               }
             />
             <ActionTile icon={<ArtPrint />} title="Печать фото" sub={`${tiles.printFrom} за снимок`} onPress={() => pick('print')} />
