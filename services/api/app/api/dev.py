@@ -1,7 +1,7 @@
 """Только DEMO_MODE: имитация производства и баллов для демо. Подключается условно."""
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +39,8 @@ async def advance(order_id: uuid.UUID, done: int | None = None, user: User = Dep
 
 
 @router.post("/points")
-async def grant_points(amount: int = 350, user: User = Depends(registered_user), s: AsyncSession = Depends(get_session)):
+async def grant_points(amount: int = Query(350, ge=1, le=100_000), user: User = Depends(registered_user),
+                       s: AsyncSession = Depends(get_session)):
     s.add(PointsLedger(user_id=user.id, delta=amount, reason="referral"))
     await s.commit()
     return {"granted": amount}

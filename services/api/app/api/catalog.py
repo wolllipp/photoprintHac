@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,8 +37,9 @@ async def delivery(s: AsyncSession = Depends(get_session)):
 
 
 @router.get("/quote")
-async def quote(pages: int | None = None, format: str = "20x20", delivery: str = "europost_pvz",
-                project_id: str | None = Query(None), s: AsyncSession = Depends(get_session)):
+async def quote(pages: int | None = Query(None, ge=1, le=1000), format: str = Query("20x20", max_length=20),
+                delivery: str = Query("europost_pvz", max_length=40),
+                project_id: uuid.UUID | None = Query(None), s: AsyncSession = Depends(get_session)):
     """Тарифы Lite / Classic / Premium: цена и дата получения (экран «Книга и цена»)."""
     if project_id:
         proj = await s.get(Project, project_id)

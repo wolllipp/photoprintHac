@@ -24,6 +24,8 @@ if pillow_heif:
 
 router = APIRouter(tags=["photos"])
 MAX_BYTES = 40 * 1024 * 1024
+# 60 Мпикс хватает с запасом: у камер телефонов до 48–50 Мпикс
+MAX_PIXELS = 60_000_000
 # MPO — JPEG с дополнительными кадрами (глубина, HDR): так айфон часто сохраняет обычные фото; храним как jpg
 ALLOWED = {"JPEG": "jpg", "MPO": "jpg", "PNG": "png", "HEIC": "heic", "HEIF": "heic", "WEBP": "webp"}
 
@@ -53,8 +55,13 @@ async def upload(files: list[UploadFile] = File(...), user: User = Depends(curre
             fmt = img.format
             w, h = img.size
             taken = _taken_at(img)
+        except Image.DecompressionBombError:
+            raise HTTPException(413, f"{f.filename}: слишком большое изображение")
         except (UnidentifiedImageError, OSError):
             raise HTTPException(415, f"{f.filename}: не изображение")
+        # «бомба» из маленького файла на десятки тысяч пикселей по стороне — не декодируем
+        if w * h > MAX_PIXELS:
+            raise HTTPException(413, f"{f.filename}: больше {MAX_PIXELS // 1_000_000} Мпикс")
         if fmt not in ALLOWED:
             raise HTTPException(415, f"{f.filename}: формат {fmt} не поддерживается")
         pid = uuid.uuid4()

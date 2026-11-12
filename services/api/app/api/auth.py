@@ -1,7 +1,7 @@
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,11 +14,11 @@ router = APIRouter(tags=["auth"])
 
 
 class PhoneIn(BaseModel):
-    phone: str
+    phone: str = Field(max_length=32)
 
 
 class VerifyIn(PhoneIn):
-    code: str
+    code: str = Field(max_length=10)
 
 
 def norm_phone(raw: str) -> str:

@@ -20,10 +20,11 @@ router = APIRouter(tags=["orders"])
 STAGE_ORDER = list(Stage)
 
 
+# длины — по колонкам pickup_points (models/users.py): длиннее — 422, а не 500 от базы
 class PickupIn(BaseModel):
-    carrier: str = "europost"
-    title: str
-    address: str
+    carrier: str = Field("europost", max_length=50)
+    title: str = Field(max_length=200)
+    address: str = Field(max_length=300)
 
 
 # Допуслуги и промокоды — те же, что в приложении (apps/mobile/src/data/store.tsx EXTRAS, checkout.tsx).
@@ -37,18 +38,22 @@ class PrintIn(BaseModel):
     qty: int = Field(1, ge=1, le=99)
 
 
+# фотопечать в одном заказе: не больше 500 позиций и 2000 снимков всего
+MAX_PRINT_ITEMS, MAX_PRINT_COPIES = 500, 2000
+
+
 class OrderIn(BaseModel):
     # книга — project_id и тариф; фотопечать — prints (какие фото и сколько копий), product print_digital | print_chemical
     project_id: uuid.UUID | None = None
-    prints: list[PrintIn] = []
-    product: str  # lite | classic | premium | print_digital | print_chemical
-    format: str = "20x20"
-    delivery: str = "europost_pvz"
+    prints: list[PrintIn] = Field(default_factory=list, max_length=MAX_PRINT_ITEMS)
+    product: str = Field(max_length=40)  # lite | classic | premium | print_digital | print_chemical
+    format: str = Field("20x20", max_length=20)
+    delivery: str = Field("europost_pvz", max_length=40)
     pickup: PickupIn | None = None
     payment: str = Field("card", pattern="^(card|erip)$")
-    points_to_spend: int = Field(0, ge=0)
-    extras: list[str] = []
-    promo_code: str | None = None
+    points_to_spend: int = Field(0, ge=0, le=1_000_000)
+    extras: list[str] = Field(default_factory=list, max_length=10)
+    promo_code: str | None = Field(None, max_length=40)
 
 
 def order_out(o: Order, stages: list[OrderStage], pages: int | None = None) -> dict:
@@ -94,6 +99,8 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
         # фотопечать: только свои фото; цена — за штуку формата × копии
         if not body.prints:
             raise HTTPException(422, "для печати нужны фото")
+        if sum(p.qty for p in body.prints) > MAX_PRINT_COPIES:
+            raise HTTPException(422, f"в одном заказе не больше {MAX_PRINT_COPIES} снимков")
         ids = {p.photo_id for p in body.prints}
         mine = set((await s.execute(select(Photo.id).where(Photo.id.in_(ids), Photo.owner_id == user.id))).scalars())
         if mine != ids:

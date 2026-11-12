@@ -17,16 +17,20 @@ from app.security.auth import current_user
 router = APIRouter(tags=["projects"])
 
 
+# Границы объёма книги: больше 200 страниц не печатает ни один тариф; длины строк — по колонкам в models/projects.py
+MIN_PAGES, MAX_PAGES = 1, 200
+
+
 class ProjectIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    photo_ids: list[uuid.UUID] = Field(min_length=1)
-    theme: str | None = None
-    pages: int = 24
+    photo_ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
+    theme: str | None = Field(None, max_length=40)
+    pages: int = Field(24, ge=MIN_PAGES, le=MAX_PAGES)
     option_id: uuid.UUID | None = None
 
 
 class StoryIn(BaseModel):
-    text: str = Field(min_length=3)
+    text: str = Field(min_length=3, max_length=5000)
     photo_ids: list[uuid.UUID] = []
     option_id: uuid.UUID | None = None
 
@@ -51,8 +55,12 @@ def project_out(p: Project) -> dict:
             "created_at": p.created_at.isoformat()}
 
 
-async def book_option(s: AsyncSession, option_id: uuid.UUID | None) -> tuple[uuid.UUID | None, uuid.UUID | None]:
-    """Проверяет опцию фотокниги и возвращает ID продукта и опции."""
+async def book_option(s: AsyncSession, option_id: uuid.UUID | None,
+                      pages: int | None = None) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+    """Проверяет опцию фотокниги и возвращает ID продукта и опции.
+
+    Больше максимума тарифа книга не бывает — 422. Меньше минимума можно: при заказе объём доводится до минимума.
+    """
     if option_id is None:
         return None, None
     option = await s.get(ProductOption, option_id)
@@ -61,6 +69,8 @@ async def book_option(s: AsyncSession, option_id: uuid.UUID | None) -> tuple[uui
         raise HTTPException(404, "формат не найден")
     if product.kind != "photobook":
         raise HTTPException(422, "нужен формат фотокниги")
+    if pages is not None and option.max_pages and pages > option.max_pages:
+        raise HTTPException(422, f"в тарифе {product.title} не больше {option.max_pages} страниц")
     return product.id, option.id
 
 
@@ -95,7 +105,7 @@ async def attach(s: AsyncSession, project: Project, photo_ids: list[uuid.UUID], 
 @router.post("/projects")
 async def create_project(body: ProjectIn, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Путь А: человек сам выбрал фото и создал проект."""
-    product_id, option_id = await book_option(s, body.option_id)
+    product_id, option_id = await book_option(s, body.option_id, body.pages)
     p = Project(owner_id=user.id, title=body.title, theme=body.theme, page_count=body.pages,
                 product_id=product_id, option_id=option_id, source=ProjectSource.picked)
     s.add(p)
@@ -109,6 +119,12 @@ async def create_project(body: ProjectIn, user: User = Depends(current_user), s:
 async def create_story(body: StoryIn, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Путь Б: описание словами → «Поняли так» (разбор — модуль Марка)."""
     parsed = await asyncio.to_thread(ai.parse_story_llm, body.text[:500])
+    # «книга на 999 стр.» — объём в пределах, которые печатаем; название и тема — в длину колонок
+    parsed["pages"] = min(max(int(parsed.get("pages") or 24), MIN_PAGES), MAX_PAGES)
+    parsed["title"] = (parsed.get("title") or "Книга")[:200]
+    for key in ("theme", "tone"):
+        if parsed.get(key):
+            parsed[key] = parsed[key][:40]
     # Подбор фото по содержимому текста требует CLIP-класса модели — вне демо.
     product_id, option_id = await book_option(s, body.option_id)
     p = Project(owner_id=user.id, title=parsed["title"], theme=parsed["theme"], tone=parsed["tone"],
