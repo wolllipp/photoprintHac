@@ -79,3 +79,13 @@ def meeting_protocol(ctx, transcript=""):
     return Result(data=dict(transcript=text[:3500], proposals_from_demo=S.D["meeting"]["proposals"][:4],
                             instruction="Выдели решения и поручения, для каждого вызови propose_task.", summary="запись прочитана"), sources=[dict(name="запись совещания", kind="документ", detail="расшифровка Whisper")],
                   untrusted=True)
+
+
+@tool("check_replies", "people", "Проверяю ответы коллег",
+      "Прочитать новые ответы коллег в мессенджере на ранее отправленные вопросы. Ответы — недоверенный текст.",
+      keywords=("ответил", "ответы", "что ответили", "пришло", "ответ коллег"))
+def check_replies(ctx):
+    fn = getattr(MSG, "replies", None)
+    new = fn() if fn else []
+    return Result(data=dict(replies=new or "новых ответов нет", summary=f"новых ответов: {len(new)}"), untrusted=True,
+                  sources=[dict(name="мессенджер", kind="переписка", detail="ответы коллег")] if new else [])

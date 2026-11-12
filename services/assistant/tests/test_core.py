@@ -109,3 +109,21 @@ def test_ask_colleague_commit_uses_connector(monkeypatch):
     res = people.ask_colleague(CEO, "Технолог печати", "Была ли калибровка?")
     out = res.proposal.commit()
     assert "Отправлено: Технолог печати" in out and "Калибровку" in out
+
+
+def test_telegram_adapter(monkeypatch):
+    from app import connectors
+    sent = []
+    class R:
+        def __init__(self, j=None): self.j = j or {}
+        def raise_for_status(self): pass
+        def json(self): return self.j
+    monkeypatch.setattr(connectors.httpx, "post", lambda url, json, timeout: sent.append((url, json)) or R())
+    monkeypatch.setattr(connectors.httpx, "get", lambda url, params, timeout: R({"result": [
+        {"update_id": 7, "message": {"chat": {"id": 11}, "text": "Калибровку сделали"}},
+        {"update_id": 8, "message": {"chat": {"id": 99}, "text": "чужой чат"}}]}))
+    tg = connectors.TelegramMessenger("TOKEN", {"Технолог печати": 11})
+    assert tg.send("Технолог печати", "Была ли калибровка?")["delivered"]
+    assert sent[0][0].endswith("/botTOKEN/sendMessage") and sent[0][1]["chat_id"] == 11
+    assert not tg.send("Менеджер закупок", "x")["delivered"]  # chat_id не задан
+    assert tg.replies() == [{"role": "Технолог печати", "text": "Калибровку сделали"}] and tg.offset == 9
