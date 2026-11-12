@@ -258,8 +258,11 @@ async def save_page(project_id: uuid.UUID, position: int, body: PageIn, user: Us
     p = await locked_owned_project(s, project_id, user)
     if p.status == ProjectStatus.ordered:
         raise HTTPException(409, "проект уже заказан")
-    if position < 0 or (p.page_count and position >= p.page_count):
+    if position < 0 or position >= MAX_PAGES:
         raise HTTPException(422, "нет такой страницы")
+    # правят страницу за концом книги (в приложении книга длиннее: тариф с бо́льшим минимумом) — книга растёт до неё
+    if p.page_count is not None and position >= p.page_count:
+        p.page_count = position + 1
     ids = [f.photo_id for f in body.frames]
     if ids:
         await attach(s, p, ids, user)

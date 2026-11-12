@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
+import { ArrowsOutLineHorizontalIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
@@ -24,6 +24,7 @@ import { checkOnServer, loadServerBook, projectPhotos, savePage, serverBook } fr
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { PageOrder } from '@/components/pageOrder';
+import { SizeEditor } from '@/components/sizeEditor';
 import { features } from '@/data/features';
 import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
@@ -42,7 +43,8 @@ import { colors, fonts } from '@/theme';
  */
 type Fx = 'light' | 'crop' | 'sharp' | 'horizon' | 'warm' | 'bg' | 'restore' | 'bw';
 /** crop — кадр, который человек выставил вручную: фото → центр и увеличение (по фото, а не по месту — переживает смену макета). */
-type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; crop?: Record<string, Crop> };
+/** slots — размеры фото, которые человек поменял сам (components/sizeEditor.tsx); нет — как в макете. */
+type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; crop?: Record<string, Crop>; slots?: Rect[] };
 const slotsOf = (id: string) => layoutOf(id).slots.length;
 /** Самый простой макет на n фото — когда фото убрали. */
 const SIMPLE: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' };
@@ -93,7 +95,8 @@ function withLayout(p: Page, layout: string, keep = 0, source: Pic[] = POOL): Pa
   const order = [p.photos[keep], ...p.photos.filter((_, i) => i !== keep)].filter((x): x is Pic => !!x);
   const extra = source.filter((k) => !order.includes(k));
   const fx = p.fx?.[keep] ? { 0: p.fx[keep] } : undefined;
-  return { ...p, layout, photos: [...order.slice(0, n), ...extra].slice(0, n), fx: keep ? fx : p.fx };
+  // новый макет — свои размеры фото сбрасываются: у макета другие рамки
+  return { ...p, layout, photos: [...order.slice(0, n), ...extra].slice(0, n), fx: keep ? fx : p.fx, slots: undefined };
 }
 
 export default function Review() {
@@ -110,7 +113,10 @@ export default function Review() {
   const format = params.format ?? d?.format ?? '20×20';
   const total = Math.max(2, Number(params.pages ?? d?.pages ?? 24));
   const [tariff, setTariff] = useState<Tariff['id']>((params.tariff as Tariff['id']) ?? 'lite');
-  const pagesN = fitPages(tariff, total);
+  // книга с сервера — столько страниц, сколько собрал сервер (а не сколько просили): иначе правки «лишних» страниц
+  // сервер не принимал; меньше минимума тарифа всё равно не бывает
+  const serverPages = serverBook(params.projectId)?.pages.length;
+  const pagesN = fitPages(tariff, serverPages || total);
   // правки поверх собранной ИИ книги: номер страницы → новая страница
   const [edits, setEdits] = useState<Record<number, Page>>({});
   // книга с сервера — её страницы с сохранёнными правками (недостающие до объёма тарифа — пустые листы); иначе — демо-книга.
@@ -208,7 +214,7 @@ export default function Review() {
     Haptics.selectionAsync().catch(() => {});
     const x = Math.max(0.03, Math.min(0.97, e.nativeEvent.locationX / cw));
     const y = Math.max(0.06, Math.min(0.94, e.nativeEvent.locationY / ch));
-    const slot = slotAt(pages[page].layout, x, y);
+    const slot = slotAt(pages[page].layout, x, y, pages[page].slots);
     // нажали на подпись — сразу редактор подписи
     if (slot < 0) return setCaptionFor(page);
     setMenu({ page, slot, x, y });
@@ -251,6 +257,14 @@ export default function Review() {
     const left = p.photos.filter((_, i) => i !== menu.slot);
     // кадры оставшихся фото не теряются
     editPage(menu.page, { layout: SIMPLE[Math.max(1, left.length)], photos: left, crop: p.crop }, 'Фото убрано');
+  };
+  // размеры фото на странице: какую страницу сейчас правят
+  const [sizeFor, setSizeFor] = useState<number | null>(null);
+  const saveSizes = (slots: Rect[] | undefined) => {
+    if (sizeFor === null) return;
+    const p = pages[sizeFor];
+    setSizeFor(null);
+    editPage(sizeFor, { ...p, slots }, slots ? 'Размеры фото сохранены' : 'Размеры как в макете');
   };
   // ручной кадр: какое фото сейчас двигают (страница и место на ней)
   const [cropFor, setCropFor] = useState<{ page: number; slot: number } | null>(null);
@@ -310,7 +324,7 @@ export default function Review() {
   const cropAspect = (page: number, slot: number) => {
     const p = pages[page];
     const def = layoutOf(p.layout);
-    const r = def.slots[slot];
+    const r = (p.slots ?? def.slots)[slot];
     if (!r) return 1;
     const spread = isSpread(p.layout);
     const b = slotBox(def, r, pageW, spread ? pageW / 2 : pageH);
@@ -643,9 +657,26 @@ export default function Review() {
           onReplace={() => replaceFromGallery().catch(() => {})}
           onRemove={removePhoto}
           onCrop={openCrop}
+          onSize={() => {
+            setSizeFor(menu.page);
+            setMenu(null);
+          }}
           onLayout={setLayout}
           onComment={commentHere}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+
+      {sizeFor !== null && pages[sizeFor] ? (
+        <SizeEditor
+          def={layoutOf(pages[sizeFor].layout)}
+          slots={pages[sizeFor].slots}
+          photos={pages[sizeFor].photos}
+          crop={pages[sizeFor].crop}
+          aspect={isSpread(pages[sizeFor].layout) ? 2 : pageW / pageH}
+          seam={isSpread(pages[sizeFor].layout) && tariff !== 'premium'}
+          onDone={saveSizes}
+          onClose={() => setSizeFor(null)}
         />
       ) : null}
 
@@ -781,7 +812,7 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
   const box = (r: Rect) => slotBox(def, r, w, h);
   return (
     <View style={[s.page, { width: w, height: h }, def.bleed && { padding: 0, overflow: 'hidden' }, dim && { opacity: 0.55 }]}>
-      {def.slots.map((r, i) => {
+      {(page.slots ?? def.slots).map((r, i) => {
         const k = page.photos[i];
         const fx = page.fx?.[i] ?? [];
         const b = box(r);
@@ -848,7 +879,7 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  * Нажали на фото — что с ним сделать: заменить своим из галереи, убрать, оставить замечание;
  * выбрать макет страницы из библиотеки. Улучшения ИИ (свет, горизонт, чёткость…) — в «Замечании для ИИ».
  */
-function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, onCrop, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
+function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
   const n = slotsOf(page.layout);
   const k = page.photos[slot];
   return (
@@ -871,6 +902,14 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, 
           <MenuBtn icon={<MinusCircleIcon size={22} color={n === 1 ? colors.mut2 : colors.fg} weight="bold" />} label="Убрать фото" onPress={onRemove} off={n === 1} />
           <MenuBtn icon={<ChatCircleTextIcon size={22} color={colors.fg} weight="bold" />} label="ИИ: исправить или улучшить" onPress={onComment} />
         </View>
+
+        {/* размеры фото на странице — тянуть границы между фото (на одно фото менять нечего) */}
+        {n > 1 ? (
+          <Tap style={s.sizeBtn} onPress={onSize} accessibilityRole="button">
+            <ArrowsOutLineHorizontalIcon size={20} color={colors.fg} weight="bold" />
+            <Text style={s.sizeBtnText}>Размер фото на странице</Text>
+          </Tap>
+        ) : null}
 
         <Text style={s.menuLabel}>Макет страницы</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.layouts}>
@@ -1257,6 +1296,8 @@ const s = StyleSheet.create({
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sheetTitle: { fontSize: 21, lineHeight: 26, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   sheetSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
+  sizeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 18, backgroundColor: colors.card },
+  sizeBtnText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
   counter: { fontSize: 12, fontFamily: fonts.medium, color: colors.mut2, textAlign: 'right', marginTop: -6, paddingHorizontal: 4 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 6, paddingLeft: 14 },
   ring: { position: 'absolute', left: -2, right: -2, top: -2, bottom: -2, borderRadius: 22 },

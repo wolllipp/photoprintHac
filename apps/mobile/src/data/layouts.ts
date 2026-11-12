@@ -39,11 +39,57 @@ export const isSpread = (id: string) => layoutOf(id).span === 2;
 
 const inside = (r: Rect, x: number, y: number) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
-/** Что под пальцем: номер фото или -1 — нажали на подпись. */
-export function slotAt(id: string, x: number, y: number) {
+/** Что под пальцем: номер фото или -1 — нажали на подпись. slots — размеры, которые человек поменял сам (если есть). */
+export function slotAt(id: string, x: number, y: number, slots?: Rect[]) {
   const def = layoutOf(id);
   if (def.caption && inside(def.caption, x, y)) return -1;
-  return Math.max(0, def.slots.findIndex((r) => inside(r, x, y)));
+  return Math.max(0, (slots ?? def.slots).findIndex((r) => inside(r, x, y)));
+}
+
+/**
+ * Границы между фото, которые можно двигать: вертикальные (axis x) и горизонтальные (axis y).
+ * Граница — место, где одно фото кончается, а другое начинается; from–to — где она тянется поперёк.
+ */
+export type Edge = { axis: 'x' | 'y'; at: number; from: number; to: number };
+const EPS = 0.002;
+export function edgesOf(slots: Rect[]): Edge[] {
+  const out: Edge[] = [];
+  for (const axis of ['x', 'y'] as const) {
+    const ends = slots.map((r) => (axis === 'x' ? r.x + r.w : r.y + r.h)).filter((v) => v > EPS && v < 1 - EPS);
+    for (const at of [...new Set(ends.map((v) => Math.round(v * 1000) / 1000))]) {
+      const touching = slots.filter((r) => {
+        const start = axis === 'x' ? r.x : r.y;
+        const end = axis === 'x' ? r.x + r.w : r.y + r.h;
+        return Math.abs(start - at) < EPS || Math.abs(end - at) < EPS;
+      });
+      if (!slots.some((r) => Math.abs((axis === 'x' ? r.x : r.y) - at) < EPS)) continue;
+      const from = Math.min(...touching.map((r) => (axis === 'x' ? r.y : r.x)));
+      const to = Math.max(...touching.map((r) => (axis === 'x' ? r.y + r.h : r.x + r.w)));
+      out.push({ axis, at, from, to });
+    }
+  }
+  return out;
+}
+
+/** Самое маленькое фото на странице — 15% её стороны: меньше не разглядеть и не напечатать. */
+const MIN_SIDE = 0.15;
+/** Сдвинуть границу: фото по одну сторону растут, по другую — уменьшаются; не меньше MIN_SIDE. */
+export function moveEdge(slots: Rect[], edge: Edge, to: number): Rect[] {
+  const key = edge.axis === 'x' ? 'x' : 'y';
+  const size = edge.axis === 'x' ? 'w' : 'h';
+  // насколько можно сдвинуть, чтобы ни одно фото не стало меньше минимума
+  let lo = 0;
+  let hi = 1;
+  for (const r of slots) {
+    if (Math.abs(r[key] + r[size] - edge.at) < EPS) lo = Math.max(lo, r[key] + MIN_SIDE);
+    if (Math.abs(r[key] - edge.at) < EPS) hi = Math.min(hi, r[key] + r[size] - MIN_SIDE);
+  }
+  const v = Math.min(Math.max(to, lo), hi);
+  return slots.map((r) => {
+    if (Math.abs(r[key] + r[size] - edge.at) < EPS) return { ...r, [size]: v - r[key] };
+    if (Math.abs(r[key] - edge.at) < EPS) return { ...r, [key]: v, [size]: r[key] + r[size] - v };
+    return r;
+  });
 }
 
 /** Тот же макет с подписью в другом месте: одно фото — сверху, снизу, слева, справа; два — сверху или снизу. */

@@ -60,7 +60,15 @@ async function upload(uris: string[], onProgress?: (done: number, total: number)
 
 /** Книга, собранная на сервере: id проекта и страницы — какие фото (локальные адреса на телефоне) в каком макете. */
 /** crop — ручной кадр фото (components/cropEditor.tsx): фото → центр cx, cy, увеличение z, пропорции a. */
-export type ServerPage = { layout: string; photos: string[]; caption?: string; fx?: Record<number, string[]>; crop?: Record<string, { cx: number; cy: number; z: number; a: number }> };
+export type ServerPage = {
+  layout: string;
+  photos: string[];
+  caption?: string;
+  fx?: Record<number, string[]>;
+  crop?: Record<string, { cx: number; cy: number; z: number; a: number }>;
+  /** свои размеры фото на странице (components/sizeEditor.tsx); нет — как в макете */
+  slots?: { x: number; y: number; w: number; h: number }[];
+};
 export type ServerBook = { projectId: string; title: string; pages: ServerPage[] };
 
 /** Фото, выбранные в галерее, ждут экрана сборки (параметры навигации для длинного списка не годятся). */
@@ -213,12 +221,18 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
       const fr = f.frame;
       if (fr && typeof fr.z === 'number' && typeof fr.cx === 'number') crop[photos[i]] = { cx: fr.cx, cy: fr.cy, z: fr.z, a: fr.a ?? 1 };
     });
+    const layout = p.template ?? LAYOUT_BY_COUNT[Math.min(4, Math.max(1, photos.length))];
+    // рамки с сервера не такие, как в макете (человек менял размеры или так разложил сервер) — храним их как свои
+    const def = layoutOf(layout).slots;
+    const rects = p.frames.map((f) => f.frame).filter((fr): fr is Record<string, number> => !!fr && typeof fr.w === 'number');
+    const differ = rects.length === def.length && rects.some((fr, i) => ['x', 'y', 'w', 'h'].some((k) => Math.abs((fr[k] ?? 0) - def[i][k as 'x']) > 0.002));
     return {
-      layout: p.template ?? LAYOUT_BY_COUNT[Math.min(4, Math.max(1, photos.length))],
+      layout,
       photos,
       caption: p.caption ?? undefined,
       fx,
       crop: Object.keys(crop).length ? crop : undefined,
+      slots: differ ? rects.map((fr) => ({ x: fr.x ?? 0, y: fr.y ?? 0, w: fr.w, h: fr.h ?? 1 })) : undefined,
     };
   });
   const book = { projectId, title, pages };
@@ -229,7 +243,8 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
 /** Сохранить правку страницы на сервере: новые фото с телефона сначала загружаются. Ошибку проглатываем — правка уже на экране. */
 export async function savePage(projectId: string, position: number, page: ServerPage) {
   const ids = await upload(page.photos);
-  const slots = layoutOf(page.layout).slots;
+  // свои размеры фото, если человек их менял, — иначе рамки макета
+  const slots = page.slots ?? layoutOf(page.layout).slots;
   await api.put(`/projects/${projectId}/pages/${position}`, {
     template: page.layout,
     caption: page.caption ?? null,
