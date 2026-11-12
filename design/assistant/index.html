@@ -49,15 +49,15 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .h1 { font: 700 26px/1.15 Unbounded, sans-serif; letter-spacing: -.6px; margin: 0; }
 .cap { font-size: 15px; font-weight: 600; color: var(--mut); padding: 0 4px; margin: 0 0 8px; }
 
-.rings { display: flex; gap: 12px; overflow-x: auto; margin: 0 -16px; padding: 4px 16px 2px; scrollbar-width: none; }
+.rings { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0 2px; }
 .rings::-webkit-scrollbar { display: none; }
-.ring-item { width: 78px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ring-item { flex: 1; min-width: 0; max-width: 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .ring { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; }
 .ring.new { background: var(--coral-action); }
 .ring.story { border: 2.5px dashed var(--coral); }
 .ring.story.seen { border-color: var(--card2); }
 .ring .face { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font: 700 14px/1 Unbounded, sans-serif; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
-.ring-label { font-size: 12px; line-height: 15px; text-align: center; max-width: 78px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ring-label { font-size: 12px; line-height: 15px; text-align: center; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ring.seen + .ring-label { color: var(--mut); }
 
 .hero { position: relative; border-radius: 24px; overflow: hidden; padding: 16px; min-height: 170px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; width: 100%;
@@ -373,7 +373,7 @@ function build() {
   const prem = rows.filter((r) => r.product === R.premium);
   const disc = (xs) => xs.reduce((a, r) => a + r.discount, 0) / Math.max(1, xs.reduce((a, r) => a + r.revenue + r.discount, 0));
   const dc = disc(inw(prem, R.current)), db = disc(inw(prem, R.baseline));
-  CASES.push({ id: D.deviationsMeta.discount, short: 'Скидка Premium', title: oc['D-117']?.title || 'Скидка на Premium выше нормы', value: num(dc * 100), unit: '%', stage: 0,
+  CASES.push({ id: D.deviationsMeta.discount, short: 'Скидка', title: oc['D-117']?.title || 'Скидка на Premium выше нормы', value: num(dc * 100), unit: '%', stage: 0,
     sub: `норма ${num(db * 100)}% · выше в ${num(dc / db)} раза`, cause: oc['D-117']?.cause,
     trend: { title: 'Средняя скидка по неделям', pts: weekly(prem, (xs) => disc(xs) * 100), norm: db * 100, limit: db * 100 * 1.2, unit: '%', hotFrom: R.current[0] }, ask: 'Почему упала маржа на Premium?', tone: 'cover' });
   const hr = inw(D.hr, R.current), staffed = hr.reduce((a, r) => a + r.staffed, 0) / Math.max(1, hr.reduce((a, r) => a + r.planned, 0));
@@ -398,8 +398,6 @@ function renderToday() {
   const yesterday = new Date(today.getTime() - 864e5);
   $('#ringsCap').textContent = `Сводка за вчера · ${yesterday.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`;
   const rings = $('#rings'); rings.innerHTML = '';
-  const nw = el('button', 'ring-item tap', `<div class="ring new"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><div class="ring-label" style="font-weight:600">Спросить</div>`);
-  nw.onclick = () => openAsk(); rings.append(nw);
   CASES.forEach((c, i) => {
     const old = seen.includes(c.id);
     const face = c.tone === 'teal' ? 'background:#E3F6F3;color:#1F6F67' : c.tone === 'calm' ? 'background:#F1EAE3;color:#3B4B4A' : 'background:#FCE9DE;color:#A9472B';
@@ -428,7 +426,7 @@ function renderToday() {
       <div class="t"><b>${esc(t.title)}</b><span>${esc(t.owner)} · ${isLate ? 'просрочена' : esc(t.status)}</span></div>${CHEV}`);
     r.onclick = () => openAsk(`Что с задачей «${t.title}»?`); list.append(r);
   });
-  const meet = el('button', 'row tap', `<div class="date" style="background:var(--peach)"><b style="color:var(--peach-ink)">+</b><span style="color:var(--peach-ink)">встреча</span></div>
+  const meet = el('button', 'row tap', `<div class="date" style="background:var(--peach)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A9472B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4M12 13v5M9.5 15.5h5"/></svg></div>
     <div class="t"><b>${esc(D.meeting?.title || 'Совещание по отклонению')}</b><span>ассистент соберёт повестку и предложит время</span></div>${CHEV}`);
   meet.onclick = () => openAsk(`Подготовь встречу: ${D.meeting?.title || 'по браку на Ricoh'}`);
   list.append(meet); soon.append(list);
