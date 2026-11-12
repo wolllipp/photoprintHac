@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from PIL import ExifTags, Image, UnidentifiedImageError
 
@@ -39,13 +39,13 @@ def _taken_at(img: Image.Image) -> datetime | None:
 
 
 @router.post("/photos")
-async def upload(files: list[UploadFile] = File(...), user: User = Depends(current_user),
-                 s: AsyncSession = Depends(get_session)):
+async def upload(files: list[UploadFile] = File(...), taken_at: list[str] = Form(default_factory=list),
+                 user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Загружаются только фото, которые человек выбрал сам. Галерею мы не читаем."""
     out = []
     folder = Path(settings.storage_dir) / str(user.id)
     folder.mkdir(parents=True, exist_ok=True)
-    for f in files:
+    for index, f in enumerate(files):
         data = await f.read()
         if len(data) > MAX_BYTES:
             raise HTTPException(413, f"{f.filename}: больше 40 МБ")
@@ -62,6 +62,12 @@ async def upload(files: list[UploadFile] = File(...), user: User = Depends(curre
         # «бомба» из маленького файла на десятки тысяч пикселей по стороне — не декодируем
         if w * h > MAX_PIXELS:
             raise HTTPException(413, f"{f.filename}: больше {MAX_PIXELS // 1_000_000} Мпикс")
+        # приложение шлёт сжатую копию (EXIF в ней нет) и дату съёмки из галереи отдельным полем
+        if taken is None and index < len(taken_at) and taken_at[index]:
+            try:
+                taken = datetime.strptime(taken_at[index][:19], "%Y:%m:%d %H:%M:%S")
+            except ValueError:
+                taken = None
         if fmt not in ALLOWED:
             raise HTTPException(415, f"{f.filename}: формат {fmt} не поддерживается")
         pid = uuid.uuid4()

@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 
 import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
 import { layoutOf } from '@/data/layouts';
+import { takenAt, uploadCopy } from '@/data/picked';
 import { setRemoteSource } from '@/data/photos';
 
 // фото, которое есть только на сервере, показываем по его адресу с токеном в заголовке
@@ -20,27 +21,40 @@ const remember = (id: string, uri: string) => {
   uriOfId.set(id, uri);
 };
 
-/** Сколько фото в одном запросе: снимок с телефона — 3–10 МБ, по 2 за раз запрос успевает и по слабому Wi-Fi. */
+/** Сколько фото в одном запросе и сколько запросов сразу: копии для печати — около 1 МБ, два потока заметно быстрее одного. */
 const BATCH = 2;
+const PARALLEL = 2;
 
 /** Загрузить фото с телефона на сервер (пачками), вернуть их id. Уже загруженные не грузим. onProgress — сколько из скольких. */
 async function upload(uris: string[], onProgress?: (done: number, total: number) => void) {
   const todo = uris.filter((u) => !idOfUri.has(u) && !u.startsWith('srv:'));
+  let done = 0;
   onProgress?.(0, todo.length);
-  for (let i = 0; i < todo.length; i += BATCH) {
-    const batch = todo.slice(i, i + BATCH);
+  const batches: string[][] = [];
+  for (let i = 0; i < todo.length; i += BATCH) batches.push(todo.slice(i, i + BATCH));
+  const send = async (batch: string[]) => {
     const form = new FormData();
     for (const [k, uri] of batch.entries()) {
-      const name = uri.split('/').pop()?.split('?')[0] || `photo-${i + k}.jpg`;
+      // на сервер — копия 3000 px (для печати хватает с запасом), а не оригинал 3–10 МБ
+      const file = await uploadCopy(uri);
+      const name = file.split('/').pop()?.split('?')[0] || `photo-${k}.jpg`;
       // fetch в Expo SDK 58 не принимает старую часть формы { uri, name, type } («Unsupported FormDataPart implementation»):
       // на телефоне файл — File из expo-file-system (это Blob), в вебе — Blob по адресу картинки
-      const part = Platform.OS === 'web' ? await (await fetch(uri)).blob() : new FsFile(uri);
+      const part = Platform.OS === 'web' ? await (await fetch(file)).blob() : new FsFile(file);
       form.append('files', part as Blob, name);
+      // дата съёмки: в сжатой копии EXIF нет, а книга раскладывается по дням
+      form.append('taken_at', takenAt(uri) ?? '');
     }
     const res = await api.upload<{ id: string }[]>('/photos', form);
     res.forEach((p, k) => remember(p.id, batch[k]));
-    onProgress?.(Math.min(i + BATCH, todo.length), todo.length);
-  }
+    done += batch.length;
+    onProgress?.(done, todo.length);
+  };
+  const queue = [...batches];
+  const worker = async () => {
+    for (let b = queue.shift(); b; b = queue.shift()) await send(b);
+  };
+  await Promise.all(Array.from({ length: Math.min(PARALLEL, queue.length) }, worker));
   return uris.map((u) => (u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)!));
 }
 
@@ -50,8 +64,10 @@ export type ServerPage = { layout: string; photos: string[]; caption?: string; f
 export type ServerBook = { projectId: string; title: string; pages: ServerPage[] };
 
 /** Фото, выбранные в галерее, ждут экрана сборки (параметры навигации для длинного списка не годятся). */
-let pending: { uris: string[]; title: string; pages: number } | null = null;
-export const setPendingBook = (p: { uris: string[]; title: string; pages: number }) => {
+/** tariff — на каком тарифе собрать (по умолчанию Lite; мало фото — человек мог выбрать Classic или Premium). */
+type PendingBook = { uris: string[]; title: string; pages: number; tariff?: string };
+let pending: PendingBook | null = null;
+export const setPendingBook = (p: PendingBook) => {
   pending = p;
 };
 /**
@@ -105,7 +121,7 @@ let inflight: { input: object; promise: Promise<ServerBook>; steps: BuildStep[] 
 /** Шаг экрана сборки; up — сколько фото уже загружено (на шаге 0). */
 export type BuildStep = (n: number, up?: { done: number; total: number }) => void;
 
-export function buildOnServer(input: { uris: string[]; title: string; pages: number }, onStep: BuildStep): Promise<ServerBook> {
+export function buildOnServer(input: PendingBook, onStep: BuildStep): Promise<ServerBook> {
   if (inflight && inflight.input === input) {
     inflight.steps.push(onStep);
     return inflight.promise;
@@ -118,7 +134,7 @@ export function buildOnServer(input: { uris: string[]; title: string; pages: num
   return promise;
 }
 
-async function buildOnce(input: { uris: string[]; title: string; pages: number }, onStep: BuildStep): Promise<ServerBook> {
+async function buildOnce(input: PendingBook, onStep: BuildStep): Promise<ServerBook> {
   if (!(await online())) {
     console.warn('[сборка] сервер не ответил на /health:', API_URL);
     throw new BuildError('offline');
@@ -140,7 +156,7 @@ async function buildOnce(input: { uris: string[]; title: string; pages: number }
   }
 }
 
-async function build(input: { uris: string[]; title: string; pages: number }, onStep: BuildStep, me: { jobId: string | null; stopped: boolean }): Promise<ServerBook> {
+async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string | null; stopped: boolean }): Promise<ServerBook> {
 
   // 1. загрузка — пачками, чтобы не держать в памяти все снимки сразу
   onStep(0);
@@ -148,12 +164,12 @@ async function build(input: { uris: string[]; title: string; pages: number }, on
 
   // 2. проект на Lite 20×20 — у тарифа минимум 24 страницы, сборка его держит
   const products = await api.get<{ code: string; options: { id: string; format: string }[] }[]>('/catalog/products');
-  const lite = products.find((p) => p.code === 'lite')?.options.find((o) => o.format === '20x20');
+  const option = products.find((p) => p.code === (input.tariff ?? 'lite'))?.options.find((o) => o.format === '20x20');
   const project = await api.post<{ id: string }>('/projects', {
     title: input.title,
     photo_ids: photoIds,
     pages: input.pages,
-    option_id: lite?.id,
+    option_id: option?.id,
   });
 
   // 3. сборка: этапы с сервера двигают экран

@@ -25,6 +25,35 @@ async function makePreview(a: ImagePicker.ImagePickerAsset) {
   }
 }
 
+/** Длинная сторона копии для печати: 3000 px на книге 20×20 — около 380 dpi, с запасом выше требований печати. */
+const UPLOAD_PX = 3000;
+/** Когда снято (из EXIF галереи): сжатая копия EXIF теряет, а сервер раскладывает книгу по дням. */
+const takenOfUri = new Map<string, string>();
+export const takenAt = (uri: string) => takenOfUri.get(uri);
+const uploadOfUri = new Map<string, string>();
+
+/**
+ * Что отправить на сервер: оригинал айфона — 3–10 МБ, а для печати хватает 3000 px (≈1 МБ) —
+ * загрузка в разы быстрее. Не вышло сжать — отправляем оригинал.
+ */
+export async function uploadCopy(uri: string) {
+  const ready = uploadOfUri.get(uri);
+  if (ready) return ready;
+  const size = sizeOfUri.get(uri);
+  const long = size ? Math.max(size.w, size.h) : 0;
+  if (!size || long <= UPLOAD_PX * 1.1) return uri;
+  try {
+    const ctx = ImageManipulator.manipulate(uri);
+    ctx.resize(size.w >= size.h ? { width: UPLOAD_PX } : { height: UPLOAD_PX });
+    const img = await ctx.renderAsync();
+    const out = await img.saveAsync({ compress: 0.88, format: SaveFormat.JPEG });
+    uploadOfUri.set(uri, out.uri);
+    return out.uri;
+  } catch {
+    return uri;
+  }
+}
+
 /** Копии по 3 за раз: первые ждём (их сразу видно на экране сборки), остальные доделываются, пока фото грузятся. */
 async function makePreviews(assets: ImagePicker.ImagePickerAsset[], waitFirst = 6) {
   const queue = [...assets];
@@ -55,6 +84,9 @@ export function rememberAssets(assets: ImagePicker.ImagePickerAsset[]) {
   assets.forEach((a) => {
     keyOfUri.set(a.uri, keyOf(a));
     if (a.width && a.height) sizeOfUri.set(a.uri, { w: a.width, h: a.height });
+    const exif = a.exif as Record<string, unknown> | null | undefined;
+    const raw = (exif?.DateTimeOriginal ?? (exif?.['{Exif}'] as Record<string, unknown> | undefined)?.DateTimeOriginal) as string | undefined;
+    if (typeof raw === 'string') takenOfUri.set(a.uri, raw);
   });
 }
 
@@ -66,7 +98,8 @@ export const samePhoto = (a: string, b: string) => a === b || (!!keyOfUri.get(a)
  * Возвращает новые адреса, сколько повторов пропустили и какие форматы не печатаем (GIF, RAW…); null — человек закрыл галерею.
  */
 export async function pickPhotos(have: string[], options: { multiple?: boolean } = {}) {
-  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: options.multiple ?? true, quality: 1 });
+  // exif — ради даты съёмки (раскладка книги по дням)
+  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: options.multiple ?? true, quality: 1, exif: true });
   if (res.canceled || !res.assets.length) return null;
   rememberAssets(res.assets);
   const known = new Set(have.map((u) => keyOfUri.get(u) ?? u));

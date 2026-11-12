@@ -2,9 +2,13 @@
  * «Порядок страниц» — сетка уменьшенных страниц: зажать страницу и перетащить на новое место, остальные расступаются.
  * Разворот на две страницы двигается целиком (одна плитка). Открывается долгим нажатием на страницу в книге.
  * Порядок применяется по «Готово»; «Отмена» — всё как было.
+ *
+ * Где какая плитка стоит — живёт в анимации (positions на UI-потоке), а не в состоянии React: при отпускании ничего
+ * не перерисовывается, плитка просто доезжает до своего места. Раньше порядок менялся в React, и плитки на миг
+ * возвращались на старые места — получался «удар».
  */
 import * as Haptics from 'expo-haptics';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Modal, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
@@ -19,6 +23,8 @@ export type OrderItem = { key: string; label: string; wide?: boolean; render: (w
 const COLS = 3;
 const GAP = 10;
 const LABEL_H = 22;
+/** Плитки расступаются мягко, без отскока. */
+const SLIDE = { duration: 200 };
 
 export function PageOrder({ items, aspect, onDone, onClose }: { items: OrderItem[]; aspect: number; onDone: (order: number[]) => void; onClose: () => void }) {
   const insets = useSafeAreaInsets();
@@ -26,25 +32,17 @@ export function PageOrder({ items, aspect, onDone, onClose }: { items: OrderItem
   const cellW = (width - 32 - GAP * (COLS - 1)) / COLS;
   const thumbH = cellW / aspect;
   const cellH = thumbH + LABEL_H + GAP;
-  // order[i] — какая плитка (индекс в items) стоит на месте i
-  const [order, setOrder] = useState(() => items.map((_, i) => i));
+  // positions[i] — на каком месте сейчас плитка i (i — индекс в items)
+  const positions = useSharedValue(items.map((_, i) => i));
   const [moved, setMoved] = useState(false);
-  // что тащат и куда: место, откуда взяли, и куда сейчас встанет
-  const from = useSharedValue(-1);
-  const to = useSharedValue(-1);
-
-  const move = (a: number, b: number) => {
-    if (a === b) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setOrder((o) => {
-      const next = [...o];
-      const [x] = next.splice(a, 1);
-      next.splice(b, 0, x);
-      return next;
-    });
-    setMoved(true);
-  };
   const rows = Math.ceil(items.length / COLS);
+
+  const done = () => {
+    // место → какая плитка там стоит
+    const pos = positions.get();
+    const order = items.map((_, i) => i).sort((a, b) => pos[a] - pos[b]);
+    onDone(order);
+  };
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -54,26 +52,16 @@ export function PageOrder({ items, aspect, onDone, onClose }: { items: OrderItem
             <Text style={s.headBtn}>Отмена</Text>
           </Tap>
           <Text style={s.title}>Порядок страниц</Text>
-          <Tap onPress={() => onDone(order)} hitSlop={10} accessibilityRole="button" accessibilityState={{ disabled: !moved }}>
+          <Tap onPress={done} hitSlop={10} accessibilityRole="button" accessibilityState={{ disabled: !moved }}>
             <Text style={[s.headBtn, s.headDone, !moved && { opacity: 0.4 }]}>Готово</Text>
           </Tap>
         </View>
         <Text style={s.hint}>Зажмите страницу и перетащите на новое место</Text>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24 }}>
           <View style={{ height: rows * cellH }}>
-            {order.map((item, place) => (
-              <Cell
-                key={items[item].key}
-                place={place}
-                count={order.length}
-                cellW={cellW}
-                cellH={cellH}
-                from={from}
-                to={to}
-                onMove={move}
-                label={items[item].label}
-                wide={items[item].wide}>
-                {items[item].render(cellW, thumbH)}
+            {items.map((it, i) => (
+              <Cell key={it.key} index={i} positions={positions} cellW={cellW} cellH={cellH} onMoved={() => setMoved(true)} label={it.label} wide={it.wide}>
+                {it.render(cellW, thumbH)}
               </Cell>
             ))}
           </View>
@@ -89,78 +77,75 @@ function at(i: number, cellW: number, cellH: number) {
   return { x: (i % COLS) * (cellW + GAP), y: Math.floor(i / COLS) * cellH };
 }
 
-function Cell({ place, count, cellW, cellH, from, to, onMove, label, wide, children }: { place: number; count: number; cellW: number; cellH: number; from: SharedValue<number>; to: SharedValue<number>; onMove: (a: number, b: number) => void; label: string; wide?: boolean; children: ReactNode }) {
-  const dx = useSharedValue(0);
-  const dy = useSharedValue(0);
+/** Плитку index переставили на место to: остальные сдвигаются на одно место (как при вставке в список). */
+function moveTo(pos: number[], index: number, to: number) {
+  'worklet';
+  const from = pos[index];
+  if (from === to) return pos;
+  return pos.map((p, i) => {
+    if (i === index) return to;
+    if (from < to && p > from && p <= to) return p - 1;
+    if (from > to && p >= to && p < from) return p + 1;
+    return p;
+  });
+}
+
+function Cell({ index, positions, cellW, cellH, onMoved, label, wide, children }: { index: number; positions: SharedValue<number[]>; cellW: number; cellH: number; onMoved: () => void; label: string; wide?: boolean; children: ReactNode }) {
+  const dragging = useSharedValue(false);
   const lifted = useSharedValue(0);
-  // встала на новое место — сдвиг пальцем больше не нужен
-  useEffect(() => {
-    dx.set(0);
-    dy.set(0);
-  }, [place, dx, dy]);
+  // где плитка под пальцем (абсолютно в сетке) и откуда начали тащить
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const start = useSharedValue({ x: 0, y: 0 });
 
   const pan = Gesture.Pan()
     .activateAfterLongPress(220)
     .onStart(() => {
-      from.set(place);
-      to.set(place);
-      lifted.set(withSpring(1, { damping: 18 }));
+      const p = at(positions.get()[index], cellW, cellH);
+      start.set(p);
+      x.set(p.x);
+      y.set(p.y);
+      dragging.set(true);
+      lifted.set(withSpring(1, { damping: 20, stiffness: 260 }));
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
     })
     .onUpdate((e) => {
-      dx.set(e.translationX);
-      dy.set(e.translationY);
-      // место под пальцем: по центру плитки
-      const p = at(place, cellW, cellH);
-      const col = Math.min(Math.max(Math.round((p.x + e.translationX) / (cellW + GAP)), 0), COLS - 1);
-      const row = Math.max(Math.round((p.y + e.translationY) / cellH), 0);
-      const next = Math.min(row * COLS + col, count - 1);
-      if (next !== to.get()) {
-        to.set(next);
+      const nx = start.get().x + e.translationX;
+      const ny = start.get().y + e.translationY;
+      x.set(nx);
+      y.set(ny);
+      // место под центром плитки
+      const n = positions.get().length;
+      const col = Math.min(Math.max(Math.round(nx / (cellW + GAP)), 0), COLS - 1);
+      const row = Math.max(Math.round(ny / cellH), 0);
+      const target = Math.min(row * COLS + col, n - 1);
+      if (target !== positions.get()[index]) {
+        positions.set(moveTo(positions.get(), index, target));
         runOnJS(Haptics.selectionAsync)();
+        runOnJS(onMoved)();
       }
     })
     .onFinalize(() => {
-      const a = from.get();
-      const b = to.get();
-      lifted.set(withTiming(0, { duration: 160 }));
-      if (a < 0 || b < 0 || a === b) {
-        // отпустили на том же месте — плитка возвращается
-        dx.set(withTiming(0, { duration: 160 }));
-        dy.set(withTiming(0, { duration: 160 }));
-        from.set(-1);
-        to.set(-1);
-        return;
-      }
-      // плитка доезжает до нового места, потом порядок меняется по-настоящему
-      const pa = at(a, cellW, cellH);
-      const pb = at(b, cellW, cellH);
-      dx.set(withTiming(pb.x - pa.x, { duration: 140 }));
-      dy.set(
-        withTiming(pb.y - pa.y, { duration: 140 }, (fin) => {
-          from.set(-1);
-          to.set(-1);
-          if (fin) runOnJS(onMove)(a, b);
+      if (!dragging.get()) return;
+      // плитка доезжает до своего места — то же место, что считают остальные, поэтому без толчка
+      const p = at(positions.get()[index], cellW, cellH);
+      x.set(withTiming(p.x, SLIDE));
+      y.set(
+        withTiming(p.y, SLIDE, () => {
+          dragging.set(false);
         }),
       );
+      lifted.set(withTiming(0, SLIDE));
     });
 
   const style = useAnimatedStyle(() => {
-    const a = from.get();
-    const b = to.get();
-    const me = a === place;
-    // остальные расступаются: между «откуда» и «куда» сдвигаются на одно место
-    let shown = place;
-    if (a >= 0 && !me) {
-      if (a < b && place > a && place <= b) shown = place - 1;
-      else if (a > b && place >= b && place < a) shown = place + 1;
-    }
-    const p = at(me ? place : shown, cellW, cellH);
+    const p = at(positions.get()[index], cellW, cellH);
+    const me = dragging.get();
     return {
       zIndex: me ? 10 : 0,
       transform: [
-        { translateX: me ? p.x + dx.get() : withTiming(p.x, { duration: 180 }) },
-        { translateY: me ? p.y + dy.get() : withTiming(p.y, { duration: 180 }) },
+        { translateX: me ? x.get() : withTiming(p.x, SLIDE) },
+        { translateY: me ? y.get() : withTiming(p.y, SLIDE) },
         { scale: 1 + lifted.get() * 0.06 },
       ],
       shadowOpacity: lifted.get() * 0.25,

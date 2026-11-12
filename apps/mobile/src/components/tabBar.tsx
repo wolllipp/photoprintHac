@@ -23,8 +23,8 @@ import { ConsentSheet } from '@/components/consent';
 import { pickPhotos, skipText } from '@/data/picked';
 import { NewSheet, type NewChoice } from '@/components/newSheet';
 import { Tap } from '@/components/ui';
-import { BOOK, drafts, fitPages } from '@/data/demo';
-import { useStore } from '@/data/store';
+import { BOOK, bookPrice, drafts, fitPages, tariffs } from '@/data/demo';
+import { rub, useStore } from '@/data/store';
 import { SHEET_TAIL, sheetIn, sheetOut } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -91,27 +91,37 @@ function TabButton({ focused, label, onPress, badge, Icon }: { focused: boolean;
   );
 }
 
-/** Самая маленькая книга — Lite на 24 страницы; на каждую страницу нужно хотя бы одно фото. */
-const MIN_PHOTOS = BOOK.lite.min;
+/** Книга по умолчанию — Lite (минимум 24 страницы). Самая маленькая книга — Premium на 10 страниц. */
+const MIN_PHOTOS = BOOK.premium.min;
+/** Коллаж — в среднем 2,5 фото на страницу; «хватает на коллажи» — хотя бы 2 фото на каждую страницу минимума. */
+const PER_PAGE = 2.5;
+const collageNeed = (t: BookTariff) => BOOK[t].min * 2;
+type BookTariff = 'lite' | 'classic' | 'premium';
+
+/** Собрать книгу из этих фото на этом тарифе: объём — по числу снимков (коллажи), не меньше минимума тарифа. */
+function startBook(uris: string[], tariff: BookTariff) {
+  const n = uris.length;
+  const pages = fitPages(tariff, Math.round(n / PER_PAGE));
+  // выбранные фото — экрану сборки: он загрузит их на сервер и соберёт книгу по-настоящему
+  setPendingBook({ uris, title: 'Новая книга', pages, tariff });
+  router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(pages), tariff } });
+}
 
 /**
- * Книга из фото: выбрали в галерее — сразу собираем; объём по числу снимков (в среднем 1–2 на страницу).
- * Фото меньше 24 — честно говорим: книга не может быть меньше 24 страниц. Можно добрать фото или напечатать эти как фотографии.
+ * Книга из фото: выбрали в галерее — собираем коллажами (2–4 фото на странице).
+ * Фото не хватает на коллажи в Lite (у него минимум 24 страницы) — честно говорим и даём выбор:
+ * добавить фото, собрать на тарифе с меньшим минимумом (коллажи сразу) или собрать как есть.
  */
 async function bookFromPhotos(have: string[] = [], onShort?: (uris: string[], skipped: string | null) => void) {
   // уже выбранные снимки повторно не добавляем, даже если их снова отметили в галерее
   const picked = await pickPhotos(have);
   if (!picked) return;
   const uris = [...have, ...picked.fresh];
-  const n = uris.length;
-  if (n < MIN_PHOTOS) {
+  if (uris.length < collageNeed('lite')) {
     onShort?.(uris, skipText(picked));
     return;
   }
-  const pages = fitPages('lite', Math.round(n / 1.6));
-  // выбранные фото — экрану сборки: он загрузит их на сервер и соберёт книгу по-настоящему
-  setPendingBook({ uris, title: 'Новая книга', pages });
-  router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(pages) } });
+  startBook(uris, 'lite');
 }
 
 /** Печать: сначала выбираем фото в галерее, потом — формат, бумага и копии. */
@@ -205,6 +215,11 @@ export function CreateHost() {
             setShort(null);
             router.push({ pathname: '/print', params: { photos: JSON.stringify(have) } });
           }}
+          onBuild={(t) => {
+            const have = short.uris;
+            setShort(null);
+            startBook(have, t);
+          }}
           onClose={() => setShort(null)}
         />
       ) : null}
@@ -213,14 +228,24 @@ export function CreateHost() {
 }
 
 /**
- * «Нужно больше фото» — в стиле приложения: лист снизу, полоса «10 из 24», выбранные фото,
- * главное действие — добрать фото; запасное — напечатать эти как фотографии.
+ * «Мало фото для коллажей» — лист снизу, полоса «25 из 48», выбранные фото. Главное — добрать фото;
+ * дальше — собрать на тарифе с меньшим минимумом (коллажи сразу, другая цена) или как есть; запасное — напечатать как фото.
  */
-function ShortSheet({ uris, skipped, onAdd, onPrint, onClose }: { uris: string[]; skipped: string | null; onAdd: () => void; onPrint: () => void; onClose: () => void }) {
+function ShortSheet({ uris, skipped, onAdd, onPrint, onBuild, onClose }: { uris: string[]; skipped: string | null; onAdd: () => void; onPrint: () => void; onBuild: (t: BookTariff) => void; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const n = uris.length;
-  const need = MIN_PHOTOS - n;
+  const goal = collageNeed('lite');
+  const need = goal - n;
   const shown = uris.slice(0, 5);
+  // тариф, на котором из этих фото уже выйдут коллажи (меньше минимум страниц), и можно ли собрать хоть как-то
+  const collageTariff: BookTariff | null = n >= collageNeed('classic') ? 'classic' : n >= collageNeed('premium') ? 'premium' : null;
+  const offer = (t: BookTariff) => {
+    const pages = fitPages(t, Math.round(n / PER_PAGE));
+    return { pages, price: bookPrice(t, '20×20', pages), name: tariffs.find((x) => x.id === t)?.name ?? t };
+  };
+  const alt = collageTariff ? offer(collageTariff) : null;
+  const asIs: BookTariff | null = n >= BOOK.lite.min ? 'lite' : n >= MIN_PHOTOS ? 'premium' : null;
+  const asIsOffer = asIs && asIs !== collageTariff ? offer(asIs) : null;
   return (
     <View style={StyleSheet.absoluteFill}>
       <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(240)} style={[StyleSheet.absoluteFill, s.scrim]}>
@@ -228,20 +253,24 @@ function ShortSheet({ uris, skipped, onAdd, onPrint, onClose }: { uris: string[]
       </Animated.View>
       <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, { bottom: -SHEET_TAIL, paddingBottom: insets.bottom + 16 + SHEET_TAIL }]}>
         <View style={s.grab} />
-        <Text style={s.title}>Нужно больше фото</Text>
-        <Text style={s.text}>Самая маленькая книга — {MIN_PHOTOS} страницы, на каждую нужно хотя бы одно фото.</Text>
+        <Text style={s.title}>{asIs ? 'Мало фото для коллажей' : 'Нужно больше фото'}</Text>
+        <Text style={s.text}>
+          {asIs
+            ? `В Lite от ${BOOK.lite.min} страниц: чтобы на страницах были коллажи по 2–4 фото, нужно около ${goal} фото.`
+            : `Самая маленькая книга — ${MIN_PHOTOS} страниц, на каждую нужно хотя бы одно фото.`}
+        </Text>
         {skipped ? <Text style={s.dup}>{skipped}</Text> : null}
 
         {/* сколько есть и сколько нужно */}
         <View style={{ gap: 8 }}>
           <View style={s.countRow}>
             <Text style={s.count}>
-              {n} <Text style={s.countOf}>из {MIN_PHOTOS} фото</Text>
+              {n} <Text style={s.countOf}>из {goal} фото</Text>
             </Text>
             <Text style={s.need}>ещё {need}</Text>
           </View>
           <View style={s.track}>
-            <View style={[s.fill, { width: `${(n / MIN_PHOTOS) * 100}%` }]} />
+            <View style={[s.fill, { width: `${Math.min(1, n / goal) * 100}%` }]} />
           </View>
         </View>
 
@@ -259,6 +288,20 @@ function ShortSheet({ uris, skipped, onAdd, onPrint, onClose }: { uris: string[]
         <Tap style={s.primary} onPress={onAdd} accessibilityRole="button">
           <Text style={s.primaryText}>Добавить ещё {need} фото</Text>
         </Tap>
+        {alt && collageTariff ? (
+          <Tap style={s.secondary} onPress={() => onBuild(collageTariff)} accessibilityRole="button" accessibilityLabel={`Собрать на ${alt.name}: коллажи, ${alt.pages} страниц, ${rub(alt.price)}`}>
+            <Text style={s.secondaryText}>
+              {alt.name}: коллажи, {alt.pages} стр. · {rub(alt.price)}
+            </Text>
+          </Tap>
+        ) : null}
+        {asIsOffer && asIs ? (
+          <Tap style={s.secondary} onPress={() => onBuild(asIs)} accessibilityRole="button">
+            <Text style={s.secondaryText}>
+              Собрать как есть: {asIsOffer.name}, {asIsOffer.pages} стр. · {rub(asIsOffer.price)}
+            </Text>
+          </Tap>
+        ) : null}
         <Tap style={s.secondary} onPress={onPrint} accessibilityRole="button">
           <Text style={s.secondaryText}>Напечатать эти как фото</Text>
         </Tap>

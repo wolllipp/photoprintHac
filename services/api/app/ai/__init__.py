@@ -238,9 +238,11 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
     for photo in selected:
         chapter = THEME_CHAPTERS.get(theme, theme or "История") if source == "story" else _chapter(photo)
         groups.setdefault(chapter, []).append(photo)
-    density_pages = (len(selected) * 5 + 7) // 8
+    # коллажи: в среднем 2,5 фото на страницу (раньше — не больше 1,6, и почти везде было одно фото);
+    # дни, которых больше, чем страниц, сливаются в общие главы, а не дробят книгу по одному фото
+    density_pages = (len(selected) * 2 + 4) // 5
     page_total = max(min_pages, density_pages,
-                     sum((len(group) + 3) // 4 for group in groups.values()), len(groups))
+                     sum((len(group) + 3) // 4 for group in groups.values()))
     page_total = min(requested, page_total)
     chunks = []
     chapters = []

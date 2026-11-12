@@ -103,3 +103,16 @@ async def test_upload_rejects_too_many_pixels(client):
     # 196 Мпикс — Pillow сам считает это «бомбой»; раньше это был 500
     r = await client.post("/photos", headers=gh, files=[("files", ("bomb.png", _bitmap_png(14000, 14000), "image/png"))])
     assert r.status_code == 413, r.text
+
+
+async def test_upload_takes_date_from_form_when_copy_has_no_exif(client):
+    """Приложение шлёт сжатую копию без EXIF и дату съёмки отдельным полем — книга раскладывается по дням."""
+    from tests.conftest import png
+    gh = {"Authorization": "Bearer " + (await client.post("/auth/guest")).json()["token"]}
+    r = await client.post("/photos", headers=gh, files=[("files", ("a.png", png((3, 4, 5)), "image/png"))],
+                          data={"taken_at": "2026:07:12 08:30:00"})
+    assert r.status_code == 200, r.text
+    assert r.json()[0]["taken_at"].startswith("2026-07-12T08:30")
+    r = await client.post("/photos", headers=gh, files=[("files", ("b.png", png((6, 4, 5)), "image/png"))],
+                          data={"taken_at": "не дата"})
+    assert r.status_code == 200 and r.json()[0]["taken_at"] is None
