@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>picPac Insight — макет управленческого контура</title>
+<!-- ДОПУЩЕНИЕ: шрифт Insight не утверждён, взят Jost как на сайте. Загрузка не блокирует страницу: без сети работает системный стек из --font. При переносе подключить локально, внешних запросов в контуре быть не должно. -->
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Pacifico&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="insight.css">
+</head>
+<body class="bar-hidden">
+<!-- ДОПУЩЕНИЕ: все показатели, сотрудники, партии, пороги и история отклонения придуманы для демо. Реальных данных «Фотопринта» в репозитории нет. -->
+
+<a class="skip" href="#view">К содержимому</a>
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="#/overview" aria-label="picPac Insight, на обзор"><span class="brand-logo">PicPac</span><span class="brand-sub">Insight</span></a>
+    <nav id="nav" aria-label="Разделы"></nav>
+    <div class="side-foot">
+      <p class="side-note">Демо: данные придуманы</p>
+    </div>
+  </aside>
+  <div class="main">
+    <section class="demobar" aria-label="Панель демо">
+      <div class="demobar-note"><b>Панель демо</b> Данные иллюстративные, это не показатели «Фотопринта»</div>
+      <div class="demobar-controls">
+        <label class="field-inline">Роль
+          <select id="role">
+            <option value="ceo">Руководитель</option>
+            <option value="head">Руководитель подразделения</option>
+            <option value="manager">Менеджер</option>
+            <option value="admin">Администратор</option>
+          </select>
+        </label>
+        <label class="field-inline">Состояние экрана
+          <select id="state">
+            <option value="data">Данные</option>
+            <option value="loading">Загрузка</option>
+            <option value="empty">Пусто</option>
+            <option value="error">Ошибка</option>
+            <option value="denied">Нет доступа</option>
+          </select>
+        </label>
+
+        <button class="btn btn-quiet btn-sm" data-act="reset">Сбросить демо</button>
+        <button class="btn btn-quiet btn-sm" data-act="hideBar">Скрыть панель</button>
+      </div>
+    </section>
+
+    <div class="page-wrap">
+      <div id="top" class="top-actions"></div>
+      <main id="view" tabindex="-1"></main>
+    </div>
+  </div>
+</div>
+<div id="live" class="sr" aria-live="polite"></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<noscript><p>Для макета нужен JavaScript.</p></noscript>
+<script src="data/synthetic.js"></script>
+<script>/* общая система: снимок с сервера приложения (GET /insight/snapshot) — та же форма, что data/synthetic.js, плюс живые заказы
+   и обращения из приложения; сервер недоступен — остаётся снимок из файла. ?api=http://host:8000 — другой адрес сервера */
+(function () { try { var m = location.search.match(/[?&]api=([^&]+)/); var base = m ? decodeURIComponent(m[1]) : location.protocol + "//" + (location.hostname || "localhost") + ":8000";
+  var x = new XMLHttpRequest(); x.open("GET", base + "/insight/snapshot", false); x.send(); if (x.status === 200) { var d = JSON.parse(x.responseText); if (d && d.orders && d.meta) window.INSIGHT_DATA = d; } } catch (e) { /* остаётся снимок из файла */ } })();</script>
+<script src="insight-data.js"></script>
+<script src="insight.js"></script>
+</body>
+</html>
