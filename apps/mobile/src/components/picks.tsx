@@ -22,7 +22,7 @@ import { Glass } from '@/components/glass';
 import { OverlapTitle } from '@/components/home';
 import { Tap } from '@/components/ui';
 import type { Suggestion } from '@/data/demo';
-import { pic, type PhotoName } from '@/data/photos';
+import { pic, type Pic } from '@/data/photos';
 import { colors, fonts } from '@/theme';
 
 const FRAME_MS = 4500;
@@ -51,7 +51,7 @@ export function PicksViewer({
 }
 
 /** Кадры одной идеи: обложка, потом фото из будущей книги. */
-const framesOf = (it: Suggestion): ('cover' | PhotoName)[] => ['cover', ...(it.pages ?? []).slice(0, 4)];
+const framesOf = (it: Suggestion): ('cover' | Pic)[] => ['cover', ...(it.pages ?? []).slice(0, 4)];
 
 function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggestion[]; start: number; onClose: () => void; onSeen: (id: string) => void; onOpenBook: (id: string) => void }) {
   const insets = useSafeAreaInsets();
@@ -198,7 +198,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
             <View style={s.head} pointerEvents="box-none">
               <Image source={pic(item.photo)} style={s.thumb} contentFit="cover" />
               <View style={{ flex: 1 }}>
-                <Text style={s.headTitle} numberOfLines={1}>Идея книги · ещё не заказана</Text>
+                <Text style={s.headTitle} numberOfLines={1}>{item.source === 'phone' ? 'Ваш альбом · с телефона' : 'Идея книги · ещё не заказана'}</Text>
                 <Text style={s.headSub} numberOfLines={1}>{item.meta}</Text>
               </View>
               <Tap onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="Закрыть">
@@ -241,7 +241,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
 }
 
 /** Обложка во весь экран, медленно приближается (на паузе — замирает). */
-function Cover({ photo, paused }: { photo: PhotoName; paused: boolean }) {
+function Cover({ photo, paused }: { photo: Pic; paused: boolean }) {
   const zoom = useSharedValue(1);
   useEffect(() => {
     if (paused) return cancelAnimation(zoom);
@@ -256,7 +256,7 @@ function Cover({ photo, paused }: { photo: PhotoName; paused: boolean }) {
 }
 
 /** Фото из будущей книги — карточкой с белыми полями на размытой обложке; каждая чуть повёрнута по-своему. */
-function PhotoCard({ cover, photo, i, width }: { cover: PhotoName; photo: PhotoName; i: number; width: number }) {
+function PhotoCard({ cover, photo, i, width }: { cover: Pic; photo: Pic; i: number; width: number }) {
   const w = width * 0.74;
   const tilt = [-3, 2.5, -1.5, 3][i % 4];
   return (

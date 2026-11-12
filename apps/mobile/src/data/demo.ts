@@ -1,21 +1,24 @@
 /**
  * Демо-данные главной. Позже заменяются ответом GET /home (notes/14-backend-start.md).
  */
-import type { PhotoName } from '@/data/photos';
+import type { Pic, PhotoName } from '@/data/photos';
 import type { AlbumTheme, PhotoKey } from '@/theme';
 
 export type Suggestion = {
   id: string;
-  photo: PhotoName;
+  /** обложка: демо-фото или фото альбома с телефона (ph://) */
+  photo: Pic;
   /** описание на полноэкранном слайде */
   desc: string;
   /** какие фото примерно войдут в книгу — показываем после обложки */
-  pages?: PhotoName[];
+  pages?: Pic[];
   title: string;
   meta: string;
   tag: string;
   tagTone: 'coral' | 'green';
   cover: [PhotoKey, PhotoKey, PhotoKey];
+  /** phone — подборка из альбома на телефоне (data/phoneAlbums.ts), а не демо-идея */
+  source?: 'phone';
 };
 
 export type Album = {

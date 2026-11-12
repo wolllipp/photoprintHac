@@ -50,7 +50,6 @@ export default function RootLayout() {
         <Stack.Screen name="shared/new" />
         <Stack.Screen name="shared/[id]" />
         <Stack.Screen name="points" />
-        <Stack.Screen name="albums" />
         <Stack.Screen name="retouch" />
         <Stack.Screen name="print" />
         <Stack.Screen name="editor" />
