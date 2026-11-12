@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 const TOKEN_KEY = 'picpac.api.token';
 const REGISTERED_KEY = 'picpac.api.registered';
 const TIMEOUT_MS = 12000;
+const UPLOAD_TIMEOUT_MS = 120_000;
 
 function baseUrl() {
   const env = process.env.EXPO_PUBLIC_API_URL;
@@ -46,7 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-async function raw<T>(method: string, path: string, body?: unknown, auth = true, extra?: Record<string, string>): Promise<T> {
+async function raw<T>(method: string, path: string, body?: unknown, auth = true, extra?: Record<string, string>, timeoutMs = TIMEOUT_MS): Promise<T> {
   const headers: Record<string, string> = { ...extra };
   if (auth) {
     const t = await ensureToken();
@@ -55,7 +56,7 @@ async function raw<T>(method: string, path: string, body?: unknown, auth = true,
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_URL}${path}`, {
       method,
@@ -151,6 +152,8 @@ export async function ensureRegistered() {
 
 export const api = {
   get: <T>(path: string) => raw<T>('GET', path),
+  /** загрузка фото: снимки с телефона по 3–10 МБ — ждём дольше обычного запроса, иначе на Wi-Fi обрывается */
+  upload: <T>(path: string, form: FormData) => raw<T>('POST', path, form, true, undefined, UPLOAD_TIMEOUT_MS),
   /** headers — например, Idempotency-Key заказа */
   post: <T>(path: string, body?: unknown, headers?: Record<string, string>) => raw<T>('POST', path, body ?? {}, true, headers),
   patch: <T>(path: string, body?: unknown) => raw<T>('PATCH', path, body ?? {}),

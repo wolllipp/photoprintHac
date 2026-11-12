@@ -17,11 +17,14 @@ const remember = (id: string, uri: string) => {
   uriOfId.set(id, uri);
 };
 
+/** Сколько фото в одном запросе: снимок с телефона — 3–10 МБ, по 2 за раз запрос успевает и по слабому Wi-Fi. */
+const BATCH = 2;
+
 /** Загрузить фото с телефона на сервер (пачками), вернуть их id. Уже загруженные не грузим. */
 async function upload(uris: string[]) {
   const todo = uris.filter((u) => !idOfUri.has(u) && !u.startsWith('srv:'));
-  for (let i = 0; i < todo.length; i += 8) {
-    const batch = todo.slice(i, i + 8);
+  for (let i = 0; i < todo.length; i += BATCH) {
+    const batch = todo.slice(i, i + BATCH);
     const form = new FormData();
     batch.forEach((uri, k) => {
       const name = uri.split('/').pop() || `photo-${i + k}.jpg`;
@@ -29,7 +32,7 @@ async function upload(uris: string[]) {
       // React Native отправляет файл по адресу на телефоне
       form.append('files', { uri, name, type } as unknown as Blob);
     });
-    const res = await api.post<{ id: string }[]>('/photos', form);
+    const res = await api.upload<{ id: string }[]>('/photos', form);
     res.forEach((p, k) => remember(p.id, batch[k]));
   }
   return uris.map((u) => (u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)!));
@@ -45,10 +48,13 @@ let pending: { uris: string[]; title: string; pages: number } | null = null;
 export const setPendingBook = (p: { uris: string[]; title: string; pages: number }) => {
   pending = p;
 };
-export const takePendingBook = () => {
-  const p = pending;
+/**
+ * Фото, которые ждут сборки. Не стираем при чтении: экран в режиме разработки создаётся дважды (StrictMode),
+ * и второй раз находил пусто — книга собиралась из демо-фото. Стираем, когда книга собралась (clearPendingBook).
+ */
+export const takePendingBook = () => pending;
+export const clearPendingBook = () => {
   pending = null;
-  return p;
 };
 
 /** Собранные на сервере книги — для экрана просмотра (по id проекта). */
@@ -87,7 +93,23 @@ const BUILD_WAIT_MS = 90_000;
  * Собрать книгу на сервере. onStep — номер шага экрана сборки (0–4).
  * Не получилось — BuildError: экран показывает ошибку, а не чужую демо-книгу.
  */
-export async function buildOnServer(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
+/** Сборка этих же фото уже идёт (экран в режиме разработки запускает эффект дважды) — не грузим фото второй раз. */
+let inflight: { input: object; promise: Promise<ServerBook>; steps: ((n: number) => void)[] } | null = null;
+
+export function buildOnServer(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
+  if (inflight && inflight.input === input) {
+    inflight.steps.push(onStep);
+    return inflight.promise;
+  }
+  const steps = [onStep];
+  const promise = buildOnce(input, (n) => steps.forEach((f) => f(n))).finally(() => {
+    if (inflight?.promise === promise) inflight = null;
+  });
+  inflight = { input, promise, steps };
+  return promise;
+}
+
+async function buildOnce(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
   if (!(await online())) throw new BuildError('offline');
   const me = { jobId: null as string | null, stopped: false };
   running = me;

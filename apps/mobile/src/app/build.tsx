@@ -11,10 +11,10 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BuildError, buildOnServer, cancelServerBuild, takePendingBook } from '@/api/book';
+import { BuildError, buildOnServer, cancelServerBuild, clearPendingBook, takePendingBook } from '@/api/book';
 import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
-import { type PhotoName, pic } from '@/data/photos';
+import { type Pic, type PhotoName, pic } from '@/data/photos';
 import { duration, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
@@ -41,7 +41,9 @@ const ORBIT_MS = 10000;
  * Без наплывов: карточек шесть и они разнесены так, что две карточки меняются местами «кто впереди»
  * (это происходит, когда они на одной глубине — симметрично слева и справа) только когда уже не касаются.
  */
-function Orbit({ w, h }: { w: number; h: number }) {
+/** photos — ваши снимки из галереи (до 6); без них — демо-карточки. */
+function Orbit({ w, h, photos }: { w: number; h: number; photos?: Pic[] }) {
+  const cards: Pic[] = photos?.length ? photos.slice(0, 6) : CARDS;
   const t = useSharedValue(0);
   useEffect(() => {
     t.set(withRepeat(withTiming(1, { duration: ORBIT_MS, easing: Easing.linear, reduceMotion: ReduceMotion.System }), -1, false));
@@ -49,14 +51,14 @@ function Orbit({ w, h }: { w: number; h: number }) {
   const card = Math.min(w * 0.26, h * 0.3);
   return (
     <View style={{ width: w, height: h }} accessible accessibilityLabel="Собираем книгу из ваших фото">
-      {CARDS.map((k, i) => (
-        <OrbitCard key={k} k={k} i={i} n={CARDS.length} t={t} w={w} h={h} card={card} />
+      {cards.map((k, i) => (
+        <OrbitCard key={k} k={k} i={i} n={cards.length} t={t} w={w} h={h} card={card} />
       ))}
     </View>
   );
 }
 
-function OrbitCard({ k, i, n, t, w, h, card }: { k: PhotoName; i: number; n: number; t: SharedValue<number>; w: number; h: number; card: number }) {
+function OrbitCard({ k, i, n, t, w, h, card }: { k: Pic; i: number; n: number; t: SharedValue<number>; w: number; h: number; card: number }) {
   const ch = card * 1.24;
   const rx = w / 2 - card * 0.6;
   const ry = h * 0.24;
@@ -100,6 +102,8 @@ export default function Build() {
     buildOnServer(pending, (n) => alive && setStep((x) => Math.max(x, Math.min(n, STEPS.length - 1))))
       .then((book) => {
         if (!alive) return;
+        // книга собрана — выбранные фото больше не ждут сборки
+        clearPendingBook();
         setProjectId(book.projectId);
         setServer('done');
         setStep(STEPS.length);
@@ -127,6 +131,7 @@ export default function Build() {
   const stop = () => {
     // настоящая отмена на сервере и конец опроса
     if (server === 'running') cancelServerBuild().catch(() => {});
+    clearPendingBook();
     router.back();
   };
 
@@ -162,7 +167,7 @@ export default function Build() {
         {/* карточки и строка этапа — одним компактным блоком по центру оставшегося места:
             анимация не растягивается на весь экран и не оставляет пустоту сверху */}
         <View style={s.stage} onLayout={(e) => setStageH(e.nativeEvent.layout.height)}>
-          {stageH ? <Orbit w={W} h={Math.min(stageH - 110, W * 0.72)} /> : null}
+          {stageH ? <Orbit w={W} h={Math.min(stageH - 110, W * 0.72)} photos={pending?.uris} /> : null}
 
         {/* этап — одной строкой и тонкой полосой, без отдельных плиток */}
         <View style={s.status} accessibilityLiveRegion="polite">
@@ -191,7 +196,7 @@ export default function Build() {
           <Tap style={[s.stop, s.retry]} onPress={retry} accessibilityRole="button">
             <Text style={[s.stopText, { color: '#fff' }]}>Попробовать ещё раз</Text>
           </Tap>
-          <Tap style={s.stop} onPress={() => router.back()} accessibilityRole="button">
+          <Tap style={s.stop} onPress={stop} accessibilityRole="button">
             <Text style={s.stopText}>Назад</Text>
           </Tap>
         </View>
