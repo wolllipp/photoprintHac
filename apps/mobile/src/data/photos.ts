@@ -23,8 +23,17 @@ let remote: ((id: string) => { uri: string; headers?: Record<string, string> }) 
 export const setRemoteSource = (fn: typeof remote) => {
   remote = fn;
 };
+/**
+ * Уменьшенная копия фото из галереи — для экрана (data/picked.ts). Снимок айфона — 12 Мпикс: 25–30 таких в книге
+ * телефон не тянет, и редактор зависал. На сервер и в печать уходит оригинал, а показываем копию.
+ */
+const previewOf = new Map<string, string>();
+export const setPreview = (uri: string, preview: string) => previewOf.set(uri, preview);
+
 export const pic = (k: Pic) => {
   if (k in photos) return photos[k as PhotoName];
+  const preview = previewOf.get(k);
+  if (preview) return { uri: preview };
   if (k.startsWith('srv:') && remote) return remote(k.slice(4));
   return { uri: k };
 };

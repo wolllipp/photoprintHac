@@ -2,7 +2,40 @@
  * Чтобы одно и то же фото не попало дважды. Системная галерея не умеет показывать уже выбранные снимки отмеченными,
  * а адрес файла при каждом выборе новый — поэтому узнаём фото по его id в галерее (или имени, размеру и разрешению).
  */
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+
+import { setPreview } from '@/data/photos';
+
+/** Длинная сторона копии для экрана: страница книги на телефоне — около 1200 точек. */
+const PREVIEW_PX = 1200;
+
+/** Уменьшенная копия для экрана; не вышло — показываем оригинал, как раньше. */
+async function makePreview(a: ImagePicker.ImagePickerAsset) {
+  const long = Math.max(a.width || 0, a.height || 0);
+  if (!long || long <= PREVIEW_PX * 1.2) return;
+  try {
+    const ctx = ImageManipulator.manipulate(a.uri);
+    ctx.resize(a.width >= a.height ? { width: PREVIEW_PX } : { height: PREVIEW_PX });
+    const img = await ctx.renderAsync();
+    const out = await img.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
+    setPreview(a.uri, out.uri);
+  } catch {
+    // оригинал тоже покажется, просто тяжелее
+  }
+}
+
+/** Копии по 3 за раз: первые ждём (их сразу видно на экране сборки), остальные доделываются, пока фото грузятся. */
+async function makePreviews(assets: ImagePicker.ImagePickerAsset[], waitFirst = 6) {
+  const queue = [...assets];
+  const worker = async () => {
+    for (let a = queue.shift(); a; a = queue.shift()) await makePreview(a);
+  };
+  const first = assets.slice(0, waitFirst);
+  queue.splice(0, first.length);
+  await Promise.all(first.map(makePreview));
+  void Promise.all([worker(), worker(), worker()]);
+}
 
 const keyOfUri = new Map<string, string>();
 /** Размер снимка в пикселях — для проверки перед заказом (хватит ли разрешения для рамки). */
@@ -53,6 +86,7 @@ export async function pickPhotos(have: string[], options: { multiple?: boolean }
     known.add(k);
     fresh.push(a.uri);
   }
+  await makePreviews(res.assets.filter((a) => fresh.includes(a.uri)));
   return { fresh, dup, bad };
 }
 
