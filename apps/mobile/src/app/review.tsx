@@ -893,9 +893,10 @@ const s = StyleSheet.create({
   fxTag: { position: 'absolute', left: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3, height: 20, paddingHorizontal: 6, borderRadius: 10, backgroundColor: 'rgba(20,16,14,0.55)' },
   fxTagText: { fontSize: 10.5, fontFamily: fonts.bold, color: '#fff' },
   caption: { fontSize: 13, lineHeight: 17, fontFamily: fonts.medium, fontStyle: 'italic', color: colors.mut, textAlign: 'center', paddingHorizontal: 8 },
-  toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: colors.fg, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12 },
-  toastText: { fontSize: 15, fontFamily: fonts.semibold, color: '#fff' },
-  toastLink: { fontSize: 15, fontFamily: fonts.bold, color: colors.peachStrong },
+  // уведомление «… · Отменить/Вернуть» — светлое, как карточки приложения: белое, мягкая тень, коралловая ссылка
+  toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', paddingHorizontal: 16, paddingVertical: 12, boxShadow: '0 8px 24px rgba(40,28,20,0.14)' },
+  toastText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  toastLink: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralLink },
   sheetWrap: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 16, gap: 12 },
   sheetHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },

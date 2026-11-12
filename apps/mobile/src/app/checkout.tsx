@@ -9,7 +9,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, Platform } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,6 +20,9 @@ import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease, SHEET_TAIL, sheetIn } from '@/motion';
 import { colors, fonts } from '@/theme';
+
+/** Экран открыт листом (modal): сверху у листа нет статус-бара — хватает небольшого отступа под «ручку» листа. */
+const SHEET_TOP = Platform.OS === 'ios' ? 10 : 24;
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
@@ -61,7 +64,7 @@ export default function Checkout() {
 
   if (!cart.length) {
     return (
-      <View style={[s.screen, s.empty, { paddingTop: insets.top }]}>
+      <View style={[s.screen, s.empty, { paddingTop: SHEET_TOP }]}>
         <Text style={s.emptyTitle}>Нечего оформлять</Text>
         <Tap style={s.emptyBtn} onPress={() => router.back()} accessibilityRole="button">
           <Text style={s.emptyBtnText}>Назад</Text>
@@ -107,7 +110,7 @@ export default function Checkout() {
   const enter = (i: number) => FadeInDown.delay(60 * i).duration(420).easing(ease.smoothOut);
 
   return (
-    <View style={[s.screen, { paddingTop: insets.top }]}>
+    <View style={[s.screen, { paddingTop: SHEET_TOP }]}>
       {/* заголовок и крестик — в одну линию */}
       <View style={s.nav}>
         <Animated.Text entering={enter(0)} style={[s.title, { flex: 1 }]} numberOfLines={1}>

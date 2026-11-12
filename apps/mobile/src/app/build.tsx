@@ -106,11 +106,10 @@ export default function Build() {
       <View style={s.body}>
         <Text style={s.sub} accessibilityLiveRegion="polite">{title} · обычно до 30 секунд</Text>
 
-        {/* фотокарточки кружатся по экрану */}
-        {/* высота сцены — сколько осталось места: карточки не наезжают на строку и кнопку */}
-        <View style={[s.stage, { width: W }]} onLayout={(e) => setStageH(e.nativeEvent.layout.height)}>
-          {stageH ? <Orbit w={W} h={Math.min(stageH, W * 0.95)} /> : null}
-        </View>
+        {/* карточки и строка этапа — одним компактным блоком по центру оставшегося места:
+            анимация не растягивается на весь экран и не оставляет пустоту сверху */}
+        <View style={s.stage} onLayout={(e) => setStageH(e.nativeEvent.layout.height)}>
+          {stageH ? <Orbit w={W} h={Math.min(stageH - 110, W * 0.72)} /> : null}
 
         {/* этап — одной строкой и тонкой полосой, без отдельных плиток */}
         <View style={s.status} accessibilityLiveRegion="polite">
@@ -128,6 +127,7 @@ export default function Build() {
             <Animated.View layout={LinearTransition.duration(STEP_MS * 0.8)} style={[s.trackFill, { width: `${(Math.min(step + 1, STEPS.length) / STEPS.length) * 100}%` }]} />
           </View>
         </View>
+        </View>
       </View>
       <Tap style={s.stop} onPress={() => router.back()} accessibilityRole="button">
         <Text style={s.stopText}>Остановить</Text>
@@ -138,13 +138,13 @@ export default function Build() {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { flex: 1, paddingHorizontal: 16, gap: 18, paddingTop: 4 },
+  body: { flex: 1, paddingHorizontal: 16, gap: 8, paddingTop: 0, paddingBottom: 16 },
   title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
   sub: { fontSize: 15, fontFamily: fonts.regular, color: colors.mut },
-  stage: { flex: 1, justifyContent: 'center', overflow: 'hidden' },
+  stage: { flex: 1, justifyContent: 'center', gap: 28, overflow: 'hidden' },
   card: { position: 'absolute', backgroundColor: '#fff', borderRadius: 10, padding: 5, paddingBottom: 16, boxShadow: '0 8px 20px rgba(60,40,30,0.2)' },
   cardPhoto: { flex: 1, borderRadius: 5 },
-  status: { gap: 10, marginBottom: 20 },
+  status: { gap: 10 },
   statusRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
   statusText: { flexShrink: 1, fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
   statusStep: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, fontVariant: ['tabular-nums'] },

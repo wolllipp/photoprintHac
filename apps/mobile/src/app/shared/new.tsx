@@ -7,12 +7,14 @@
  */
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { CalendarHeartIcon, ConfettiIcon } from 'phosphor-react-native';
+import { CalendarBlankIcon, CalendarHeartIcon, ConfettiIcon } from 'phosphor-react-native';
 import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Calendar } from '@/components/calendar';
+import { Collapse } from '@/components/collapse';
 import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { PRINT_DAYS } from '@/data/demo';
@@ -26,17 +28,10 @@ const DAY = 86_400_000;
 const DELIVERY_DAYS = 3;
 const ASSEMBLE_DAYS = 1;
 
-/** Когда праздник: быстрые варианты (дата-пикер — в продукте). */
-const GIFT_WHEN = [
-  { label: 'Через 2 недели', days: 14 },
-  { label: 'Через 3 недели', days: 21 },
-  { label: 'Через месяц', days: 30 },
-];
-const EVENT_WHEN = [
-  { label: 'Сегодня', days: 0 },
-  { label: 'Завтра', days: 1 },
-  { label: 'Через неделю', days: 7 },
-];
+const WEEKDAY = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+const MONTH_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const longDate = (d: Date) => `${d.getDate()} ${MONTH_GEN[d.getMonth()]}, ${WEEKDAY[d.getDay()]}`;
+const daysBetween = (a: Date, b: Date) => Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime() - new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime()) / DAY);
 const EVENT_UNTIL = [
   { label: '3 дня', days: 3 },
   { label: 'Неделю', days: 7 },
@@ -55,21 +50,23 @@ export default function NewShared() {
   const [now] = useState(() => new Date());
   const [kind, setKind] = useState<Kind>('gift');
   const [name, setName] = useState('');
-  const [giftIn, setGiftIn] = useState(GIFT_WHEN[1].days);
-  const [eventIn, setEventIn] = useState(EVENT_WHEN[0].days);
+  // дата — из календаря; подарку нужен запас на сбор фото, печать и доставку, поэтому ближайшие дни недоступны
+  const LEAD = DELIVERY_DAYS + PRINT_DAYS + ASSEMBLE_DAYS;
+  const [giftDate, setGiftDate] = useState(() => new Date(now.getTime() + 21 * DAY));
+  const [eventDate, setEventDate] = useState(() => now);
+  const [calOpen, setCalOpen] = useState(false);
   const [until, setUntil] = useState(EVENT_UNTIL[1].days);
   const [moderate, setModerate] = useState(true);
   const [names, setNames] = useState(true);
   const ready = name.trim().length >= 2;
 
-  const at = (days: number) => new Date(now.getTime() + days * DAY);
   // подарок: собираем до «праздник − доставка − печать − день на сборку»
-  const party = at(giftIn);
-  const collectTo = at(giftIn - DELIVERY_DAYS - PRINT_DAYS - ASSEMBLE_DAYS);
-  const collectDays = giftIn - DELIVERY_DAYS - PRINT_DAYS - ASSEMBLE_DAYS;
+  const party = giftDate;
+  const collectTo = new Date(giftDate.getTime() - LEAD * DAY);
+  const collectDays = daysBetween(now, collectTo);
   // событие: собираем с даты события ещё N дней
-  const eventDay = at(eventIn);
-  const eventTo = at(eventIn + until);
+  const eventDay = eventDate;
+  const eventTo = new Date(eventDate.getTime() + until * DAY);
 
   const pick = <T,>(set: (v: T) => void, v: T) => {
     Haptics.selectionAsync().catch(() => {});
@@ -119,11 +116,22 @@ export default function NewShared() {
         </Animated.View>
 
         {/* когда — и сразу наглядно, до какого дня собираем фото */}
-        <Animated.View layout={LinearTransition.duration(240)} entering={enterItem(2)} style={s.group}>
+        <Animated.View entering={enterItem(2)} style={s.group}>
           {kind === 'gift' ? (
             <Animated.View key="gift" entering={FadeIn.duration(200)} style={{ gap: 10 }}>
               <Text style={s.label}>Когда праздник</Text>
-              <Chips items={GIFT_WHEN} value={giftIn} onChange={(v) => pick(setGiftIn, v)} />
+              <DateRow value={giftDate} open={calOpen} onToggle={() => setCalOpen((x) => !x)} />
+              <Collapse open={calOpen} gap={4}>
+                  <Calendar
+                    value={giftDate}
+                    minDate={new Date(now.getTime() + (LEAD + 1) * DAY)}
+                    onChange={(d) => {
+                      setGiftDate(d);
+                      setCalOpen(false);
+                    }}
+                  />
+                  <Text style={[s.hint, { marginTop: 6 }]}>Ближайшие {LEAD + 1} дней недоступны — нужно время собрать фото, напечатать и доставить.</Text>
+              </Collapse>
               <Timeline
                 steps={[
                   { title: 'Родные добавляют фото', when: `до ${dayMonth(collectTo)} · ${collectDays} ${daysWord(collectDays)}`, tone: 'coral' },
@@ -137,7 +145,17 @@ export default function NewShared() {
           ) : (
             <Animated.View key="event" entering={FadeIn.duration(200)} style={{ gap: 10 }}>
               <Text style={s.label}>Когда событие</Text>
-              <Chips items={EVENT_WHEN} value={eventIn} onChange={(v) => pick(setEventIn, v)} />
+              <DateRow value={eventDate} open={calOpen} onToggle={() => setCalOpen((x) => !x)} />
+              <Collapse open={calOpen} gap={4}>
+                  <Calendar
+                    value={eventDate}
+                    minDate={now}
+                    onChange={(d) => {
+                      setEventDate(d);
+                      setCalOpen(false);
+                    }}
+                  />
+              </Collapse>
               <Text style={[s.label, { marginTop: 4 }]}>Сколько собирать фото после</Text>
               <Chips items={EVENT_UNTIL} value={until} onChange={(v) => pick(setUntil, v)} />
               <Timeline
@@ -165,6 +183,17 @@ export default function NewShared() {
         </Tap>
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+/** Выбранная дата строкой: «3 декабря, четверг» и стрелка — нажатие раскрывает календарь. */
+function DateRow({ value, open, onToggle }: { value: Date; open: boolean; onToggle: () => void }) {
+  return (
+    <Tap style={s.dateRow} onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`Дата: ${longDate(value)}. Изменить`}>
+      <CalendarBlankIcon size={20} color={colors.peachInk} weight="bold" />
+      <Text style={s.dateText}>{longDate(value)}</Text>
+      <Text style={s.dateLink}>{open ? 'Скрыть' : 'Изменить'}</Text>
+    </Tap>
   );
 }
 
@@ -247,8 +276,11 @@ const s = StyleSheet.create({
   label: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
   input: { fontSize: 20, lineHeight: 26, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg, paddingVertical: 4 },
   hint: { fontSize: 13, lineHeight: 18, fontFamily: fonts.regular, color: colors.mut },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: colors.bg, justifyContent: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.bg, borderRadius: 16, paddingHorizontal: 14, height: 50 },
+  dateText: { flex: 1, fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
+  dateLink: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.coralLink },
+  chips: { flexDirection: 'row', gap: 6 },
+  chip: { flex: 1, height: 40, paddingHorizontal: 8, borderRadius: 20, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: colors.fg },
   chipText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },
   chipTextOn: { color: '#fff' },

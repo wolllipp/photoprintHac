@@ -72,7 +72,7 @@ export default function Cards() {
   };
 
   return (
-    <View style={[s.screen, { paddingTop: 12 }]}>
+    <View style={[s.screen, { paddingTop: 22 }]}>
       <View style={s.head}>
         <Text style={s.title}>Карты</Text>
         <Tap style={s.round} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>

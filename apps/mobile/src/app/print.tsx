@@ -9,10 +9,11 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { MinusIcon, PlusIcon } from 'phosphor-react-native';
+import { ImagesIcon, MinusIcon, PlusIcon, XIcon } from 'phosphor-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeInDown, FadeOut, LinearTransition, ZoomOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TitleBar } from '@/components/nav';
@@ -29,8 +30,8 @@ const FORMATS = [
   { id: '20×30', price: 2.9 },
 ];
 const PAPERS = [
-  { id: 'Глянец', title: 'глянцевая', sub: 'яркие цвета, насыщенный чёрный' },
-  { id: 'Мат', title: 'матовая', sub: 'без бликов и отпечатков пальцев' },
+  { id: 'Глянец', title: 'Глянцевая', sub: 'яркие цвета, насыщенный чёрный' },
+  { id: 'Мат', title: 'Матовая', sub: 'без бликов и отпечатков пальцев' },
 ] as const;
 const ALL = Object.keys(photos) as PhotoName[];
 // shortcut: «квадратные» кадры отмечены вручную; в продукте — пропорция файла против пропорции формата (A8)
@@ -53,6 +54,24 @@ export default function Print() {
   const params = useLocalSearchParams<{ photos?: string }>();
   // фото — те, что выбрали в галерее (или в чате/книге); можно добавить ещё
   const [SHOTS, setShots] = useState(() => parseShots(params.photos));
+  // убрать фото из печати (с «Вернуть» на несколько секунд)
+  const [removed, setRemoved] = useState<{ k: Pic; at: number; n: number } | null>(null);
+  const remove = (k: Pic) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setRemoved({ k, at: SHOTS.indexOf(k), n: qty[k] ?? 1 });
+    setShots((x) => x.filter((y) => y !== k));
+  };
+  const restore = () => {
+    if (!removed) return;
+    setShots((x) => [...x.slice(0, removed.at), removed.k, ...x.slice(removed.at)]);
+    setQty((q) => ({ ...q, [removed.k]: removed.n }));
+    setRemoved(null);
+  };
+  useEffect(() => {
+    if (!removed) return;
+    const t = setTimeout(() => setRemoved(null), 4000);
+    return () => clearTimeout(t);
+  }, [removed]);
   const addMore = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
     if (res.canceled || !res.assets.length) return;
@@ -64,7 +83,7 @@ export default function Print() {
   const [fit, setFit] = useState<'crop' | 'fields'>('crop');
   const [paper, setPaper] = useState<(typeof PAPERS)[number]['id']>('Глянец');
   const [qty, setQty] = useState<Record<string, number>>(() => Object.fromEntries(SHOTS.map((k) => [k, 1])));
-  const count = SHOTS.reduce((a, k) => a + qty[k], 0);
+  const count = SHOTS.reduce((a, k) => a + (qty[k] ?? 0), 0);
   const total = Math.round(count * format.price * 100) / 100;
   const cropped = SHOTS.filter((k) => qty[k] > 0 && SQUARE.has(k)).length;
   const cell = Math.floor((width - 32 - 28 - GAP * 2) / 3);
@@ -213,14 +232,14 @@ export default function Print() {
               const on = SHOTS.every((k) => qty[k] === n);
               return (
                 <Tap key={n} style={[s.allChip, on && s.allChipOn]} onPress={() => all(n)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`По ${n} копии каждого`}>
-                  <Text style={[s.allChipText, on && { color: '#fff' }]}>по {n}</Text>
+                  <Text style={[s.allChipText, on && { color: '#fff' }]}>По {n}</Text>
                 </Tap>
               );
             })}
           </View>
           <View style={s.grid}>
             {SHOTS.map((k) => (
-              <View key={k} style={{ width: cell, gap: 6 }}>
+              <Animated.View key={k} exiting={ZoomOut.duration(180)} layout={LinearTransition.duration(240)} style={{ width: cell, gap: 6 }}>
                 <View style={[s.photo, { width: cell, height: cell }, qty[k] === 0 && { opacity: 0.35 }]}>
                   {SQUARE.has(k) && fit === 'fields' ? (
                     // с полями: весь снимок по центру, по бокам белое
@@ -231,19 +250,37 @@ export default function Print() {
                     <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
                   )}
                   {SQUARE.has(k) && fit === 'crop' && qty[k] > 0 ? <View style={s.crop} pointerEvents="none" /> : null}
+                  {/* выбрали лишнее — крестик убирает фото из печати совсем */}
+                  <Tap style={s.remove} onPress={() => remove(k)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Убрать фото из печати">
+                    <XIcon size={12} color="#fff" weight="bold" />
+                  </Tap>
                 </View>
                 <Stepper value={qty[k]} onMinus={() => change(k, -1)} onPlus={() => change(k, 1)} min={0} small />
-              </View>
+              </Animated.View>
             ))}
             {/* добавить ещё фото из галереи */}
             <Tap style={[s.add, { width: cell, height: cell }]} onPress={() => addMore().catch(() => {})} accessibilityRole="button" accessibilityLabel="Добавить фото из галереи">
-              <PlusIcon size={22} color={colors.peachInk} weight="bold" />
-              <Text style={s.addText}>Добавить{'\n'}из галереи</Text>
+              {/* значок галереи с плюсом — сразу понятно «добавить фото из галереи» */}
+              <View style={s.addIcon}>
+                <ImagesIcon size={22} color={colors.fg} weight="bold" />
+                <View style={s.addPlus}>
+                  <PlusIcon size={10} color="#fff" weight="bold" />
+                </View>
+              </View>
+              <Text style={s.addText}>Ещё фото</Text>
             </Tap>
           </View>
         </View>
       </ScrollView>
 
+      {removed ? (
+        <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: insets.bottom + 92 }]}>
+          <Text style={s.toastText}>Фото убрано</Text>
+          <Tap onPress={restore} hitSlop={10} accessibilityRole="button">
+            <Text style={s.toastLink}>Вернуть</Text>
+          </Tap>
+        </Animated.View>
+      ) : null}
       <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
         <Tap style={[s.cta, !count && { opacity: 0.4 }]} onPress={onOrder} disabled={!count} accessibilityRole="button" accessibilityLabel={`Заказать ${count} фото, ${rub(total)}`}>
           <Text style={s.ctaText}>Заказать · {count} фото</Text>
@@ -294,8 +331,15 @@ const s = StyleSheet.create({
   fitChipOn: { backgroundColor: colors.coralAction },
   fitChipText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
   paper: { flex: 1, borderRadius: 18, backgroundColor: '#fff', padding: 10, gap: 2, borderWidth: 2, borderColor: 'transparent' },
-  add: { borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.peachStrong, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  addText: { fontSize: 12, lineHeight: 15, fontFamily: fonts.semibold, color: colors.peachInk, textAlign: 'center' },
+  remove: { position: 'absolute', top: 5, right: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(20,16,14,0.55)', alignItems: 'center', justifyContent: 'center' },
+  // уведомление «… · Отменить/Вернуть» — светлое, как карточки приложения: белое, мягкая тень, коралловая ссылка
+  toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', paddingHorizontal: 16, paddingVertical: 12, boxShadow: '0 8px 24px rgba(40,28,20,0.14)' },
+  toastText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  toastLink: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralLink },
+  add: { borderRadius: 14, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  addIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  addPlus: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.card, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  addText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.fg },
   swatch: { height: 74, borderRadius: 10, overflow: 'hidden', marginBottom: 8, backgroundColor: colors.card2 },
   matte: { backgroundColor: 'rgba(240,236,230,0.32)' },
   paperOn: { borderColor: colors.coralAction },

@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { CaretRightIcon, XIcon } from 'phosphor-react-native';
 import { useState, type ReactNode } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View, Platform } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -51,7 +51,7 @@ export default function Profile() {
     ]);
 
   return (
-    <View style={[s.screen, { paddingTop: insets.top + 12 }]}>
+    <View style={[s.screen, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 12 }]}>
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
         {/* кто вы */}
         <Animated.View entering={enter(0)} style={s.me}>
