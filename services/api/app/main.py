@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api import admin, auth, catalog, home, orders, photos, projects, insight
@@ -21,6 +22,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="picPac API", lifespan=lifespan)
+# страницы стенда (дашборд, ассистент) читают общие данные из браузера с другого порта: только чтение, без cookies
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["Authorization"])
 for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router, insight.router, admin.router):
     app.include_router(r)
 # журнал действий (ОТ-04): каждое изменяющее действие
