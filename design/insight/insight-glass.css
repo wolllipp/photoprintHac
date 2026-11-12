@@ -6,8 +6,10 @@
      Кнопка с белым текстом глубже логотипа (#C94B4B), чтобы контраст был не ниже 4,5. Бирюзовый «всё хорошо» — из приложения */
   --coral: #DD5757; --coral-act: #C94B4B; --coral-bright: #FF8585; --coral-link: #FF9E9A; --coral-tint: rgba(255, 133, 133, .16);
   --ink: #FFF8F2; --ink-2: #F0E6DF; --ink-3: #C4B8B0;
-  --teal: #82DFD6; --teal-ink: #82DFD6; --teal-tint: rgba(130, 223, 214, .14);
-  --good: #82DFD6; --warn: #F2C9A8; --warn-tint: rgba(242, 201, 168, .1); --page: #15100E;
+  /* «Хорошо» — статусный зелёный дашбордов (#22C55E, оттенок 142°) в светлом приглушённом тоне для тёмной темы
+     (ui-ux-pro-max: color-dark-mode). Контраст на карточке 8,2:1. Коралл — «плохо», персиковый — «внимание» */
+  --teal: #5FCB82; --teal-ink: #5FCB82; --teal-tint: rgba(95, 203, 130, .14);
+  --good: #5FCB82; --warn: #F2C9A8; --warn-tint: rgba(242, 201, 168, .1); --page: #15100E;
   --glass: rgba(255, 245, 238, .06); --glass-card: rgba(255, 245, 238, .06); --glass-inset: rgba(255, 245, 238, .04); --glass-edge: rgba(255, 236, 224, .14); --glass-solid: rgba(35, 27, 24, .97);
 }
 html { color-scheme: dark; }

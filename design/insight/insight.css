@@ -134,7 +134,7 @@ details.more.quiet > summary { color: var(--ink-3); font-size: var(--t-xs); }
 .tip-event { font-size: var(--t-xs); color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 6px; }
 
 /* Сводка показателей */
-.ledger { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; background: var(--white); border-radius: var(--r-md); padding: 8px 0; }
+.ledger { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; background: var(--white); border-radius: var(--r-md); padding: 8px 0; }
 .lg-col { padding: 12px 20px; border-left: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; }
 .lg-col:first-child { border-left: 0; }
 .lg-row { padding: 12px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
@@ -1075,3 +1075,55 @@ details.menu[open] > .menu-pop.right { transform-origin: top right; }
 .oc-task > .btn { align-self: flex-start; }
 .rec > .sheet { margin-top: 8px; }
 @media (max-width: 480px) { .topic-add { flex-direction: column; } }
+
+/* ---------- Этап 1: паспорта KPI, источники, контракт данных ---------- */
+/* Статус KPI: цветная точка + словами, чтобы смысл не держался только на цвете */
+.src-note { display: block; font-size: var(--t-xs); margin-top: 2px; white-space: normal; }
+.kpi-norm { display: inline-flex; align-items: flex-start; gap: 6px; margin-top: 6px; font-size: var(--t-xs); font-weight: 600; color: var(--ink-3); line-height: 1.35; }
+.st-dot { width: 8px; height: 8px; margin-top: .32em; border-radius: 50%; flex-shrink: 0; background: var(--ink-3); }
+.kpi-norm.st-good { color: var(--teal-ink); } .kpi-norm.st-good .st-dot { background: var(--teal-ink); }
+.kpi-norm.st-warn { color: var(--warn); } .kpi-norm.st-warn .st-dot { background: var(--warn); }
+.kpi-norm.st-bad { color: var(--coral-link); } .kpi-norm.st-bad .st-dot { background: var(--coral); }
+/* «Как считается»: раскрывается внутри плитки, ничего не перекрывает */
+.kpi-how { margin-top: 6px; font-size: var(--t-xs); }
+.kpi-how > summary { cursor: pointer; color: var(--ink-3); font-weight: 600; list-style: none; display: inline-flex; align-items: center; gap: 4px; min-height: 24px; }
+.kpi-how > summary::-webkit-details-marker { display: none; }
+.kpi-how > summary::before { content: "ⓘ"; font-weight: 400; }
+.kpi-how > summary:hover { color: var(--ink); }
+.how-pop { margin-top: 6px; padding: 10px 12px; border-radius: 12px; background: var(--sand); color: var(--ink-2); line-height: 1.45; display: flex; flex-direction: column; gap: 4px; }
+.how-pop b { color: var(--ink); font-weight: 600; }
+.lg-row .kpi-norm, .lg-row .kpi-how { margin-top: 2px; }
+/* Источники и сверка */
+.src-keys { display: block; font-size: var(--t-xs); margin-top: 2px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.recon { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--t-sm); color: var(--ink-2); }
+/* Контракт события */
+.contract { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.contract .code { margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--sand); color: var(--ink); font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; overflow-x: auto; white-space: pre; }
+.contract .rules { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: var(--t-sm); }
+.contract dt { font-weight: 600; color: var(--ink); } .contract dd { margin: 0; color: var(--ink-2); }
+code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .92em; }
+@media (max-width: 1180px) { .lg-col:nth-child(5) { border-left: 0; } } /* 5 подразделений: в две колонки пятое начинает строку */
+@media (max-width: 860px) { .contract { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Этап 2: показатели с фильтрами (закреплены над сеткой) ---------- */
+.pulse { gap: 12px; margin-bottom: 4px; }
+.pulse-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.pulse-range { font-family: var(--font); font-weight: 500; font-size: var(--t-md); color: var(--ink-3); letter-spacing: 0; margin-left: 6px; }
+.pulse-scope { margin-top: -6px; }
+.fb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fb-btn { list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 14px; border-radius: 999px; cursor: pointer; font-size: var(--t-sm); color: var(--ink); background: var(--sand); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; }
+.fb-btn::-webkit-details-marker { display: none; }
+.fb-btn .fb-k { color: var(--ink-3); }
+.fb-btn b { font-weight: 600; }
+.fb-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .7; transition: rotate 160ms ease; }
+.fb-menu[open] .fb-btn svg { rotate: 180deg; }
+.fb-btn.on { background: var(--coral-tint); box-shadow: inset 0 0 0 1px var(--coral); }
+@media (hover: hover) and (pointer: fine) { .fb-btn:hover { box-shadow: inset 0 0 0 1px var(--ink-3); } }
+.fb-menu .menu-pop { z-index: 20; display: flex; flex-direction: column; }
+.fb-reset { border: 0; background: none; padding: 6px 4px; color: var(--coral-link); font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer; }
+/* На телефоне каждый фильтр во всю ширину, меню ровно под кнопкой и не выходит за экран */
+@media (max-width: 600px) { .fb { width: 100%; } .fb-menu { flex: 1 1 100%; } .fb-btn { width: 100%; } .fb-btn b { margin-right: auto; } .fb-menu .menu-pop { left: 0; right: 0; min-width: 0; } }
+.kpi-scope { display: block; margin-top: 4px; font-size: var(--t-xs); color: var(--ink-3); font-style: italic; }
+.ledger.one { grid-template-columns: minmax(0, 1fr); }
+.ledger.one .lg-col { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 24px; }
+.ledger.one .lg-col > h2 { grid-column: 1 / -1; }
