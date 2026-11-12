@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>picPac One — модель продукта</title>
+<style>
+  :root {
+    --bg: #ffffff; --ink: #111111; --soft: #5c5c5c; --line: #e4e4e4; --card: #f6f6f4;
+    --yellow: #ffd400; --yellow-ink: #111111; --ok: #1f7a3d; --no: #a33a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111111; --ink: #f4f4f2; --soft: #a8a8a8; --line: #2e2e2e; --card: #1b1b1b; --ok: #6fcf8e; --no: #ef8f7d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 -apple-system, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 0 16px 80px; }
+  section { padding-top: 64px; }
+  h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.05; letter-spacing: -0.02em; margin: 0 0 16px; text-wrap: balance; }
+  h2 { font-size: clamp(24px, 3.4vw, 32px); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 8px; text-wrap: balance; }
+  h3 { font-size: 18px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; }
+  .lead { color: var(--soft); max-width: 62ch; margin-bottom: 24px; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); margin-bottom: 12px; }
+  .mark { background: var(--yellow); color: var(--yellow-ink); padding: 0 0.18em; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+  header { padding-top: 56px; }
+  .hero-sub { font-size: clamp(18px, 2.2vw, 22px); max-width: 46ch; margin-bottom: 28px; }
+  .triad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .triad div { border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .triad b { display: block; font-size: 20px; line-height: 1.2; margin-bottom: 4px; }
+  .triad span { font-size: 14px; color: var(--soft); }
+  .triad .mid { background: var(--yellow); color: var(--yellow-ink); border-color: var(--yellow); }
+  .triad .mid span { color: #3a3200; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card { background: var(--card); border-radius: 16px; padding: 20px; }
+  .card p { font-size: 15px; margin-bottom: 0; }
+  .card .k { font-size: 13px; font-weight: 600; color: var(--soft); margin: 12px 0 2px; }
+  .root { margin-top: 12px; border: 2px solid var(--ink); border-radius: 16px; padding: 20px; font-size: clamp(18px, 2.4vw, 22px); font-weight: 600; }
+
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 99px; margin-bottom: 10px; }
+  .t-app { background: var(--yellow); color: var(--yellow-ink); }
+  .t-plat { background: var(--ink); color: var(--bg); }
+  .t-ai { border: 1.5px solid var(--ink); }
+
+  .loop { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 32px; align-items: center; }
+  .loop svg { width: 100%; height: auto; display: block; }
+  .ring { fill: none; stroke: var(--line); stroke-width: 2; }
+  .chev { fill: var(--soft); }
+  .core { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+  .core-t { fill: var(--ink); font-weight: 700; font-size: 20px; text-anchor: middle; }
+  .core-s { fill: var(--soft); font-size: 10.5px; text-anchor: middle; }
+  .node { cursor: pointer; }
+  .node circle { stroke: var(--ink); stroke-width: 1.5; transition: transform .18s ease; transform-box: fill-box; transform-origin: center; }
+  .node text { font-weight: 700; font-size: 20px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .node.app circle { fill: var(--yellow); } .node.app text { fill: var(--yellow-ink); }
+  .node.plat circle { fill: var(--ink); } .node.plat text { fill: var(--bg); }
+  .node.ai circle { fill: var(--bg); } .node.ai text { fill: var(--ink); }
+  .node.on circle { transform: scale(1.22); }
+  .node:focus-visible { outline: none; } .node:focus-visible circle { stroke-width: 4; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .steps button { width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 1px solid transparent; border-radius: 14px; padding: 12px 14px; cursor: pointer; display: grid; grid-template-columns: 32px 1fr; gap: 12px; }
+  .steps button:hover { background: var(--card); }
+  .steps button[aria-pressed="true"] { background: var(--card); border-color: var(--ink); }
+  .steps .n { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; border: 1.5px solid var(--ink); }
+  .steps .n.app { background: var(--yellow); color: var(--yellow-ink); }
+  .steps .n.plat { background: var(--ink); color: var(--bg); }
+  .steps b { display: block; }
+  .steps small { display: block; color: var(--soft); font-size: 13px; }
+  .steps .d { display: none; font-size: 15px; margin-top: 6px; }
+  .steps button[aria-pressed="true"] .d { display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .legend .tag { margin: 0; }
+
+  .feat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .feat .card { display: flex; flex-direction: column; }
+  .feat .why { color: var(--soft); font-size: 14px; margin-top: 8px; }
+  .feat .num { font-size: 13px; font-weight: 700; color: var(--soft); }
+  .feat .wide { grid-column: 1 / -1; }
+  .how { font-size: 12px; font-weight: 600; margin-top: auto; padding-top: 12px; color: var(--soft); }
+
+  .tw { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 520px; }
+  th { text-align: left; font-size: 13px; color: var(--soft); font-weight: 600; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .yes { color: var(--ok); font-weight: 600; white-space: nowrap; } .nope { color: var(--no); font-weight: 600; white-space: nowrap; }
+
+  ol.demo { margin: 0; padding: 0; list-style: none; counter-reset: d; display: grid; gap: 8px; }
+  ol.demo li { counter-increment: d; display: grid; grid-template-columns: 32px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  ol.demo li::before { content: counter(d); font-weight: 700; color: var(--soft); font-variant-numeric: tabular-nums; }
+  .note { font-size: 13px; color: var(--soft); margin-top: 16px; }
+
+  @media (max-width: 760px) {
+    .triad, .grid3, .feat, .loop { grid-template-columns: 1fr; }
+    .loop svg { max-width: 340px; margin: 0 auto; }
+    section { padding-top: 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .node circle { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="eyebrow">Хакатон «Фабрика идей» · ООО «Фотопринт» · три трека, одно ядро</div>
+  <h1>picPac One: <span class="mark">сигнал доходит до действия</span></h1>
+  <p class="hero-sub">Одна система от фото в телефоне клиента до решения руководителя и обратно. Приложение, управленческая платформа и ИИ-ассистент работают на общем ядре.</p>
+  <div class="triad">
+    <div><b>Книга за минуту</b><span>Приложение собирает книгу само</span></div>
+    <div class="mid"><b>Работа в один день</b><span>Девиз «Фотопринта»</span></div>
+    <div><b>Решение в один день</b><span>От сигнала до задачи с владельцем</span></div>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">Проблема</div>
+  <h2>Три боли заказчика, один корень</h2>
+  <p class="lead">Со слов представителей «Фотопринта» на встрече 11 ноября.</p>
+  <div class="grid3">
+    <div class="card"><span class="tag t-plat">Платформа</span><h3>Пять систем не связаны</h3><p>CRM, поддержка, производство, 1С и кадры живут отдельно. Данные между ними переносят руками.</p></div>
+    <div class="card"><span class="tag t-app">Приложение</span><h3>Клиенты отваливаются</h3><p>Многие бросают книгу на создании проекта и в корзине. Заказчик называет приложение «мёртвым».</p></div>
+    <div class="card"><span class="tag t-ai">Ассистент</span><h3>Только диктовка</h3><p>Помощник руководителя записывает под диктовку, но сам ничего не замечает и не предлагает.</p></div>
+  </div>
+  <div class="root">Сигнал не доходит до действия: на каждом шаге цепочку связывают люди вручную, и она рвётся.</div>
+</section>
+
+<section>
+  <div class="eyebrow">Модель</div>
+  <h2>Петля из пяти шагов вокруг общего ядра</h2>
+  <p class="lead">Три части связаны не только общей базой, но и причинно: решение руководителя меняет приложение, а система проверяет, помогло ли оно. Нажмите на шаг.</p>
+  <div class="loop">
+    <svg viewBox="0 0 400 400" role="group" aria-label="Петля из пяти шагов вокруг ядра">
+      <circle class="ring" cx="200" cy="200" r="140"/>
+      <polygon class="chev" points="-7,-6 7,0 -7,6" transform="translate(282,87) rotate(36)"/>
+      <polygon class="chev" points="-7,-6 7,0 -7,6" transform="translate(333,243) rotate(108)"/>
+      <polygon class="chev" points="-7,-6 7,0 -7,6" transform="translate(200,340) rotate(180)"/>
+      <polygon class="chev" points="-7,-6 7,0 -7,6" transform="translate(67,243) rotate(252)"/>
+      <polygon class="chev" points="-7,-6 7,0 -7,6" transform="translate(118,87) rotate(324)"/>
+      <circle class="core" cx="200" cy="200" r="78"/>
+      <text class="core-t" x="200" y="186">Ядро</text>
+      <text class="core-s" x="200" y="206">одна база · один вход</text>
+      <text class="core-s" x="200" y="221">один журнал · один ИИ</text>
+      <g class="node app" data-i="0" tabindex="0" role="button" aria-label="Шаг 1"><circle cx="200" cy="60" r="28"/><text x="200" y="60">1</text></g>
+      <g class="node plat" data-i="1" tabindex="0" role="button" aria-label="Шаг 2"><circle cx="333" cy="157" r="28"/><text x="333" y="157">2</text></g>
+      <g class="node ai" data-i="2" tabindex="0" role="button" aria-label="Шаг 3"><circle cx="282" cy="313" r="28"/><text x="282" y="313">3</text></g>
+      <g class="node app" data-i="3" tabindex="0" role="button" aria-label="Шаг 4"><circle cx="118" cy="313" r="28"/><text x="118" y="313">4</text></g>
+      <g class="node plat" data-i="4" tabindex="0" role="button" aria-label="Шаг 5"><circle cx="67" cy="157" r="28"/><text x="67" y="157">5</text></g>
+    </svg>
+    <div>
+      <ol class="steps">
+        <li><button data-i="0"><span class="n app">1</span><span><b>Клиент собирает книгу</b><small>Приложение → платформа</small><span class="d">Каждый шаг клиента — выбрал фото, собрал, бросил, заказал — становится событием. Платформа считает, какая доля проектов доходит до заказа.</span></span></button></li>
+        <li><button data-i="1"><span class="n plat">2</span><span><b>Система замечает отклонение</b><small>Платформа → ассистент</small><span class="d">Доля дошедших упала. Появляется карточка отклонения с причиной: на каком шаге и у какого продукта. Ассистент выносит её в сводку и в повестку встречи.</span></span></button></li>
+        <li><button data-i="2"><span class="n">3</span><span><b>Встреча и решение</b><small>Ассистент → платформа</small><span class="d">Ассистент готовит повестку, после встречи делает протокол. Из него получаются решение и задачи с владельцем и сроком. В реестр они попадают после подтверждения человеком.</span></span></button></li>
+        <li><button data-i="3"><span class="n app">4</span><span><b>Решение меняет приложение</b><small>Платформа → приложение</small><span class="d">Решение — не запись в таблице. Оно меняет настройку, например порог проверки фото, и следующий клиент уже идёт по новому пути.</span></span></button></li>
+        <li><button data-i="4"><span class="n plat">5</span><span><b>Вердикт</b><small>Платформа проверяет сама</small><span class="d">Через заданный срок система сравнивает показатель до и после и выносит вердикт: сработало — отклонение закрыто, нет — открыто снова.</span></span></button></li>
+      </ol>
+      <div class="legend"><span class="tag t-app">Приложение</span><span class="tag t-plat">Платформа</span><span class="tag t-ai">Ассистент</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Продукт</div>
+  <h2>Три направления</h2>
+  <div class="grid3">
+    <div class="card">
+      <span class="tag t-app">Приложение picPac</span>
+      <h3>Для частных клиентов</h3>
+      <p>Путь «фото → автомакет → правки → проверка → заказ → статус» без ручной вёрстки.</p>
+      <div class="k">Что делает</div>
+      <p>Отбирает лучшие фото, убирает дубли и смазанные кадры, раскладывает по разворотам, предупреждает о проблемах до оплаты, показывает этапы заказа.</p>
+      <div class="k">Отдаёт в ядро</div>
+      <p>События пути клиента, проекты, заказы, обращения.</p>
+    </div>
+    <div class="card">
+      <span class="tag t-plat">Платформа</span>
+      <h3>Для руководства</h3>
+      <p>«Пульс компании»: план, факт, прогноз и статус показателей в одном окне.</p>
+      <div class="k">Что делает</div>
+      <p>Ведёт от показателя к причине, оформляет решение с владельцем и сроком, прогнозирует спрос и мощность на четыре недели, проверяет эффект решений.</p>
+      <div class="k">Отдаёт в ядро</div>
+      <p>Отклонения, решения, вердикты, настройки приложения.</p>
+    </div>
+    <div class="card">
+      <span class="tag t-ai">Ассистент</span>
+      <h3>Участник компании</h3>
+      <p>Сам замечает, что требует внимания, и приходит с предложением.</p>
+      <div class="k">Что делает</div>
+      <p>Сводка по показателям, повестка и встреча в календаре, протокол, задачи, поиск по документам с источником. Клиенту помогает собрать книгу.</p>
+      <div class="k">Правила</div>
+      <p>Цифры считает код. Действие — только после подтверждения. Нет данных — «требует уточнения».</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Фишки · на обсуждении</div>
+  <h2>Чем отличаемся</h2>
+  <p class="lead">Берём только то, что вытекает из связки трёх треков или из специфики «Фотопринта». То, что может показать команда одного трека, фишкой не считаем.</p>
+  <div class="feat">
+    <div class="card"><span class="num">01</span><h3>Решение с вердиктом</h3><p>У каждого решения записан ожидаемый эффект. Через срок система сама говорит, сработало ли оно. Появляется новый показатель: доля сработавших решений.</p><p class="why">Обычный дашборд заканчивается графиком. В ТЗ повторная проверка названа главным критерием.</p><span class="how">В показе: вживую</span></div>
+    <div class="card"><span class="num">02</span><h3>Робот — участник компании</h3><p>У ассистента есть место в структуре, свой список задач и свой отчёт: сколько сигналов заметил, сколько предложений приняли и отклонили. Робот у руководителя, кот у клиента, движок один.</p><p class="why">Буквально исполняет формулу заказчика и использует его талисманов.</p><span class="how">В показе: вживую</span></div>
+    <div class="card"><span class="num">03</span><h3>Черновики — прогноз спроса</h3><p>Незаконченные проекты в приложении показывают спрос раньше заказов. По ним видно неделю, когда мощности не хватит, ещё до начала сезона.</p><p class="why">Возможно только при связке приложения и платформы.</p><span class="how">В показе: вживую на тестовых данных</span></div>
+    <div class="card"><span class="num">04</span><h3>Альбом всем классом</h3><p>Родители складывают фото в общий альбом, каждому собирается своя версия. Один альбом приводит в приложение весь класс.</p><p class="why">«Соцсеть» в смысле заказчика, без ленты. Попадает в главный спрос: школьные и выпускные альбомы.</p><span class="how">В показе: частично, остальное слайдом</span></div>
+    <div class="card wide"><span class="num">05</span><h3>Спасение брошенного проекта</h3><p>Клиент застрял на проверке — кот сам предлагает замену слабым фото и возвращает к заказу. Руководитель видит, сколько проектов спасено.</p><p class="why">Прямой ответ на боль с отвалом, эффект измеряется.</p><span class="how">В показе: вживую или слайдом</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Показ · 5–7 минут</div>
+  <h2>Один сквозной сценарий</h2>
+  <ol class="demo">
+    <li><span>Телефон в руках у члена жюри. Он выбирает фото, книга собирается, заказ оформлен.</span></li>
+    <li><span>Заказ появляется на большом экране в «Пульсе компании».</span></li>
+    <li><span>Там же красный показатель: доля проектов, дошедших до заказа. Клик — причина.</span></li>
+    <li><span>Ассистент уже вынес отклонение в сводку и предлагает повестку встречи. Подтверждаем — встреча в календаре.</span></li>
+    <li><span>Из расшифровки встречи — протокол, решение и задачи в реестре.</span></li>
+    <li><span>Решение меняет проверку фото в приложении. Показываем на телефоне.</span></li>
+    <li><span>Вердикт на данных «после»: сработало.</span></li>
+    <li><span>Клиент просит у кота выручку компании — отказ и запись в журнале. Wi‑Fi выключен, всё работает.</span></li>
+  </ol>
+</section>
+
+<section>
+  <div class="eyebrow">Состояние на 11 ноября</div>
+  <h2>Что есть и чего нет</h2>
+  <div class="tw">
+  <table>
+    <tr><th>Часть</th><th>Состояние</th><th>Что нужно</th></tr>
+    <tr><td>Сервер: вход, каталог, цены, фото, проверка качества, автосборка, заказы, пики</td><td class="yes">Работает</td><td>Этап «модерация», промокод, защита от повторного заказа</td></tr>
+    <tr><td>Экраны приложения</td><td class="nope">На демо-данных</td><td>Подключить к серверу, сохранять черновик</td></tr>
+    <tr><td>Ядро: события, проверка ролей, журнал</td><td class="nope">Нет</td><td>Делается первым, от него зависят все</td></tr>
+    <tr><td>Тестовые данные с заложенной историей</td><td class="nope">Нет</td><td>Не меньше 500 заказов, 200 клиентов, 300 обращений</td></tr>
+    <tr><td>Платформа</td><td class="nope">Нет</td><td>«Пульс», детализация, реестр решений, 10 показателей, прогноз</td></tr>
+    <tr><td>Ассистент</td><td class="nope">Нет</td><td>Модель, сводка, встреча, протокол, задачи, документы</td></tr>
+  </table>
+  </div>
+  <p class="note">MVP делается на полностью тестовых данных. Цель показа — работающий сквозной сценарий, а не полная реализация. Подробности: notes/23-spec-and-idea.md.</p>
+</section>
+
+</main>
+<script>
+  const nodes = [...document.querySelectorAll('.node')], btns = [...document.querySelectorAll('.steps button')];
+  function pick(i) {
+    nodes.forEach(n => n.classList.toggle('on', +n.dataset.i === i));
+    btns.forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === i));
+  }
+  nodes.forEach(n => {
+    n.addEventListener('click', () => pick(+n.dataset.i));
+    n.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(+n.dataset.i); } });
+  });
+  btns.forEach(b => b.addEventListener('click', () => pick(+b.dataset.i)));
+  pick(0);
+</script>
+</body>
+</html>

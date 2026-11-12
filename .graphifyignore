@@ -1,0 +1,9 @@
+# graphify scope: project only (vendored skills and images excluded)
+.claude/
+graphify-out/
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.webp
+*.gif
