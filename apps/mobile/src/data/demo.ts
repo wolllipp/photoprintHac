@@ -180,12 +180,16 @@ export const pikHistory = [
 
 /* ---------- оформление ---------- */
 /** Цены доставки — с сайта (notes/06): Европочта ПВЗ и курьер, Белпочта, EMS. */
-export const delivery = [
+/** Доставка. freeFrom — бесплатно, если товары (без допуслуг и скидок) стоят столько или больше; как на сервере (seed.DELIVERY). */
+export const delivery: readonly { id: string; title: string; sub: string; price: number; freeFrom?: number }[] = [
   { id: 'evropochta', title: 'Европочта · пункт выдачи', sub: 'от 2 дней', price: 5.9 },
   { id: 'courier', title: 'Курьер по Минску', sub: 'в выбранный день, до 22:00', price: 14.9 },
-  { id: 'belpochta', title: 'Белпочта', sub: 'в отделение · 3–5 дней', price: 6.9 },
-  { id: 'ems', title: 'EMS', sub: 'до двери по Беларуси · 1–2 дня', price: 20.9 },
-] as const;
+  { id: 'belpochta', title: 'Белпочта', sub: 'в отделение · 3–5 дней', price: 6.9, freeFrom: 150 },
+  { id: 'ems', title: 'EMS', sub: 'до двери по Беларуси · 1–2 дня', price: 20.9, freeFrom: 300 },
+];
+
+/** Сколько стоит доставка при такой сумме товаров. */
+export const deliveryPrice = (d: (typeof delivery)[number], items: number) => (d.freeFrom != null && items >= d.freeFrom ? 0 : d.price);
 
 /** Пункты выдачи Европочты рядом (демо). */
 export const pickupPoints = [

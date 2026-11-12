@@ -17,7 +17,7 @@ import { isServerProject, orderOnServer, orderPrintsOnServer } from '@/api/book'
 import { ChoiceTile } from '@/components/choice';
 import { TariffSheet } from '@/components/tariffSheet';
 import { Pik, Tap } from '@/components/ui';
-import { bookPrice, delivery, fitFormat, fitPages, payments, pickupPoints, PIK_RATE, piksUsable, tariffs, type Tariff } from '@/data/demo';
+import { bookPrice, delivery, deliveryPrice, fitFormat, fitPages, payments, pickupPoints, PIK_RATE, piksUsable, tariffs, type Tariff } from '@/data/demo';
 import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease, SHEET_TAIL, sheetIn } from '@/motion';
@@ -93,7 +93,10 @@ export default function Checkout() {
   const piksCapped = piksCan < points;
   const piksSpent = usePiks ? piksCan : 0;
   const piksOff = Math.round(piksSpent * PIK_RATE * 100) / 100;
-  const total = Math.round((goods - promoOff + d.price - piksOff) * 100) / 100;
+  // порог бесплатной доставки — по товарам без допуслуг и скидок, как на сервере
+  const items = cart.reduce((a, it) => a + it.price * it.qty, 0);
+  const ship = deliveryPrice(d, items);
+  const total = Math.round((goods - promoOff + ship - piksOff) * 100) / 100;
   const applyPromo = () => {
     const ok = promo.trim().toUpperCase() === 'PICPAC10';
     setPromoOk(ok);
@@ -204,7 +207,14 @@ export default function Checkout() {
         <Animated.View entering={enter(2)} style={s.section}>
           <Text style={s.h2}>Доставка</Text>
           {delivery.map((x) => (
-            <ChoiceTile key={x.id} title={x.title} sub={x.sub} right={rub(x.price)} on={x.id === deliveryId} onPick={() => setDeliveryId(x.id)} />
+            <ChoiceTile
+              key={x.id}
+              title={x.title}
+              sub={x.freeFrom == null ? x.sub : deliveryPrice(x, items) === 0 ? `${x.sub} · бесплатно для этого заказа` : `${x.sub} · бесплатно от ${rub(x.freeFrom)}`}
+              right={deliveryPrice(x, items) === 0 ? 'Бесплатно' : rub(x.price)}
+              on={x.id === deliveryId}
+              onPick={() => setDeliveryId(x.id)}
+            />
           ))}
           {/* куда: пункт выдачи — выбрать из ближайших; на дом — адрес */}
           {toDoor ? (
@@ -313,7 +323,7 @@ export default function Checkout() {
         <Animated.View entering={enter(6)} style={s.sums}>
           <View style={s.sum}><Text style={s.sumL}>Товары{extras.length ? ' и услуги' : ''}</Text><AnimatedNumber value={goods} format={rub} style={s.sumR} /></View>
           {promoOk ? <View style={s.sum}><Text style={s.sumL}>Промокод</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(promoOff)}</Text></View> : null}
-          <View style={s.sum}><Text style={s.sumL}>Доставка</Text><AnimatedNumber value={d.price} format={rub} style={s.sumR} /></View>
+          <View style={s.sum}><Text style={s.sumL}>Доставка</Text>{ship === 0 ? <Text style={[s.sumR, { color: colors.tealInk }]}>Бесплатно</Text> : <AnimatedNumber value={ship} format={rub} style={s.sumR} />}</View>
           {usePiks ? <View style={s.sum}><Text style={s.sumL}>Пики</Text><Text style={[s.sumR, { color: colors.tealInk }]}>−{rub(piksOff)}</Text></View> : null}
           <View style={[s.sum, { marginTop: 4 }]}><Text style={s.totalL}>Итого</Text><AnimatedNumber value={total} format={rub} style={s.totalR} /></View>
         </Animated.View>
