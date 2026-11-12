@@ -2,6 +2,9 @@
 /* picPac Insight, HTML-макет. Весь ввод макета лежит в DEMO; при переносе в Next.js объект становится фикстурой моков.
    Правило проекта: числа считает код, модель только объясняет. Поэтому агрегаты ниже считаются из сырых строк. */
 // ДОПУЩЕНИЕ: объёмы, цены заказа, пороги, сотрудники и партии придуманы. Пороги должна утвердить Алеся (D4, D8).
+/* Без данных экраны не запускаются: понятный экран ошибки с кнопкой «Повторить» уже нарисовал слой данных (ОТ-05).
+   Останавливаем скрипт здесь, иначе он упал бы на первом же расчёте и оставил белую страницу */
+if (InsightData.error()) throw new Error("Insight остановлен, данные не загружены: " + InsightData.error().detail);
 const DEMO = {
   meta: { firstWeekStart: "2026-07-20", today: "2026-11-09", lastWeek: 16, firstHistoryWeek: -32 },
   calendar: [
@@ -11,11 +14,7 @@ const DEMO = {
   // Источники берём из слоя данных (insight-data.js): 5 систем из ТЗ и приложение, с частотой обновления
   integrations: InsightData.sources().map(s => [s.icon, s.short, `${s.about} Обновление: ${s.cadence}.`]),
   lines: ["Fuji Frontier", "Ricoh", "Noritsu"],
-  rules: { baseline: [7, 14], current: [15, 16], detectFactor: 1.5, recoverFactor: 1.25, staffingMin: 0.92, effectDays: 14, ricoh: "Ricoh", premium: "Фотокнига Premium" },
-  clients: [{"w":-32,"active":842,"fresh":268,"repeat":337,"claims":7},{"w":-31,"active":870,"fresh":261,"repeat":339,"claims":7},{"w":-30,"active":853,"fresh":248,"repeat":329,"claims":7},{"w":-29,"active":848,"fresh":264,"repeat":351,"claims":7},{"w":-28,"active":845,"fresh":276,"repeat":344,"claims":6},{"w":-27,"active":528,"fresh":160,"repeat":218,"claims":4},{"w":-26,"active":531,"fresh":169,"repeat":209,"claims":4},{"w":-25,"active":521,"fresh":167,"repeat":202,"claims":4},{"w":-24,"active":518,"fresh":154,"repeat":208,"claims":4},{"w":-23,"active":560,"fresh":175,"repeat":223,"claims":4},{"w":-22,"active":552,"fresh":173,"repeat":227,"claims":4},{"w":-21,"active":559,"fresh":161,"repeat":239,"claims":4},{"w":-20,"active":548,"fresh":175,"repeat":219,"claims":4},{"w":-19,"active":622,"fresh":191,"repeat":254,"claims":5},{"w":-18,"active":625,"fresh":186,"repeat":261,"claims":5},{"w":-17,"active":635,"fresh":209,"repeat":272,"claims":5},{"w":-16,"active":626,"fresh":202,"repeat":254,"claims":5},{"w":-15,"active":621,"fresh":188,"repeat":240,"claims":5},{"w":-14,"active":586,"fresh":173,"repeat":247,"claims":5},{"w":-13,"active":578,"fresh":184,"repeat":228,"claims":5},{"w":-12,"active":581,"fresh":178,"repeat":248,"claims":5},{"w":-11,"active":571,"fresh":181,"repeat":244,"claims":4},{"w":-10,"active":659,"fresh":189,"repeat":267,"claims":5},{"w":-9,"active":647,"fresh":191,"repeat":251,"claims":5},{"w":-8,"active":648,"fresh":190,"repeat":267,"claims":5},{"w":-7,"active":666,"fresh":199,"repeat":280,"claims":5},{"w":-6,"active":835,"fresh":250,"repeat":357,"claims":7},{"w":-5,"active":839,"fresh":265,"repeat":359,"claims":7},{"w":-4,"active":824,"fresh":271,"repeat":338,"claims":6},{"w":-3,"active":834,"fresh":244,"repeat":335,"claims":7},{"w":-2,"active":814,"fresh":232,"repeat":339,"claims":7},{"w":-1,"active":700,"fresh":216,"repeat":291,"claims":6},{"w":0,"active":711,"fresh":227,"repeat":302,"claims":6},{"w":1,"active":803,"fresh":247,"repeat":317,"claims":6},{"w":2,"active":785,"fresh":243,"repeat":316,"claims":6},{"w":3,"active":780,"fresh":229,"repeat":315,"claims":6},{"w":4,"active":750,"fresh":243,"repeat":297,"claims":6},{"w":5,"active":713,"fresh":226,"repeat":299,"claims":5},{"w":6,"active":686,"fresh":207,"repeat":286,"claims":5},{"w":7,"active":684,"fresh":206,"repeat":270,"claims":6},{"w":8,"active":691,"fresh":208,"repeat":278,"claims":6},{"w":9,"active":698,"fresh":217,"repeat":282,"claims":5},{"w":10,"active":730,"fresh":221,"repeat":307,"claims":6},{"w":11,"active":705,"fresh":223,"repeat":296,"claims":6},{"w":12,"active":732,"fresh":233,"repeat":296,"claims":6},{"w":13,"active":738,"fresh":218,"repeat":293,"claims":6},{"w":14,"active":754,"fresh":246,"repeat":309,"claims":6},{"w":15,"active":791,"fresh":234,"repeat":332,"claims":9},{"w":16,"active":803,"fresh":255,"repeat":328,"claims":11}],
-  hr: [{"w":-32,"planned":70,"staffed":69,"overtime":24,"payroll":5986},{"w":-31,"planned":70,"staffed":69,"overtime":34,"payroll":5938},{"w":-30,"planned":70,"staffed":69,"overtime":32,"payroll":5826},{"w":-29,"planned":70,"staffed":69,"overtime":28,"payroll":6225},{"w":-28,"planned":70,"staffed":68,"overtime":28,"payroll":6375},{"w":-27,"planned":70,"staffed":68,"overtime":29,"payroll":3910},{"w":-26,"planned":70,"staffed":69,"overtime":34,"payroll":3676},{"w":-25,"planned":70,"staffed":69,"overtime":27,"payroll":3675},{"w":-24,"planned":70,"staffed":70,"overtime":33,"payroll":3697},{"w":-23,"planned":70,"staffed":70,"overtime":26,"payroll":3920},{"w":-22,"planned":70,"staffed":69,"overtime":27,"payroll":3852},{"w":-21,"planned":70,"staffed":69,"overtime":30,"payroll":4151},{"w":-20,"planned":70,"staffed":70,"overtime":33,"payroll":3736},{"w":-19,"planned":70,"staffed":69,"overtime":25,"payroll":4505},{"w":-18,"planned":70,"staffed":69,"overtime":32,"payroll":4427},{"w":-17,"planned":70,"staffed":68,"overtime":34,"payroll":4471},{"w":-16,"planned":70,"staffed":70,"overtime":34,"payroll":4403},{"w":-15,"planned":70,"staffed":68,"overtime":25,"payroll":4385},{"w":-14,"planned":70,"staffed":69,"overtime":31,"payroll":4168},{"w":-13,"planned":70,"staffed":69,"overtime":31,"payroll":4243},{"w":-12,"planned":70,"staffed":69,"overtime":36,"payroll":4189},{"w":-11,"planned":70,"staffed":69,"overtime":27,"payroll":4173},{"w":-10,"planned":70,"staffed":69,"overtime":35,"payroll":4739},{"w":-9,"planned":70,"staffed":69,"overtime":32,"payroll":4467},{"w":-8,"planned":70,"staffed":69,"overtime":30,"payroll":4857},{"w":-7,"planned":70,"staffed":70,"overtime":31,"payroll":4899},{"w":-6,"planned":70,"staffed":69,"overtime":29,"payroll":5674},{"w":-5,"planned":70,"staffed":70,"overtime":34,"payroll":6240},{"w":-4,"planned":70,"staffed":68,"overtime":26,"payroll":5749},{"w":-3,"planned":70,"staffed":68,"overtime":26,"payroll":6105},{"w":-2,"planned":70,"staffed":68,"overtime":35,"payroll":6052},{"w":-1,"planned":70,"staffed":69,"overtime":29,"payroll":4887},{"w":0,"planned":70,"staffed":68,"overtime":30,"payroll":4848},{"w":1,"planned":70,"staffed":69,"overtime":28,"payroll":5632},{"w":2,"planned":70,"staffed":70,"overtime":30,"payroll":5669},{"w":3,"planned":70,"staffed":69,"overtime":31,"payroll":5741},{"w":4,"planned":70,"staffed":68,"overtime":34,"payroll":5293},{"w":5,"planned":70,"staffed":69,"overtime":28,"payroll":4967},{"w":6,"planned":70,"staffed":69,"overtime":27,"payroll":4812},{"w":7,"planned":70,"staffed":68,"overtime":25,"payroll":5101},{"w":8,"planned":70,"staffed":68,"overtime":29,"payroll":5152},{"w":9,"planned":70,"staffed":69,"overtime":35,"payroll":5055},{"w":10,"planned":70,"staffed":70,"overtime":32,"payroll":4936},{"w":11,"planned":70,"staffed":69,"overtime":27,"payroll":5179},{"w":12,"planned":70,"staffed":69,"overtime":29,"payroll":5168},{"w":13,"planned":70,"staffed":69,"overtime":31,"payroll":5146},{"w":14,"planned":70,"staffed":70,"overtime":30,"payroll":5326},{"w":15,"planned":70,"staffed":62,"overtime":61,"payroll":5172},{"w":16,"planned":70,"staffed":62,"overtime":65,"payroll":5568}],
-  // Следующая выгрузка для проверки эффекта: клиенты и HR. Строки производства берутся из слоя данных (см. EFFECT)
-  effect: {"ok":{"clients":[{"w":17,"active":813,"fresh":243,"repeat":345,"claims":6},{"w":18,"active":825,"fresh":237,"repeat":327,"claims":7}],"hr":[{"w":17,"planned":70,"staffed":69,"overtime":24,"payroll":5497},{"w":18,"planned":70,"staffed":69,"overtime":35,"payroll":5839}]},"bad":{"clients":[{"w":17,"active":827,"fresh":255,"repeat":336,"claims":11},{"w":18,"active":810,"fresh":245,"repeat":325,"claims":11}],"hr":[{"w":17,"planned":70,"staffed":63,"overtime":69,"payroll":5845},{"w":18,"planned":70,"staffed":62,"overtime":69,"payroll":6180}]}},
+  rules: { baseline: [7, 14], current: [15, 16], detectFactor: 1.5, recoverFactor: 1.25, effectDays: 14, ricoh: "Ricoh", premium: "Фотокнига Premium" },
   chartEvents: [{ w: 15, label: "Простой и новая партия" }],
   batchChange: { from: "Поставщик А · партия РА-0926", to: "Поставщик Б · партия РБ-1141" },
   people: ["Начальник производства", "Технолог печати", "Менеджер закупок", "Руководитель смен", "Директор по развитию"],
@@ -30,7 +29,6 @@ const DEMO = {
     forecast: { name: "прогноз спроса и мощности по неделям", kind: "Витрина", detail: "Спрос — заказы той же недели прошлого года (ERP), мощность — паспорт линий (ERP) и люди переплёта (HR). Пересчёт после загрузки ERP и HR." },
     regulation: { name: "регламент калибровки печатных линий, п. 4", kind: "Документ", detail: "Пункт о калибровке оборудования после простоя. Текст иллюстративный." },
     finance: { name: "mart_margin_weekly", kind: "Витрина", detail: "Premium, две последние недели: скидка {discNow}, норма {discNorm}." },
-    payroll: { name: "mart_payroll_summary", kind: "Витрина", detail: "Только итог по компании, без строк по сотрудникам: {payrollNow} выручки." },
   },
   meeting: {
     title: "Оперативное совещание по качеству",
@@ -70,7 +68,7 @@ const DEMO = {
     ],
     answers: {
       cause: "Доля брака на Ricoh выросла до {ricohNow} при норме {ricohNorm}. Сильнее всего отклонение объясняет измерение «{topDim}»: по всем линиям значение «{topVal}» даёт {topShare} прироста брака при {topVol} объёма. На ночных сменах Ricoh брак {nightNow}, на дневных {dayNow}. В те же недели был простой {downtime} и смена партии бумаги.{extra} Совпадение по времени не доказывает причину.",
-      causeHr: " Укомплектованность смен упала с {staffBefore} до {staffNow}, переработка выросла с {overBefore} до {overNow} в неделю.",
+      causeHr: " Обеспеченность персоналом упала с {staffBefore} до {staffNow}, в ночных сменах печати и переплёта — с {nightStaffBefore} до {nightStaffNow}; отсутствие на сменах выросло с {absBefore} до {absNow}.",
       closedPrefix: "Отклонение закрыто: брак вернулся к {effectNow} при норме {ricohNorm}. На момент отклонения картина была такой. ",
       otherLine: "На линии {lineName} брак {lineNow} при норме {lineNorm}: отклонения нет.",
       revenue: "Выручка за неделю {lastRange}: {revLast}.",
@@ -111,12 +109,13 @@ const DEMO = {
   startNotices: [
     { role: "ceo", text: "Новое отклонение: брак на линии Ricoh выше нормы", href: "#/deviations/D-118" },
     { role: "ceo", text: "Новое отклонение: скидка на Premium выше нормы", href: "#/deviations/D-117" },
-    { role: "ceo", text: "Новое отклонение: укомплектованность смен ниже порога", href: "#/deviations/D-119" },
+    { role: "ceo", text: "Новое отклонение: обеспеченность персоналом ниже нормы", href: "#/deviations/D-119" },
     { role: "ceo", text: "Прогноз: в сезон не хватит мощности линии", href: "#/deviations/D-120" },
   ],
   otherCases: {
     "D-117": { title: "Средняя скидка на Premium выше нормы", doneTitle: "Средняя скидка на Premium снизилась до", cause: "Скидка на Premium выше нормы, причина уточняется.", ask: 2, period: 30 },
-    "D-119": { title: "Укомплектованность смен ниже порога", doneTitle: "Укомплектованность смен выросла до", cause: "В сменах меньше людей, чем по плану, причина уточняется.", period: 30 },
+    // D-119 — тот же показатель, что KPI «Обеспеченность персоналом» (HR-слой), причина собирается в staffCause()
+    "D-119": { title: "Обеспеченность персоналом ниже нормы", doneTitle: "Обеспеченность персоналом выросла до", cause: "В сменах меньше людей, чем по плану, причина уточняется.", period: 30 },
     // Этап 3: отклонение по прогнозу. Название, причина и значение считаются из InsightData.forecast (см. seasonDeviation)
     "D-120": { title: "Прогноз: дефицит мощности в сезон", doneTitle: "Прогноз загрузки в пиковую неделю снижен до", cause: "По прогнозу в сезон спрос превысит 90 % мощности линии.", ask: 5, period: 30 },
   },
@@ -203,14 +202,12 @@ const nextWeeks = (from, oldBatch) => BASE.filter(r => r.w === from || r.w === f
 });
 const EFFECT = { ok: nextWeeks(OK_FROM, true), bad: nextWeeks(DEMO.rules.current[0], false) };
 /* Претензии по браку — обращения с темой «Брак» из поддержки, тоже из слоя данных */
-const CLAIMS = new Map(InsightData.claimsWeekly(DEMO.meta.firstWeekStart, DEMO.meta.firstHistoryWeek, DEMO.meta.lastWeek).map(c => [c.w, c.claims]));
-DEMO.clients.forEach(c => { c.claims = CLAIMS.get(c.w) || 0; });
-DEMO.effect.ok.clients.forEach((c, i) => { c.claims = CLAIMS.get(OK_FROM + i) || 0; });
-DEMO.effect.bad.clients.forEach((c, i) => { c.claims = CLAIMS.get(DEMO.rules.current[0] + i) || 0; });
+const CLAIMS = InsightData.claimsWeekly(DEMO.meta.firstWeekStart, DEMO.meta.firstHistoryWeek, DEMO.meta.lastWeek);
+/* Персонал по неделям (D-119) — те же строки HR и формулы, что у KPI «Обеспеченность персоналом» и «Отсутствие» */
+const hrW = opts => InsightData.hrWeekly(DEMO.meta.firstWeekStart, DEMO.meta.firstHistoryWeek, DEMO.meta.lastWeek, opts);
+const HR = hrW(), HR_NIGHT = hrW({ depts: [0, 1], nightOnly: true }); // [0, 1] — печать и переплёт
 const rowsAll = () => S.sim ? BASE.concat(EFFECT[S.sim]) : BASE;
 const lastWeek = () => DEMO.meta.lastWeek + (S.sim ? 2 : 0);
-const clientsAll = () => S.sim ? DEMO.clients.concat(DEMO.effect[S.sim].clients) : DEMO.clients;
-const hrAll = () => S.sim ? DEMO.hr.concat(DEMO.effect[S.sim].hr) : DEMO.hr;
 const inW = (arr, a, b) => arr.filter(r => r.w >= a && r.w <= b);
 const sum = (arr, k) => arr.reduce((s, r) => s + r[k], 0);
 const rate = arr => { const s = sum(arr, "sheets"); return s ? sum(arr, "defects") / s : 0; };
@@ -270,8 +267,14 @@ function otherInfo(id) {
       title: r ? `Прогноз: дефицит мощности ${r.res.name} ${fcRange(r.week)}` : DEMO.otherCases[id].title, value: C.sim === "ok" ? .86 : C.sim === "bad" ? d.now * .98 : d.now };
   }
   const up = id === DEMO.deviationsMeta.staffing, d = up ? staffingDeviation() : discountDeviation(), C = caseOf(id);
-  const limit = up ? R.staffingMin : d.norm * R.recoverFactor, ok = up ? .97 : d.norm * 1.1, bad = up ? d.now + .005 : d.now * .97;
-  return { ...DEMO.otherCases[id], d, limit, goal: `цель ${up ? "≥" : "≤"} ${fPct(limit)}`, value: C.sim === "ok" ? ok : C.sim === "bad" ? bad : d.now };
+  /* Для смен «помогло» — возврат к обычному уровню базовых недель, но не ниже нормы */
+  const limit = up ? d.norm : d.norm * R.recoverFactor, ok = up ? Math.max(d.usual, d.norm + .005) : d.norm * 1.1, bad = up ? d.now + .005 : d.now * .97;
+  return { ...DEMO.otherCases[id], ...(up ? { cause: staffCause(d) } : {}), d, limit, goal: `цель ${up ? "≥" : "≤"} ${fPct(limit)}`, value: C.sim === "ok" ? ok : C.sim === "bad" ? bad : d.now };
+}
+/* Причина D-119 из HR-слоя: где именно не хватает людей. Почему люди не выходят, в данных нет — это и есть вопрос к руководителю смен */
+function staffCause(d) {
+  const [ba, bb] = R.baseline, [ca, cb] = R.current, p = (arr, a, b, k1, k2) => fPct(ratio(inW(arr, a, b), k1, k2));
+  return `Обеспеченность персоналом ${fPct(d.now)} при норме ${fPct(d.norm)}, обычно ${fPct(d.usual)}. Сильнее всего просели ночные смены печати и переплёта: ${p(HR_NIGHT, ba, bb, "present", "needed")} → ${p(HR_NIGHT, ca, cb, "present", "needed")}. Отсутствие на сменах выросло с ${p(HR, ba, bb, "absent", "scheduled")} до ${p(HR, ca, cb, "absent", "scheduled")}. Почему люди не выходят, в данных HR нет.`;
 }
 function mainDeviation() {
   const base = inW(BASE, R.baseline[0], R.baseline[1]).filter(ricoh), cur = inW(BASE, R.current[0], R.current[1]).filter(ricoh);
@@ -284,10 +287,12 @@ function discountDeviation() {
   const norm = dr(inW(BASE, R.baseline[0], R.baseline[1]).filter(p)), now = dr(inW(BASE, R.current[0], R.current[1]).filter(p));
   return { id: DEMO.deviationsMeta.discount, norm, now, triggered: now > norm * R.detectFactor };
 }
+/* D-119 считается как KPI «Обеспеченность персоналом»: вышли на смену / требуется по плану, вся компания, норма из паспорта KPI.
+   usual — уровень базовых недель, для текста причины */
 function staffingDeviation() {
-  const now = ratio(inW(DEMO.hr, R.current[0], R.current[1]), "staffed", "planned");
-  const norm = ratio(inW(DEMO.hr, R.baseline[0], R.baseline[1]), "staffed", "planned");
-  return { id: DEMO.deviationsMeta.staffing, norm, now, triggered: now < R.staffingMin };
+  const r = (a, b) => ratio(inW(HR, a, b), "present", "needed"), norm = kpiById("staffing").norm.v;
+  const now = r(R.current[0], R.current[1]), usual = r(R.baseline[0], R.baseline[1]);
+  return { id: DEMO.deviationsMeta.staffing, norm, now, usual, triggered: now < norm };
 }
 /* Отклонение по прогнозу (этап 3): первая неделя, где спрос ресурса выше 90 % мощности. Считается по всей компании, без фильтров главной */
 function seasonDeviation() {
@@ -322,12 +327,13 @@ function coincidences() {
     { label: "Брак, ночные смены Ricoh", before: fPct(rate(inW(BASE, ba, bb).filter(night))), now: fPct(rate(inW(BASE, ca, cb).filter(night))) },
     { label: "Простой Ricoh ночью, в неделю", before: fHours(weekly(BASE.filter(night), "downtime", ba, bb)), now: fHours(weekly(BASE.filter(night), "downtime", ca, cb)) },
     { label: "Материал на Ricoh", before: DEMO.batchChange.from, now: DEMO.batchChange.to },
-    { label: "Претензии по браку, в неделю", before: NF1.format(weekly(DEMO.clients, "claims", ba, bb)), now: NF1.format(weekly(DEMO.clients, "claims", ca, cb)) },
+    { label: "Претензии по браку, в неделю", before: NF1.format(weekly(CLAIMS, "claims", ba, bb)), now: NF1.format(weekly(CLAIMS, "claims", ca, cb)) },
     { label: "Заказы с опозданием на Ricoh, в неделю", before: NF1.format(weekly(BASE.filter(ricoh), "late", ba, bb)), now: NF1.format(weekly(BASE.filter(ricoh), "late", ca, cb)) },
   ];
   if (isCeo()) list.push(
-    { label: "Укомплектованность смен", before: fPct(ratio(inW(DEMO.hr, ba, bb), "staffed", "planned")), now: fPct(ratio(inW(DEMO.hr, ca, cb), "staffed", "planned")) },
-    { label: "Переработка, в неделю", before: NF1.format(weekly(DEMO.hr, "overtime", ba, bb)) + " ч", now: NF1.format(weekly(DEMO.hr, "overtime", ca, cb)) + " ч" });
+    { label: "Обеспеченность персоналом, компания", before: fPct(ratio(inW(HR, ba, bb), "present", "needed")), now: fPct(ratio(inW(HR, ca, cb), "present", "needed")) },
+    { label: "Обеспеченность, ночные смены печати и переплёта", before: fPct(ratio(inW(HR_NIGHT, ba, bb), "present", "needed")), now: fPct(ratio(inW(HR_NIGHT, ca, cb), "present", "needed")) },
+    { label: "Отсутствие на сменах, компания", before: fPct(ratio(inW(HR, ba, bb), "absent", "scheduled")), now: fPct(ratio(inW(HR, ca, cb), "absent", "scheduled")) });
   return list;
 }
 function consequences() {
@@ -337,21 +343,22 @@ function consequences() {
     const c = cur.filter(r => r.product === p), e = Math.max(0, sum(c, "defects") - sum(c, "sheets") * rate(base.filter(r => r.product === p)));
     extra += e; reprint += e * ratio(c, "cost", "orders");
   });
-  const claims = (weekly(DEMO.clients, "claims", ca, cb) - weekly(DEMO.clients, "claims", ba, bb)) * (cb - ca + 1);
+  const claims = (weekly(CLAIMS, "claims", ca, cb) - weekly(CLAIMS, "claims", ba, bb)) * (cb - ca + 1);
   const late = (weekly(BASE.filter(ricoh), "late", ca, cb) - weekly(BASE.filter(ricoh), "late", ba, bb)) * (cb - ca + 1);
   return { extra, reprint, claims, late };
 }
 function facts() {
   const d = mainDeviation(), dims = decompose(), top = dims[0], cur = inW(BASE, R.current[0], R.current[1]).filter(ricoh), disc = discountDeviation();
   const [ba, bb] = R.baseline, [ca, cb] = R.current, r3 = r => ricoh(r) && r.operator === "R-3";
-  const payCur = sum(inW(DEMO.hr, R.current[0], R.current[1]), "payroll"), revCur = sum(inW(BASE, R.current[0], R.current[1]), "revenue");
+  const hr = (arr, a, b, k1, k2) => fPct(ratio(inW(arr, a, b), k1, k2));
   const downRows = inW(BASE, 15, 15).filter(ricoh).filter(r => r.shift === "Ночь");
   return { ricohNow: fPct(d.now), ricohNorm: fPct(d.norm), topDim: top.label, topVal: top.top.value, topShare: fPct(top.top.share), topVol: fPct(top.top.vol),
     nightNow: fPct(rate(cur.filter(r => r.shift === "Ночь"))), dayNow: fPct(rate(cur.filter(r => r.shift === "День"))), downtime: fHours(sum(downRows, "downtime")),
-    discNow: fPct(disc.now), discNorm: fPct(disc.norm), payrollNow: fPct(revCur ? payCur / revCur : 0),
+    discNow: fPct(disc.now), discNorm: fPct(disc.norm),
     batchFrom: DEMO.batchChange.from, batchTo: DEMO.batchChange.to,
-    staffBefore: fPct(ratio(inW(DEMO.hr, ba, bb), "staffed", "planned")), staffNow: fPct(ratio(inW(DEMO.hr, ca, cb), "staffed", "planned")),
-    overBefore: NF1.format(weekly(DEMO.hr, "overtime", ba, bb)) + " ч", overNow: NF1.format(weekly(DEMO.hr, "overtime", ca, cb)) + " ч",
+    staffBefore: hr(HR, ba, bb, "present", "needed"), staffNow: hr(HR, ca, cb, "present", "needed"), staffNorm: fPct(kpiById("staffing").norm.v),
+    nightStaffBefore: hr(HR_NIGHT, ba, bb, "present", "needed"), nightStaffNow: hr(HR_NIGHT, ca, cb, "present", "needed"),
+    absBefore: hr(HR, ba, bb, "absent", "scheduled"), absNow: hr(HR, ca, cb, "absent", "scheduled"),
     r3Down: fHours(sum(inW(BASE, ca, cb).filter(r3), "downtime")), r3Before: fPct(rate(inW(BASE, ba, bb).filter(r3))), r3Now: fPct(rate(inW(BASE, ca, cb).filter(r3))),
     effectNow: fPct(mainNow()), revLast: fMoney(sum(inW(rowsAll(), lastWeek(), lastWeek()), "revenue")), lastRange: weekRange(lastWeek()) };
 }
@@ -364,7 +371,7 @@ const fill = (tpl, f) => tpl.replace(/\{(\w+)\}/g, (_, k) => f[k]);
 const dayRange = (a, b) => [InsightData.dayOf(weekStart(a)), InsightData.dayOf(weekStart(b)) + 6];
 /* Срез расчёта: фильтр продукта или линии и область видимости роли (начальник производства видит обеспеченность только своих смен) */
 const kctx = () => InsightData.ctx({ product: S.fProduct, line: S.line ? InsightData.lines().indexOf(S.line) : null, role: ROLE_API[S.role], dept: S.dept });
-const KPI_DEV = { defect: "D-118", discount: "D-117" }; // плитка ведёт в отклонение, а оттуда — к заказам-основаниям
+const KPI_DEV = { defect: "D-118", discount: "D-117", staffing: "D-119" }; // плитка ведёт в отклонение, а оттуда — к заказам-основаниям
 const KPI_ALL = InsightData.kpis().map(k => ({ ...k, f: k.fmt, link: KPI_DEV[k.id] ? "#/deviations/" + KPI_DEV[k.id] : null,
   calc: (a, b) => k.calc(...dayRange(a, b), kctx()), statusOf: (a, b, cur, prev) => k.status(cur, prev, ...dayRange(a, b), kctx()), detailOf: k.detail ? (a, b) => k.detail(...dayRange(a, b), kctx()) : null }));
 const KPI = InsightData.depts().map(d => ({ group: d.name, dept: d.id, items: KPI_ALL.filter(k => k.dept === d.id) }));

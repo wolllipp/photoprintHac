@@ -21,9 +21,60 @@ const InsightData = (() => {
     return { meta: raw.meta, dicts: raw.dicts, start, days, ordersRaw, orders, byOrder, customersRaw, customerIds, productLine,
       payments: table(raw.payments), plan: table(raw.plan), lines: table(raw.lines), hr: table(raw.hr), tickets: table(raw.tickets), app: table(raw.app) };
   }
+  /* ---------- Проверка снимка (ОТ-05): лучше понятная ошибка, чем неверные цифры ---------- */
+  // kind: "network" — данные не дошли, "format" — пришли, но не в том виде. Экран ошибки показывает text, техническая причина — в detail
+  const dataError = (kind, detail) => Object.assign(new Error(detail), { kind, detail,
+    title: kind === "network" ? "Не удалось загрузить данные" : "Данные пришли в неверном формате",
+    text: kind === "network" ? "Источник данных не ответил. Проверьте соединение и повторите загрузку."
+      : "Показатели не считаются, чтобы не показать неверные цифры. Повторите загрузку или сообщите администратору." });
+  const TABLES = { customers: ["customer_id", "first_day", "channel"], orders: ["order_id", "customer_id", "day", "hour", "product", "line", "shift", "units", "defects", "ship_day", "promise_day"],
+    payments: ["order_id", "day", "net", "discount", "cost"], plan: ["day", "product", "plan_net"], lines: ["day", "line", "shift", "capacity", "output", "downtime_h"],
+    hr: ["day", "dept", "shift", "needed", "scheduled", "absent"], tickets: ["ticket_id", "order_id", "day", "topic", "sla_min", "resolve_min"], app: ["day", "started", "ordered"] };
+  function validate(raw) {
+    if (!raw) throw dataError("network", "Файл data/synthetic.js не загрузился (window.INSIGHT_DATA нет)");
+    if (!raw.meta || !raw.dicts) throw dataError("format", "В снимке нет разделов meta или dicts");
+    if (isNaN(Date.parse(raw.meta.start + "T00:00:00Z")) || isNaN(Date.parse(raw.meta.end + "T00:00:00Z"))) throw dataError("format", "В meta нет корректных дат start и end");
+    Object.entries(TABLES).forEach(([name, cols]) => {
+      const t = raw[name];
+      if (!t || !Array.isArray(t.cols) || !Array.isArray(t.rows)) throw dataError("format", `В снимке нет таблицы «${name}»`);
+      const miss = cols.filter(c => !t.cols.includes(c));
+      if (miss.length) throw dataError("format", `В таблице «${name}» нет полей: ${miss.join(", ")}`);
+      const bad = t.rows.findIndex(r => !Array.isArray(r) || r.length !== t.cols.length);
+      if (bad >= 0) throw dataError("format", `В таблице «${name}» строка ${bad + 1} не совпадает со списком полей`);
+    });
+  }
+  /* Демо сбоя для приёмочного теста «одна ошибка»: ?fail=network — данные не дошли, ?fail=format — пришла таблица без заказов.
+     Сбой изображает только загрузку; «Повторить» снимает параметр, как если бы связь восстановилась */
+  function demoFailure(raw) {
+    let f = null; try { f = new URLSearchParams(location.search).get("fail"); } catch (e) { f = null; }
+    if (f === "network") return null;
+    if (f === "format" && raw) { const copy = { ...raw }; delete copy.orders; return copy; }
+    return raw;
+  }
   /* Синхронно, чтобы макет рисовался сразу; load() — точка, куда встанет запрос к серверу */
-  function boot() { if (!D) { RAW = window.INSIGHT_DATA; if (!RAW) throw new Error("Нет данных: подключите data/synthetic.js перед insight-data.js"); D = decode(RAW); build(); } }
+  function boot() { if (!D) { RAW = demoFailure(window.INSIGHT_DATA); validate(RAW); D = decode(RAW); build(); } }
   const load = () => { try { boot(); return Promise.resolve(); } catch (e) { return Promise.reject(e); } };
+  let ERR = null;
+  const error = () => ERR;
+  /* Экран ошибки рисует слой данных: экраны Insight без данных не запускаются, поэтому иначе была бы белая страница.
+     Сохранённые в браузере решения, задачи и журнал не трогаются */
+  function showError(e) {
+    const view = document.getElementById("view"); if (!view) return;
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    view.innerHTML = `<section class="state" role="alert"><h1 tabindex="-1">${esc(e.title || "Не удалось загрузить данные")}</h1>
+      <p>${esc(e.text || "Повторите загрузку.")}</p><p class="muted small">Решения, задачи и журнал, сохранённые в этом браузере, не потеряны.</p>
+      <p class="muted small">Причина: ${esc(e.detail || e.message)}</p><button class="btn btn-primary" type="button" id="data-retry">Повторить</button></section>`;
+    document.title = "Ошибка данных · picPac Insight";
+    document.getElementById("data-retry").addEventListener("click", () => {
+      const u = new URL(location.href); u.searchParams.delete("fail");
+      if (u.href === location.href) location.reload(); else location.replace(u.href);
+    });
+    view.querySelector("h1").focus();
+  }
+  function start() {
+    try { boot(); }
+    catch (e) { ERR = e.kind ? e : dataError("format", e.message); D = null; showError(ERR); console.error("Insight: данные не загружены —", ERR.detail); }
+  }
 
   /* ---------- Дни ---------- */
   const dayOf = date => Math.round((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - D.start) / DAY);
@@ -399,6 +450,19 @@ const InsightData = (() => {
     return [...rows.values()].map(r => ({ ...r, revenue: Math.round(r.revenue), cost: Math.round(r.cost), discount: Math.round(r.discount), downtime: r1(r.downtime) }))
       .sort((a, b) => a.w - b.w || a.line.localeCompare(b.line) || a.product.localeCompare(b.product) || a.shift.localeCompare(b.shift));
   }
+  // Персонал по неделям для разбора D-119: те же строки HR и та же формула, что у KPI «Обеспеченность персоналом» и «Отсутствие».
+  // needed — требуется по плану, present — вышли (поставлены в смену минус отсутствующие), scheduled — поставлены, absent — отсутствовали (человеко-смены за неделю).
+  // depts — номера подразделений штата (null — вся компания); nightOnly — только ночные смены
+  function hrWeekly(firstMonday, wFrom, wTo, { depts = null, nightOnly = false } = {}) {
+    const d1 = dayOf(new Date(firstMonday + "T00:00:00Z")), out = new Map();
+    for (let w = wFrom; w <= wTo; w++) out.set(w, { w, needed: 0, present: 0, scheduled: 0, absent: 0 });
+    D.hr.forEach(h => {
+      const r = out.get(Math.floor((h.day - d1) / 7) + 1);
+      if (!r || (depts && !depts.includes(h.dept)) || (nightOnly && h.shift !== 1)) return;
+      r.needed += h.needed; r.present += h.scheduled - h.absent; r.scheduled += h.scheduled; r.absent += h.absent;
+    });
+    return [...out.values()];
+  }
   // Обращения с темой «Брак» по неделям — претензии клиентов для разбора D-118
   function claimsWeekly(firstMonday, wFrom, wTo) {
     const d1 = dayOf(new Date(firstMonday + "T00:00:00Z")), topic = D.dicts.topics.indexOf("Брак"), out = new Map();
@@ -407,7 +471,7 @@ const InsightData = (() => {
     return [...out].map(([w, claims]) => ({ w, claims }));
   }
 
-  return { load, boot, kpis, sources: () => SOURCES.map(s => ({ ...s, ...freshness(s) })), quality, contract, depts: () => DEPTS, statusText: s => STATUS_TEXT[s], dayOf, isoOf, meta: () => D.meta, days: () => D.days,
-    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order, weekly, claimsWeekly };
+  return { load, boot, start, error, kpis, sources: () => SOURCES.map(s => ({ ...s, ...freshness(s) })), quality, contract, depts: () => DEPTS, statusText: s => STATUS_TEXT[s], dayOf, isoOf, meta: () => D.meta, days: () => D.days,
+    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order, weekly, claimsWeekly, hrWeekly, hrDepts: () => D.dicts.hrDepts };
 })();
-InsightData.boot();
+InsightData.start();
