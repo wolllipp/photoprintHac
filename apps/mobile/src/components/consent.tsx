@@ -1,7 +1,8 @@
 /**
- * Согласие на обработку фото ИИ (A14) — один раз, перед первой сборкой.
- * Три обещания простыми словами, «Согласен» и «Не сейчас». Ответ хранится в приложении;
- * отозвать и удалить фото — в профиле.
+ * Согласие на обработку фото ИИ (A14) — один раз, перед первой загрузкой фото на любом пути
+ * (книга из фото, по описанию, печать, общий альбом; план notes/30-audit, п. 1.15).
+ * Три обещания простыми словами, «Согласен» и «Не сейчас». Ответ хранится в приложении (aiConsent);
+ * отозвать — в профиле. Тексты ждут юриста (план, «Спорное», п. 4).
  */
 import * as Haptics from 'expo-haptics';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -15,19 +16,23 @@ import { colors, fonts } from '@/theme';
 const POINTS = [
   { title: 'Обрабатываем внутри «Фотопринта»', text: 'ИИ работает на наших серверах в Беларуси. Фото не уходят в чужие ИИ-сервисы.' },
   { title: 'Никому не передаём', text: 'Ни третьим лицам, ни для обучения моделей.' },
-  { title: 'Удаляем после заказа', text: 'Через 30 дней после получения книги. Раньше — в профиле, в одно касание.' },
+  { title: 'Удаляем после заказа', text: 'Через 30 дней после получения заказа. Обработку ИИ можно выключить в профиле.' },
 ];
 
-export function ConsentSheet({ visible, onAccept, onClose }: { visible: boolean; onAccept: () => void; onClose: () => void }) {
+/**
+ * cta — текст кнопки под путь («собрать книгу», «выбрать фото»).
+ * onDismissed — лист закрылся полностью (iOS не откроет галерею поверх закрывающегося окна).
+ */
+export function ConsentSheet({ visible, onAccept, onClose, cta = 'Согласен, собрать книгу', onDismissed }: { visible: boolean; onAccept: () => void; onClose: () => void; cta?: string; onDismissed?: () => void }) {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismissed}>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
         <Animated.View entering={sheetIn} style={[s.sheet, { marginBottom: -SHEET_TAIL, paddingBottom: insets.bottom + 16 + SHEET_TAIL }]}>
           <View style={s.grab} />
           <Text style={s.title}>Ваши фото остаются у нас</Text>
-          <Text style={s.lead}>Чтобы собрать книгу, ИИ посмотрит ваши фото: отберёт лучшие и проверит, чтобы лица не попали в обрез.</Text>
+          <Text style={s.lead}>ИИ посмотрит фото, которые вы выберете: отберёт лучшие, проверит резкость и чтобы лица не попали в обрез.</Text>
 
           <View style={s.points}>
             {POINTS.map((p, i) => (
@@ -49,7 +54,7 @@ export function ConsentSheet({ visible, onAccept, onClose }: { visible: boolean;
               onAccept();
             }}
             accessibilityRole="button">
-            <Text style={s.ctaText}>Согласен, собрать книгу</Text>
+            <Text style={s.ctaText}>{cta}</Text>
           </Tap>
           <Tap style={s.later} onPress={onClose} accessibilityRole="button">
             <Text style={s.laterText}>Не сейчас</Text>

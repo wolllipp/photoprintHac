@@ -19,6 +19,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { setPendingBook } from '@/api/book';
+import { ConsentSheet } from '@/components/consent';
 import { pickPhotos, skipText } from '@/data/picked';
 import { NewSheet, type NewChoice } from '@/components/newSheet';
 import { Tap } from '@/components/ui';
@@ -122,7 +123,12 @@ async function printFromPhotos() {
 
 /** Лист «Создать» — один на все вкладки: открывается и «+» в меню, и кружком на главной. */
 export function CreateHost() {
-  const { creating, setCreating } = useStore();
+  const { creating, setCreating, aiConsent, setAiConsent } = useStore();
+  // перед первой загрузкой фото на любом пути — согласие на обработку ИИ (план 1.15), один раз.
+  // ask — какой путь ждёт согласия; after — куда идти, когда лист согласия закроется
+  const [ask, setAsk] = useState<NewChoice | null>(null);
+  const wantConsent = useRef<NewChoice | null>(null);
+  const after = useRef<NewChoice | null>(null);
   // фото для книги мало — своё окно в стиле приложения (а не системное)
   const [short, setShortState] = useState<{ uris: string[]; skipped: string | null } | null>(null);
   const setShort = (uris: string[] | null, skipped: string | null = null) => setShortState(uris ? { uris, skipped } : null);
@@ -134,9 +140,8 @@ export function CreateHost() {
     wantGallery.current = null;
     (want === 'book' ? bookFromPhotos([], setShort) : printFromPhotos()).catch(() => {});
   };
-  const onPick = (c: NewChoice) => {
-    setCreating(false);
-    // книга и печать начинаются с выбора фото в галерее
+  // путь выбран и согласие есть: книга и печать начинаются с выбора фото в галерее
+  const go = (c: NewChoice) => {
     if (c === 'photos' || c === 'print') {
       wantGallery.current = c === 'photos' ? 'book' : 'print';
       // на Android у Modal нет onDismiss — ждём, пока закончится анимация закрытия
@@ -145,9 +150,47 @@ export function CreateHost() {
     else if (c === 'voice') router.push({ pathname: '/story', params: { voice: '1' } });
     else router.push('/shared');
   };
+  // «По описанию» спрашивает согласие на своём экране; книга из фото, печать и общий альбом — здесь
+  const needsConsent = (c: NewChoice) => !aiConsent && (c === 'photos' || c === 'print' || c === 'shared');
+  const onPick = (c: NewChoice) => {
+    setCreating(false);
+    if (needsConsent(c)) {
+      // лист согласия — когда закроется лист «Создать» (два окна сразу iOS не покажет)
+      wantConsent.current = c;
+      if (Platform.OS !== 'ios') setTimeout(onSheetGone, 400);
+      return;
+    }
+    go(c);
+  };
+  const onSheetGone = () => {
+    const c = wantConsent.current;
+    wantConsent.current = null;
+    if (c) setAsk(c);
+    else openGallery();
+  };
+  // согласие закрылось: после «Согласен» продолжаем выбранный путь
+  const onConsentGone = () => {
+    const c = after.current;
+    after.current = null;
+    if (!c) return;
+    go(c);
+    if (Platform.OS === 'ios') openGallery();
+  };
   return (
     <>
-      <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} onDismissed={openGallery} />
+      <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} onDismissed={onSheetGone} />
+      <ConsentSheet
+        visible={!!ask}
+        cta={ask === 'shared' ? 'Согласен, создать альбом' : ask === 'print' ? 'Согласен, выбрать фото' : 'Согласен, собрать книгу'}
+        onClose={() => setAsk(null)}
+        onAccept={() => {
+          setAiConsent(true);
+          after.current = ask;
+          setAsk(null);
+          if (Platform.OS !== 'ios') setTimeout(onConsentGone, 400);
+        }}
+        onDismissed={onConsentGone}
+      />
       {short ? (
         <ShortSheet
           uris={short.uris}
