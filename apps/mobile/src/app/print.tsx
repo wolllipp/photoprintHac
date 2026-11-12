@@ -19,7 +19,7 @@ import { TitleBar } from '@/components/nav';
 import { PRINT_FORMATS, PRINTS_DAYS } from '@/data/demo';
 import { Tap } from '@/components/ui';
 import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
-import { dupText, pickPhotos } from '@/data/picked';
+import { pickPhotos, skipText } from '@/data/picked';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -76,7 +76,8 @@ export default function Print() {
     if (!picked) return;
     setShots((x) => [...x, ...picked.fresh]);
     setQty((q) => ({ ...q, ...Object.fromEntries(picked.fresh.map((u) => [u, 1])) }));
-    if (picked.dup) setNotice(dupText(picked.dup));
+    const skipped = skipText(picked);
+    if (skipped) setNotice(skipped);
   };
   useEffect(() => {
     if (!notice) return;

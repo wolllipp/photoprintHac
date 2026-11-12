@@ -19,7 +19,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { setPendingBook } from '@/api/book';
-import { dupText, pickPhotos } from '@/data/picked';
+import { pickPhotos, skipText } from '@/data/picked';
 import { NewSheet, type NewChoice } from '@/components/newSheet';
 import { Tap } from '@/components/ui';
 import { BOOK, drafts, fitPages } from '@/data/demo';
@@ -97,14 +97,14 @@ const MIN_PHOTOS = BOOK.lite.min;
  * Книга из фото: выбрали в галерее — сразу собираем; объём по числу снимков (в среднем 1–2 на страницу).
  * Фото меньше 24 — честно говорим: книга не может быть меньше 24 страниц. Можно добрать фото или напечатать эти как фотографии.
  */
-async function bookFromPhotos(have: string[] = [], onShort?: (uris: string[], dup: number) => void) {
+async function bookFromPhotos(have: string[] = [], onShort?: (uris: string[], skipped: string | null) => void) {
   // уже выбранные снимки повторно не добавляем, даже если их снова отметили в галерее
   const picked = await pickPhotos(have);
   if (!picked) return;
   const uris = [...have, ...picked.fresh];
   const n = uris.length;
   if (n < MIN_PHOTOS) {
-    onShort?.(uris, picked.dup);
+    onShort?.(uris, skipText(picked));
     return;
   }
   const pages = fitPages('lite', Math.round(n / 1.6));
@@ -124,8 +124,8 @@ async function printFromPhotos() {
 export function CreateHost() {
   const { creating, setCreating } = useStore();
   // фото для книги мало — своё окно в стиле приложения (а не системное)
-  const [short, setShortState] = useState<{ uris: string[]; dup: number } | null>(null);
-  const setShort = (uris: string[] | null, dup = 0) => setShortState(uris ? { uris, dup } : null);
+  const [short, setShortState] = useState<{ uris: string[]; skipped: string | null } | null>(null);
+  const setShort = (uris: string[] | null, skipped: string | null = null) => setShortState(uris ? { uris, skipped } : null);
   // галерею открываем, только когда лист закрылся полностью: iOS молча не покажет второе окно поверх закрывающегося
   const wantGallery = useRef<'book' | 'print' | null>(null);
   const openGallery = () => {
@@ -151,7 +151,7 @@ export function CreateHost() {
       {short ? (
         <ShortSheet
           uris={short.uris}
-          dup={short.dup}
+          skipped={short.skipped}
           onAdd={() => {
             const have = short.uris;
             setShort(null);
@@ -173,7 +173,7 @@ export function CreateHost() {
  * «Нужно больше фото» — в стиле приложения: лист снизу, полоса «10 из 24», выбранные фото,
  * главное действие — добрать фото; запасное — напечатать эти как фотографии.
  */
-function ShortSheet({ uris, dup, onAdd, onPrint, onClose }: { uris: string[]; dup: number; onAdd: () => void; onPrint: () => void; onClose: () => void }) {
+function ShortSheet({ uris, skipped, onAdd, onPrint, onClose }: { uris: string[]; skipped: string | null; onAdd: () => void; onPrint: () => void; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const n = uris.length;
   const need = MIN_PHOTOS - n;
@@ -187,7 +187,7 @@ function ShortSheet({ uris, dup, onAdd, onPrint, onClose }: { uris: string[]; du
         <View style={s.grab} />
         <Text style={s.title}>Нужно больше фото</Text>
         <Text style={s.text}>Самая маленькая книга — {MIN_PHOTOS} страницы, на каждую нужно хотя бы одно фото.</Text>
-        {dup ? <Text style={s.dup}>{dupText(dup)}</Text> : null}
+        {skipped ? <Text style={s.dup}>{skipped}</Text> : null}
 
         {/* сколько есть и сколько нужно */}
         <View style={{ gap: 8 }}>

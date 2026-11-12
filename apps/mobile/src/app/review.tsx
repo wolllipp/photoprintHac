@@ -20,7 +20,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { loadServerBook, savePage, serverBook } from '@/api/book';
+import { checkOnServer, loadServerBook, savePage, serverBook } from '@/api/book';
+import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
 import { TariffSheet } from '@/components/tariffSheet';
@@ -212,7 +213,7 @@ export default function Review() {
     const picked = await pickPhotos(inBook, { multiple: false });
     if (!picked) return;
     if (!picked.fresh[0]) {
-      setNotice('Это фото уже есть в книге — выберите другое');
+      setNotice(picked.bad.length ? `Формат ${picked.bad[0]} не печатаем — выберите JPEG, PNG или HEIC` : 'Это фото уже есть в книге — выберите другое');
       return;
     }
     const p = pages[page];
@@ -307,8 +308,25 @@ export default function Review() {
     }, 1400);
   };
 
-  const order = () => {
+  // перед заказом — проверка книги: пустые рамки, разрешение, смаз, скриншоты (сервер отвечает не дольше 3 с)
+  const [issues, setIssues] = useState<Issue[] | null>(null);
+  const [checking, setChecking] = useState(false);
+  const order = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setChecking(true);
+    const pid = params.projectId;
+    const server = pid && serverBook(pid) ? await Promise.race([checkOnServer(pid).catch(() => ({})), new Promise<Record<string, never>>((r) => setTimeout(() => r({}), 3000))]) : {};
+    setChecking(false);
+    const found = findIssues(pages, fmt, server);
+    if (found.length) return setIssues(found);
+    goCheckout();
+  };
+  const showPage = (k: number) => {
+    setIssues(null);
+    scroll.current?.scrollTo({ y: k * step, animated: true });
+  };
+  const goCheckout = () => {
+    setIssues(null);
     orderNow({ projectId: id, title, tariff, tariffName: t.name, format: fmt, pages: pagesN, finish: 'Глянец', price, readyBy: t.readyBy, cover: pages[0]?.photos[0] ?? 'night-window' });
     router.push('/checkout');
   };
@@ -436,12 +454,14 @@ export default function Review() {
                 <Text style={[s.barMeta, { flexShrink: 1 }]} numberOfLines={1}> · {fmt} · {pagesN} стр. · печать {PRINT_DAYS} дня</Text>
               </View>
             </Tap>
-            <Tap style={s.order} onPress={order} accessibilityRole="button" accessibilityLabel={`Заказать, ${t.name}, ${rub(price)}`}>
-              <Text style={s.orderText}>Заказать</Text>
+            <Tap style={s.order} onPress={order} disabled={checking} accessibilityRole="button" accessibilityLabel={`Заказать, ${t.name}, ${rub(price)}`}>
+              <Text style={s.orderText}>{checking ? 'Проверяем…' : 'Заказать'}</Text>
             </Tap>
           </>
         )}
       </View>
+
+      {issues ? <PreflightSheet issues={issues} onShow={showPage} onOrder={goCheckout} onClose={() => setIssues(null)} /> : null}
 
       {tariffOpen ? (
         <TariffSheet

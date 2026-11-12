@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import ai
-from app.ai.quality import add_crop_warning, quality_report
+from app.ai.quality import add_crop_warning, is_spread_template, quality_report
 from app.db import get_session
 from app.jobs import run_build
 from app.models import (BuildJob, Photo, Product, ProductOption, Project, ProjectPage, ProjectPhoto,
@@ -269,6 +269,8 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
     product_code = product.code if product else None
     layouts = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id))).scalars().all()
     frames = {frame["photo_id"]: frame for page in layouts for frame in page.layout["frames"]}
+    spread = {frame["photo_id"]: is_spread_template(page.layout.get("template"))
+              for page in layouts for frame in page.layout["frames"]}
     rows = (await s.execute(select(ProjectPhoto, Photo).join(
         Photo, Photo.id == ProjectPhoto.photo_id,
     ).where(ProjectPhoto.project_id == p.id).order_by(Photo.created_at, Photo.id))).all()
@@ -282,6 +284,7 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
         report = quality_report(
             photo, format=format, frame=frame.get("frame") if frame else None,
             crop=frame.get("crop") if frame else None, product=product_code,
+            spread=spread.get(str(project_photo.photo_id), False),
         )
         report = add_crop_warning(report, frame.get("warning") if frame else None)
         photo_results.append({

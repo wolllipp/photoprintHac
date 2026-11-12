@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import case, select
 
 from app import ai, db
-from app.ai.quality import add_crop_warning, page_aspect_for_format, quality_report
+from app.ai.quality import add_crop_warning, is_spread_template, page_aspect_for_format, quality_report
 from app.config import settings
 from app.models import BuildJob, Photo, Product, ProductOption, Project, ProjectPage, ProjectPhoto, ProjectStatus
 
@@ -148,6 +148,8 @@ async def run_build(job_id: uuid.UUID) -> None:
                     ))).scalars().all()
                     frames = {frame["photo_id"]: frame for page in layouts
                               for frame in page.layout["frames"]}
+                    spread = {frame["photo_id"]: is_spread_template(page.layout.get("template"))
+                              for page in layouts for frame in page.layout["frames"]}
                     reports = {}
                     for photo_id in selected:
                         photo = by_id.get(photo_id)
@@ -157,6 +159,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                         report = quality_report(
                             photo, format=format, frame=frame.get("frame") if frame else None,
                             crop=frame.get("crop") if frame else None, product=product_code,
+                            spread=spread.get(str(photo_id), False),
                         )
                         reports[str(photo_id)] = add_crop_warning(
                             report, frame.get("warning") if frame else None,

@@ -279,9 +279,10 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
         for photo, (x, y, w, h) in zip(photos, positions):
             frame = {"x": x, "y": y, "w": w, "h": h}
             dpi = effective_dpi(photo.get("width") or 1, photo.get("height") or 1,
-                                format, frame, book=True) or 300
+                                format, frame, book=True, spread=False) or 300
+            # страница сборки — одна страница книги (как в приложении и в цене), не разворот
             crop = crop_rect(photo.get("width") or 1, photo.get("height") or 1,
-                             photo.get("faces") or [], 2 * page_aspect * w / h, trim_px, risk_px,
+                             photo.get("faces") or [], page_aspect * w / h, trim_px, risk_px,
                              dpi=dpi, risk_mm=5)
             frames.append({"photo_id": str(photo["photo_id"]), "frame": frame,
                            "crop": {key: crop[key] for key in ("x", "y", "w", "h")},

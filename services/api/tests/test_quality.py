@@ -161,3 +161,14 @@ async def test_upload_persists_quality_metrics_for_png_and_webp(client):
 
     assert len(photos) == 2
     assert all(photo.sharpness is not None and photo.faces is not None for photo in photos)
+
+
+def test_book_page_frame_is_one_page_not_a_spread():
+    # фото 1536×2048 на всю страницу 20×20 — около 195 точек на дюйм (приемлемо), а не вдвое меньше
+    page = effective_dpi(1536, 2048, "20x20", {"w": 1, "h": 1}, spread=False)
+    assert abs(page - 1536 / (20 / 2.54)) < 0.5
+    report = quality_report({"width": 1536, "height": 2048, "sharpness": 500, "faces": []},
+                            format="20x20", frame={"w": 1, "h": 1}, spread=False, product="lite")
+    assert report["quality_level"] == "acceptable"
+    # макет на весь разворот — рамка в долях разворота, ширина вдвое больше
+    assert effective_dpi(1536, 2048, "20x20", {"w": 1, "h": 1}, spread=True) < page

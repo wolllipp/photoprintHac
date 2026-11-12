@@ -138,6 +138,24 @@ export async function savePage(projectId: string, position: number, page: Server
   if (book) book.pages[position] = page;
 }
 
+/** Замечание сервера к фото (оценка качества под рамку — services/api/app/ai/quality.py). */
+export type PhotoWarning = { code: string; text: string; level: string | null };
+
+/**
+ * Проверка книги на сервере перед заказом: разрешение под рамку, смазанные фото, скриншоты.
+ * Ключ — фото так, как оно стоит в книге приложения (адрес на телефоне или srv:id). Сервер недоступен — пусто.
+ */
+export async function checkOnServer(projectId: string): Promise<Record<string, PhotoWarning[]>> {
+  type Sel = { photos: { photo_id: string; selected: boolean; warnings: { code: string; text: string }[]; quality_level: string | null }[] };
+  const res = await api.get<Sel>(`/projects/${projectId}/selection`);
+  const out: Record<string, PhotoWarning[]> = {};
+  for (const p of res.photos) {
+    if (!p.warnings.length) continue;
+    out[uriOfId.get(p.photo_id) ?? `srv:${p.photo_id}`] = p.warnings.map((w) => ({ ...w, level: p.quality_level }));
+  }
+  return out;
+}
+
 /** Формат печати в приложении → на сервере. */
 const PRINT_FORMAT: Record<string, string> = { '10×15': '10x15', '15×20': '15x20', '20×30': '20x30', '30×45': '30x45' };
 

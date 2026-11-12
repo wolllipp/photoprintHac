@@ -48,16 +48,25 @@ def page_aspect_for_format(format: str | None) -> float:
     return dimensions[0] / dimensions[1] if dimensions else 1.0
 
 
+def is_spread_template(template: str | None) -> bool:
+    """Макет приложения на весь разворот (spread, spread-15…): рамки — доли ширины разворота."""
+    return bool(template) and template.startswith("spread")
+
+
 def effective_dpi(width: int, height: int, format: str | None, frame: dict | None = None,
-                  crop: dict | None = None, *, book: bool = True) -> float | None:
-    """Считает минимальный эффективный DPI кадрированного фото для печатной рамки."""
+                  crop: dict | None = None, *, book: bool = True, spread: bool = True) -> float | None:
+    """Считает минимальный эффективный DPI кадрированного фото для печатной рамки.
+
+    spread — рамка задана в долях разворота (ширина ×2). Страница книги в приложении и сборке —
+    одна страница (spread=False), кроме макетов на весь разворот.
+    """
     dims = _format_dimensions(format)
     if not dims or not width or not height:
         return None
     crop = crop or {"x": 0, "y": 0, "w": 1, "h": 1}
     pixel_w, pixel_h = width * crop["w"], height * crop["h"]
     frame = frame or {"w": 1, "h": 1}
-    physical_w, physical_h = dims[0] * (2 if book else 1), dims[1]
+    physical_w, physical_h = dims[0] * (2 if book and spread else 1), dims[1]
     physical_w *= frame.get("w", 1)
     physical_h *= frame.get("h", 1)
     return max(min(pixel_w / (physical_w / 2.54), pixel_h / (physical_h / 2.54)),
@@ -137,13 +146,13 @@ def analyze_image(data: bytes) -> tuple[float, list[dict]]:
 
 def quality_report(photo, dpi_limit: tuple[int, int] | None = None, *, format: str | None = None,
                    frame: dict | None = None, crop: dict | None = None, book: bool = True,
-                   product: str | None = None, screenshot: bool | None = None) -> dict:
+                   product: str | None = None, screenshot: bool | None = None, spread: bool = True) -> dict:
     """Строит уровни качества и предупреждения по конкретной рамке."""
     value = photo.get if isinstance(photo, dict) else lambda key, default=None: getattr(photo, key, default)
     warnings = []
     width, height = value("width") or 0, value("height") or 0
     if format:
-        dpi = effective_dpi(width, height, format, frame, crop, book=book)
+        dpi = effective_dpi(width, height, format, frame, crop, book=book, spread=spread)
     elif dpi_limit:
         target_width, target_height = dpi_limit
         resolution = max(min(width / target_width, height / target_height),
@@ -179,7 +188,8 @@ def quality_report(photo, dpi_limit: tuple[int, int] | None = None, *, format: s
               < dpi * edge_mm / 25.4)(_head(face)) for face in faces):
             warnings.append({"code": "face_edge", "text": WARNING_TEXT["face_edge"]})
         dims = _format_dimensions(format)
-        if book and product in {"lite", "classic"} and dims and frame:
+        # зона загиба — по центру разворота: есть только у рамок, заданных в долях разворота
+        if book and spread and product in {"lite", "classic"} and dims and frame:
             gutter_half = 0.6 / (2 * dims[0])
             crop = crop or {"x": 0, "y": 0, "w": 1, "h": 1}
             for face in faces:
