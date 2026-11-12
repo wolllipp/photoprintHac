@@ -9,7 +9,7 @@ ollama pull qwen3:4b-instruct                 # проба на малой мо�
 cd services/assistant && uv sync
 uv run uvicorn app.server:app --port 8001
 python3 -m http.server 8080 --directory ../../design/insight   # открыть http://localhost:8080 → «Ассистент»
-uv run pytest                                 # 17 тестов, модель не нужна
+uv run pytest                                 # 23 теста, модель не нужна
 ```
 Другая модель или сервер: `ASSISTANT_MODEL`, `ASSISTANT_LLM_URL` (см. `.env.example`), любой OpenAI-совместимый API. Если сервис не запущен, макет остаётся в сценарном режиме со старыми заготовленными ответами.
 
@@ -24,12 +24,15 @@ uv run pytest                                 # 17 тестов, модель н
 | `app/store.py` | данные: `data/demo.json` выгружен из `insight.js`, цифры совпадают с макетом |
 | `app/tools/*.py` | плагины: **новый инструмент = новый файл или функция с `@tool`**, ядро не меняется |
 
-## Инструменты (27, доступны и по MCP)
+## Инструменты (30, доступны и по MCP)
 - **analysis:** `kpi_overview`, `explain_deviation`, `compare_periods`, `what_if`, `forecast_demand`, `spc_chart`, `check_effect`, `abc_xyz`, `unit_economics`, `run_python` (песочница)
-- **artifacts:** `make_chart`, `pareto_defects`, `quarterly_deck` (pptx), `report_docx` (записка, ответ по претензии), `workbook_xlsx` (модель с формулами)
-- **people:** `prepare_meeting`, `list_tasks`, `propose_task`, `ask_colleague`, `poll_group`, `meeting_protocol`, `check_replies`
+- **artifacts:** `build_deck` и `build_docx` (содержимое проектирует сама модель, числа проверяются по данным диалога), `quarterly_deck` (готовый шаблон), `make_chart`, `pareto_defects`, `quarterly_deck` (pptx), `report_docx` (записка, ответ по претензии), `workbook_xlsx` (модель с формулами)
+- **people:** `schedule_meeting` (приглашение .ics; ссылку Google Meet/Teams ассистент создать не может без подключённого календаря и говорит об этом), `prepare_meeting`, `list_tasks`, `propose_task`, `ask_colleague`, `poll_group`, `meeting_protocol`, `check_replies`
 - **watch:** `morning_brief`, `threshold_watch`, `data_quality_check`, `customer_feedback`
 - **knowledge:** `search_docs`
+
+## Самопроверка ответа
+Ответ не вырезается и не правится кодом: если проверка нашла проблему (выдуманная ссылка, «выполнено» без вызова инструмента, число вне расчётов, просили файл, а он не создан), модель получает описание проблемы и переотвечает, до 2 раз. Что не удалось исправить, помечается «требует уточнения».
 
 ## Защита (проверено тестами)
 - Роль `manager` не получает кадровые показатели; роли `admin` ассистент отказывает (403). Инструмента нет в списке роли, и вызов по имени отклоняется на сервере.

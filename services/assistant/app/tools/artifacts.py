@@ -73,7 +73,7 @@ def _kpi_table(role):
 
 
 @tool("quarterly_deck", "artifacts", "Собираю презентацию",
-      "Собрать презентацию pptx по показателям: сводка, динамика брака и выручки, причина отклонения, потери, предлагаемые решения. Источники указаны на слайдах.",
+      "Готовый ШАБЛОН презентации (6 фиксированных слайдов). Для нестандартной структуры, аудитории или темы используйте build_deck, а этот только для типового отчёта. Собрать презентацию pptx по показателям: сводка, динамика брака и выручки, причина отклонения, потери, предлагаемые решения. Источники указаны на слайдах.",
       {"title": {"type": "string"}, "audience": {"type": "string", "description": "для кого: совет директоров, совещание, команда"},
        "per_kpi": {"type": "boolean", "description": "true — добавить отдельный слайд на каждый показатель (база, сейчас, изменение, отношение к норме)"}},
       keywords=("презентац", "слайд", "квартал", "отчёт", "отчет", "deck", "pptx", "добавь в презентацию", "пункт на каждый"))
@@ -190,6 +190,6 @@ def workbook_xlsx(ctx, product="Фотокнига Premium"):
       "Показать недавно созданные файлы и графики (презентации, документы, таблицы), чтобы скачать их ещё раз. Ссылок наружу ассистент не создаёт.",
       keywords=("скачать", "скачай", "ссылк", "файл", "где презентац", "дай ее", "дай её"))
 def recent_files(ctx):
-    files = sorted((f for f in OUT.iterdir() if f.suffix in (".pptx", ".docx", ".xlsx")), key=lambda f: -f.stat().st_mtime)[:3]
+    files = sorted((f for f in OUT.iterdir() if f.suffix in (".pptx", ".docx", ".xlsx", ".ics")), key=lambda f: -f.stat().st_mtime)[:3]
     return Result(data=dict(files=[f.name for f in files], summary=f"файлов: {len(files)}"),
                   artifacts=[file_artifact(f.name, f.name) for f in files])

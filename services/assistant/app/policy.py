@@ -107,3 +107,23 @@ def fabricated_links(answer: str, evidence: str) -> list[str]:
 def claims_action_without_tool(answer: str, used_tools: list[str]) -> bool:
     """Модель пишет «обновлено/отправлено», хотя в этом ответе не вызвала ни одного инструмента."""
     return not used_tools and bool(_CLAIM.search(answer))
+
+
+_WANTS_FILE = re.compile(r"презентац|слайд|docx|xlsx|excel|word|служебн\w* записк|документ\b|таблиц\w* excel", re.I)
+_MAKERS = {"quarterly_deck", "build_deck", "build_docx", "report_docx", "workbook_xlsx"}
+
+
+def review(answer: str, evidence: str, used: list[str], question: str = "") -> list[str]:
+    """Проблемы ответа, которые модель исправляет сама: выдуманные ссылки, действия без инструмента, числа без источника."""
+    out = []
+    links = fabricated_links(answer, evidence)
+    if links:
+        out.append(f"ссылки {', '.join(links)} не получены из инструментов; ассистент не создаёт и не публикует ссылок, кроме карточек файлов")
+    if claims_action_without_tool(answer, used):
+        out.append("в ответе сказано, что действие выполнено, но ни один инструмент не вызывался")
+    if _WANTS_FILE.search(question) and not (_MAKERS & set(used)):
+        out.append("пользователь просил файл (презентацию или документ), а файл не создан: после получения данных вызови build_deck или build_docx и опиши в нём содержимое сам")
+    bad = ungrounded_numbers(answer, evidence) if evidence else []
+    if bad:
+        out.append("числа " + ", ".join(bad) + " отсутствуют в результатах инструментов")
+    return out

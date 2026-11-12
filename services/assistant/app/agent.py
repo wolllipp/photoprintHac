@@ -49,6 +49,7 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
 
     sources: list[dict] = []
     evidence: list[str] = []
+    retries = 0
     for _ in range(MAX_STEPS):
         try:
             m = llm.complete(msgs, schemas)
@@ -60,6 +61,15 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
         calls = m.get("tool_calls") or []
         if not calls:
             answer = m["content"]
+            problems = policy.review(answer, " ".join(evidence), used, question)
+            if problems and retries < 2:  # модель сама исправляет ответ, мы ничего не вырезаем
+                retries += 1
+                msgs.append({"role": "assistant", "content": answer})
+                msgs.append({"role": "user", "content": "Проверка ответа нашла проблемы:\n- " + "\n- ".join(problems) +
+                             "\nИсправь ответ. Если для просьбы нет инструмента, прямо скажи, чего не можешь сделать, и предложи ближайшее, что можешь."})
+                yield {"type": "tool", "id": f"review{retries}", "name": "self_review", "label": "Проверяю собственный ответ"}
+                yield {"type": "tool_result", "id": f"review{retries}", "status": "ok", "summary": problems[0][:80]}
+                continue
             break
         msgs.append({"role": "assistant", "content": m.get("content") or "", "tool_calls": calls})
         for c in calls:
@@ -81,6 +91,7 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
                 msgs.append({"role": "tool", "tool_call_id": cid, "content": _compact(out)})
                 continue
             used.append(name)
+            ctx["evidence"] = " ".join(evidence)
             try:
                 res: Result = t.fn(ctx, **{k: v for k, v in args.items() if k in t.parameters["properties"]})
             except Exception as e:
@@ -109,25 +120,16 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
         answer = answer or "Не удалось завершить за отведённое число шагов."
 
     answer = answer or "Не знаю: инструменты не дали данных для ответа."
-    if not used and re.search(r"скача|ссылк|где (файл|презентац)|дай (ее|её)", question, re.I) and "recent_files" in REGISTRY:
+    if not used and re.search(r"скача|где (файл|презентац)|дай (ее|её)\b", question, re.I) and "recent_files" in REGISTRY:
         res = REGISTRY["recent_files"].fn(ctx)  # просьба о файле: возвращаем карточки, а не пересказ
         for a in res.artifacts:
             yield {"type": "artifact", **a}
         used.append("recent_files")
         answer = "Последние готовые файлы ниже, скачать можно из карточки. Ссылок наружу ассистент не создаёт."
-    links = policy.fabricated_links(answer, " ".join(evidence))
-    if links:
-        for u in links:
-            answer = answer.replace(u, "[ссылка удалена]")
-        flags.append("выдуманная ссылка")
-        yield {"type": "notice", "text": "Ссылка из ответа удалена: ассистент не публикует файлы наружу, скачать можно из карточки файла в чате."}
-    if policy.claims_action_without_tool(answer, used):
-        flags.append("действие без инструмента")
-        yield {"type": "notice", "text": "Проверьте: в этом ответе ассистент не вызывал инструментов, поэтому утверждения о выполненных действиях ничем не подтверждены."}
-    bad = policy.ungrounded_numbers(answer, " ".join(evidence)) if evidence else []
-    if bad:
-        flags.append("числа без источника")
-        yield {"type": "notice", "text": "Требует уточнения: в ответе есть числа, которых нет в расчётах: " + ", ".join(bad)}
+    left = policy.review(answer, " ".join(evidence), used, question)  # что не удалось исправить за 2 попытки, показываем пользователю
+    if left:
+        flags += ["не исправлено: " + x.split(" ")[0] for x in left]
+        yield {"type": "notice", "text": "Требует уточнения: " + "; ".join(left)}
     yield {"type": "answer", "text": answer, "sources": [{"n": i + 1, **s} for i, s in enumerate(sources)]}
     policy.Audit.add(role, question, used, denied, flags, answer, "llm")
     yield {"type": "done"}

@@ -160,3 +160,30 @@ def test_deck_per_kpi_and_recent_files():
 def test_number_check_catches_two_digit_invented():
     assert policy.ungrounded_numbers("Слайдов: 24", '{"slides":18}') == ["24"]
     assert policy.ungrounded_numbers("Слайдов: 18", '{"slides":18}') == []
+
+
+def test_build_deck_is_model_composed_and_grounded():
+    from app.tools import compose
+    ctx = {"role": "ceo", "evidence": '{"now_pct":4.69}'}
+    ok = compose.build_deck(ctx, "Разбор брака", [{"title": "Что случилось", "bullets": ["Брак 4.69%"], "chart": {"metric": "defect", "split_by": "line"}},
+                                                  {"title": "Что делать", "bullets": ["Калибровка перед ночной сменой"]}], "технологи")
+    assert ok.data["slides"] == 3 and ok.data["charts"] == 1
+    bad = compose.build_deck(ctx, "x", [{"title": "t", "bullets": ["Брак 9.87%"]}])
+    assert "error" in bad.data and "9.87" in bad.data["error"]
+
+
+def test_schedule_meeting_ics_and_honest_limitation():
+    from app.tools import compose
+    r = compose.schedule_meeting(CEO, "Разбор брака", "2026-11-14", "11:00", 30, ["Технолог печати"], "Повестка")
+    txt = (compose.OUT / r.data["file"]).read_text()
+    assert "BEGIN:VEVENT" in txt and "DTSTART:20261114T110000" in txt and "не создана" in r.data["limitation"]
+
+
+def test_agent_review_loop_lets_model_fix_answer(monkeypatch):
+    answers = iter([{"content": "Ссылка: https://drive.google.com/x", "tool_calls": None},
+                    {"content": "Ссылку создать не могу: нет такого инструмента.", "tool_calls": None}])
+    seen = []
+    monkeypatch.setattr(agent.llm, "complete", lambda msgs, tools=None: seen.append(msgs[-1]["content"]) or next(answers))
+    ev = list(agent.run("ceo", "дай ссылку на встречу", None))
+    final = next(e for e in ev if e["type"] == "answer")["text"]
+    assert "Проверка ответа нашла проблемы" in seen[1] and "не могу" in final and not any(e["type"] == "notice" for e in ev)
