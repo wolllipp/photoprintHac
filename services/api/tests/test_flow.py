@@ -618,3 +618,17 @@ async def test_support_ticket_is_linked_to_order(client):
     assert (await client.post(f"/orders/{o['id']}/support", headers=uh, json={"topic": "nope", "text": "абв"})).status_code == 422
     other = auth((await client.post("/auth/otp/verify", json={"phone": "+375296667788", "code": "0000"})).json()["token"])
     assert (await client.get(f"/orders/{o['id']}/support", headers=other)).status_code == 404
+
+
+async def test_caption_font_is_saved_with_page(client):
+    """Шрифт подписи сохраняется вместе с подписью; неизвестный шрифт — 422."""
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    photos = (await client.post("/photos", headers=gh, files=[("files", ("f.png", png(7), "image/png"))])).json()
+    pid = (await client.post("/projects", headers=gh, json={"title": "Шрифт", "photo_ids": [photos[0]["id"]]})).json()["id"]
+    frame = {"photo_id": photos[0]["id"], "frame": {"x": 0, "y": 0, "w": 1, "h": 0.8}}
+    r = await client.put(f"/projects/{pid}/pages/0", headers=gh, json={"template": "caption", "frames": [frame], "caption": "Лето", "caption_font": "hand"})
+    assert r.status_code == 200, r.text
+    first = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["pages"][0]
+    assert first["caption"] == "Лето" and first["caption_font"] == "hand"
+    bad = await client.put(f"/projects/{pid}/pages/0", headers=gh, json={"template": "caption", "frames": [frame], "caption": "Лето", "caption_font": "comic"})
+    assert bad.status_code == 422

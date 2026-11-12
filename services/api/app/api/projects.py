@@ -234,6 +234,7 @@ async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user
     return {"project_id": str(p.id), "page_count": p.page_count, "status": p.status.value,
             "pages": [{"position": r.position, "chapter": r.layout.get("chapter"),
                        "template": r.layout.get("template"), "caption": r.layout.get("caption"),
+                       "caption_font": r.layout.get("caption_font"),
                        "fx": r.layout.get("fx") or {},
                        "frames": [{"photo_id": f["photo_id"], "frame": f["frame"]} for f in r.layout.get("frames", [])]}
                       for r in rows]}
@@ -248,6 +249,7 @@ class PageIn(BaseModel):
     template: str = Field(min_length=1, max_length=40)  # макет из библиотеки приложения: one, two-side, spread…
     frames: list[FrameIn] = Field(default_factory=list, max_length=8)
     caption: str | None = Field(None, max_length=300)
+    caption_font: str | None = Field(None, pattern="^(classic|plain|bold|hand)$")  # шрифт подписи в приложении
     fx: dict[str, list[str]] = Field(default_factory=dict)  # номер рамки → улучшения ИИ
 
 
@@ -276,7 +278,7 @@ async def save_page(project_id: uuid.UUID, position: int, body: PageIn, user: Us
                                                       ProjectPage.position == position))).scalar_one_or_none()
     old = page.layout if page else {}
     layout = {"position": position, "chapter": old.get("chapter"), "template": body.template,
-              "caption": body.caption, "fx": body.fx,
+              "caption": body.caption, "caption_font": body.caption_font, "fx": body.fx,
               "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
     if page is None:
         s.add(ProjectPage(project_id=p.id, position=position, layout=layout))

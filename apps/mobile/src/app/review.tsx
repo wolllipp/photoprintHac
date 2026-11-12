@@ -31,6 +31,7 @@ import { EditorGuide } from '@/components/editorGuide';
 import { TariffSheet } from '@/components/tariffSheet';
 import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
+import { CAPTION_FONTS, captionFontStyle } from '@/data/captionFonts';
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
@@ -44,7 +45,7 @@ import { colors, fonts } from '@/theme';
 type Fx = 'light' | 'crop' | 'sharp' | 'horizon' | 'warm' | 'bg' | 'restore' | 'bw';
 /** crop — кадр, который человек выставил вручную: фото → центр и увеличение (по фото, а не по месту — переживает смену макета). */
 /** slots — размеры фото, которые человек поменял сам (components/sizeEditor.tsx); нет — как в макете. */
-type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; crop?: Record<string, Crop>; slots?: Rect[] };
+type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; crop?: Record<string, Crop>; slots?: Rect[] };
 const slotsOf = (id: string) => layoutOf(id).slots.length;
 /** Самый простой макет на n фото — когда фото убрали. */
 const SIMPLE: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' };
@@ -364,14 +365,14 @@ export default function Review() {
   const [captionFor, setCaptionFor] = useState<number | null>(null);
   // макет без подписи с тем же числом фото — пустая подпись не занимает место на странице
   const plainLayout = (layout: string) => (layoutOf(layout).caption ? SIMPLE[Math.min(4, Math.max(1, slotsOf(layout)))] : layout);
-  const saveCaption = (page: number, text: string, layout: string) => {
+  const saveCaption = (page: number, text: string, layout: string, font: string) => {
     const p = pages[page];
     const v = text.trim();
     if (!v) {
       // подпись не написали — страница снова обычная
-      editPage(page, { ...withLayout(p, plainLayout(layout), 0, source), caption: undefined, fx: p.fx }, 'Без подписи');
+      editPage(page, { ...withLayout(p, plainLayout(layout), 0, source), caption: undefined, captionFont: undefined, fx: p.fx }, 'Без подписи');
     } else {
-      editPage(page, { ...withLayout(p, layout, 0, source), caption: v, fx: p.fx }, 'Подпись сохранена');
+      editPage(page, { ...withLayout(p, layout, 0, source), caption: v, captionFont: font, fx: p.fx }, 'Подпись сохранена');
     }
     setCaptionFor(null);
   };
@@ -739,7 +740,7 @@ export default function Review() {
           page={pages[captionFor]}
           pageN={captionFor + 1}
           bottom={insets.bottom}
-          onSave={(text, layout) => saveCaption(captionFor, text, layout)}
+          onSave={(text, layout, font) => saveCaption(captionFor, text, layout, font)}
           onClose={closeCaption}
         />
       ) : null}
@@ -845,7 +846,7 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
       {def.caption ? (
         <View style={[{ position: 'absolute', justifyContent: 'center' }, box(def.caption)]}>
           <Text
-            style={[s.caption, (def.captionAt === 'left' || def.captionAt === 'right') && { textAlign: def.captionAt === 'left' ? 'right' : 'left', fontSize: 12 }, !page.caption && { color: colors.mut2 }]}
+            style={[s.caption, page.caption ? captionFontStyle(page.captionFont) : null, (def.captionAt === 'left' || def.captionAt === 'right') && { textAlign: def.captionAt === 'left' ? 'right' : 'left', fontSize: 12 }, !page.caption && { color: colors.mut2 }]}
             numberOfLines={def.captionAt === 'left' || def.captionAt === 'right' ? 6 : 2}>
             {page.caption ?? 'Нажмите, чтобы подписать'}
           </Text>
@@ -970,8 +971,9 @@ const NOTE_MAX = 200;
  * Подпись страницы: текст (свой, «дата и место» или «придумать ИИ») и где она стоит — сверху, снизу, слева, справа.
  * Сверху — живая мини-схема страницы: видно, куда встанет подпись. Лист едет вместе с клавиатурой.
  */
-function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; pageN: number; bottom: number; onSave: (text: string, layout: string) => void; onClose: () => void }) {
+function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; pageN: number; bottom: number; onSave: (text: string, layout: string, font: string) => void; onClose: () => void }) {
   const [text, setText] = useState(page.caption ?? '');
+  const [font, setFont] = useState<string>(page.captionFont ?? 'classic');
   const [layout, setLayoutId] = useState(layoutOf(page.layout).caption ? page.layout : 'caption');
   const at = layoutOf(layout).captionAt ?? 'bottom';
   const kb = useAnimatedKeyboard();
@@ -1016,7 +1018,7 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
               maxLength={CAPTION_MAX}
               placeholder="Например: лето у бабушки"
               placeholderTextColor={colors.mut2}
-              style={s.input}
+              style={[s.input, captionFontStyle(font)]}
               multiline
               // «Готово» на клавиатуре прячет её (в многострочном поле иначе не спрятать)
               returnKeyType="done"
@@ -1028,6 +1030,28 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
           <Text style={[s.counter, text.length >= CAPTION_MAX && { color: colors.coralAction }]}>
             {text.length} / {CAPTION_MAX}
           </Text>
+          {/* шрифт подписи: каждая кнопка написана своим шрифтом — видно, как будет на странице */}
+          <View style={s.fontRow} accessibilityRole="radiogroup">
+            {CAPTION_FONTS.map((f) => {
+              const on = f.id === font;
+              return (
+                <Tap
+                  key={f.id}
+                  style={[s.fontBtn, on && s.placeOn]}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setFont(f.id);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`Шрифт: ${f.name}`}>
+                  <Text style={[s.fontText, f.style, on && { color: '#fff' }]} numberOfLines={1}>
+                    {f.name}
+                  </Text>
+                </Tap>
+              );
+            })}
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="always">
             <Tap style={s.chip} onPress={() => setText(CAPTION_DATE)} accessibilityRole="button">
               <Text style={s.chipText}>Дата и место</Text>
@@ -1042,7 +1066,7 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
             ) : null}
           </ScrollView>
           {/* flex: 0 — в столбце кнопка с flex: 1 сжималась до нулевой высоты и её не было видно */}
-          <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={() => onSave(text, layout)} accessibilityRole="button">
+          <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={() => onSave(text, layout, font)} accessibilityRole="button">
             <Text style={s.saveText}>Готово</Text>
           </Tap>
         </Animated.View>
@@ -1277,6 +1301,9 @@ const s = StyleSheet.create({
   places: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   place: { height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: colors.card, justifyContent: 'center' },
   placeOn: { backgroundColor: colors.fg },
+  fontRow: { flexDirection: 'row', gap: 6 },
+  fontBtn: { flex: 1, height: 40, borderRadius: 20, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  fontText: { fontSize: 13.5, color: colors.fg },
   placeText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.fg },
   fxRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   fxBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingHorizontal: 12, borderRadius: 19, backgroundColor: colors.peach },

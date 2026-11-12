@@ -64,6 +64,8 @@ export type ServerPage = {
   layout: string;
   photos: string[];
   caption?: string;
+  /** шрифт подписи: classic | plain | bold | hand (data/captionFonts.ts) */
+  captionFont?: string;
   fx?: Record<number, string[]>;
   crop?: Record<string, { cx: number; cy: number; z: number; a: number }>;
   /** свои размеры фото на странице (components/sizeEditor.tsx); нет — как в макете */
@@ -203,7 +205,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { pages: { position: number; template: string | null; caption: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -230,6 +232,7 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
       layout,
       photos,
       caption: p.caption ?? undefined,
+      captionFont: p.caption_font ?? undefined,
       fx,
       crop: Object.keys(crop).length ? crop : undefined,
       slots: differ ? rects.map((fr) => ({ x: fr.x ?? 0, y: fr.y ?? 0, w: fr.w, h: fr.h ?? 1 })) : undefined,
@@ -248,6 +251,7 @@ export async function savePage(projectId: string, position: number, page: Server
   await api.put(`/projects/${projectId}/pages/${position}`, {
     template: page.layout,
     caption: page.caption ?? null,
+    caption_font: page.caption ? (page.captionFont ?? null) : null,
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
     // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
     frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),
