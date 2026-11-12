@@ -59,3 +59,30 @@ def customer_feedback(ctx):
     a = S.D["attack"]
     return Result(data=dict(comments=[dict(order=a["orderId"], text=a["comment"])], summary="1 комментарий"), untrusted=True,
                   sources=[dict(name=f"комментарий к заказу {a['orderId']}", kind="заказ", detail="текст клиента, недоверенный")])
+
+
+TOPIC = {"defect": "брак печати", "delay": "задержка", "layout": "ошибка в книге", "delivery": "доставка", "other": "другое"}
+
+
+@tool("live_orders", "watch", "Смотрю заказы из приложения",
+      "Живые заказы клиентов из приложения picPac и обращения в поддержку по ним: сколько на каком этапе, открытые обращения и их темы, время актуальности.",
+      keywords=("приложени", "живы", "сейчас заказ", "обращени", "поддержк", "жалоб", "новые заказы"))
+def live_orders(ctx):
+    import os
+    import httpx
+    url = os.getenv("ASSISTANT_DATA_URL")
+    try:
+        lv = httpx.get(url, timeout=10).json().get("live") if url else S.D.get("live")
+    except Exception:
+        lv = None
+    if not lv:
+        return Result(data=dict(summary="данные приложения не подключены", hint="запустите сервис с ASSISTANT_DATA_URL=http://localhost:8000/insight/data"))
+    topics: dict[str, int] = {}
+    for t in lv["support"]:
+        if t["status"] == "open":
+            topics[TOPIC.get(t["topic"], t["topic"])] = topics.get(TOPIC.get(t["topic"], t["topic"]), 0) + 1
+    data = dict(orders_total=lv["orders_total"], orders_by_stage=lv["orders_by_stage"], latest_orders=lv["orders"][:5],
+                support_open=lv["support_open"], open_by_topic=topics, latest_support=lv["support"][:5],
+                updated_at=lv["updated_at"], summary=f"заказов {lv['orders_total']}, открытых обращений {lv['support_open']}")
+    return Result(data=data, sources=[dict(name="picPac API", kind="база приложения", detail=f"{lv['source']}; данные на {lv['updated_at']}")],
+                  untrusted=True)

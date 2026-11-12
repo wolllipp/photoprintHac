@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from app.api import auth, catalog, home, orders, photos, projects
+from app.api import auth, catalog, home, orders, photos, projects, insight
 from app.config import settings
 from app.db import engine
 
 app = FastAPI(title="picPac API")
-for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router):
+for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router, insight.router):
     app.include_router(r)
 if settings.demo_mode:
     from app.api import dev
