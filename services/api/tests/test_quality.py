@@ -172,3 +172,12 @@ def test_book_page_frame_is_one_page_not_a_spread():
     assert report["quality_level"] == "acceptable"
     # макет на весь разворот — рамка в долях разворота, ширина вдвое больше
     assert effective_dpi(1536, 2048, "20x20", {"w": 1, "h": 1}, spread=True) < page
+
+
+def test_manual_zoom_lowers_effective_dpi():
+    """Ручное увеличение кадра в приложении (z в рамке): на печать идёт меньше пикселей."""
+    from app.ai.quality import effective_dpi
+    base = effective_dpi(3000, 3000, "20x20", {"x": 0, "y": 0, "w": 1, "h": 1}, book=True, spread=False)
+    zoomed = effective_dpi(3000, 3000, "20x20", {"x": 0, "y": 0, "w": 1, "h": 1, "cx": 0.5, "cy": 0.5, "z": 2, "a": 1},
+                           book=True, spread=False)
+    assert abs(zoomed - base / 2) < 0.01
