@@ -2,6 +2,9 @@
  * Главный путь через сервер: фото из галереи → загрузка → проект → сборка (этапы по-настоящему) → страницы → заказ → статус.
  * Экраны не меняются: они берут отсюда данные, а если сервер недоступен — работают на демо, как раньше.
  */
+import { File as FsFile } from 'expo-file-system';
+import { Platform } from 'react-native';
+
 import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
 import { layoutOf } from '@/data/layouts';
 import { setRemoteSource } from '@/data/photos';
@@ -26,12 +29,13 @@ async function upload(uris: string[]) {
   for (let i = 0; i < todo.length; i += BATCH) {
     const batch = todo.slice(i, i + BATCH);
     const form = new FormData();
-    batch.forEach((uri, k) => {
-      const name = uri.split('/').pop() || `photo-${i + k}.jpg`;
-      const type = /\.png$/i.test(name) ? 'image/png' : /\.heic$/i.test(name) ? 'image/heic' : 'image/jpeg';
-      // React Native отправляет файл по адресу на телефоне
-      form.append('files', { uri, name, type } as unknown as Blob);
-    });
+    for (const [k, uri] of batch.entries()) {
+      const name = uri.split('/').pop()?.split('?')[0] || `photo-${i + k}.jpg`;
+      // fetch в Expo SDK 58 не принимает старую часть формы { uri, name, type } («Unsupported FormDataPart implementation»):
+      // на телефоне файл — File из expo-file-system (это Blob), в вебе — Blob по адресу картинки
+      const part = Platform.OS === 'web' ? await (await fetch(uri)).blob() : new FsFile(uri);
+      form.append('files', part as Blob, name);
+    }
     const res = await api.upload<{ id: string }[]>('/photos', form);
     res.forEach((p, k) => remember(p.id, batch[k]));
   }
@@ -110,16 +114,22 @@ export function buildOnServer(input: { uris: string[]; title: string; pages: num
 }
 
 async function buildOnce(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
-  if (!(await online())) throw new BuildError('offline');
+  if (!(await online())) {
+    console.warn('[сборка] сервер не ответил на /health:', API_URL);
+    throw new BuildError('offline');
+  }
   const me = { jobId: null as string | null, stopped: false };
   running = me;
   try {
     return await build(input, onStep, me);
   } catch (e) {
+    // настоящая причина — в лог Expo (на экране — понятная фраза)
+    console.warn('[сборка] не получилось:', e instanceof Error ? `${e.name}: ${e.message}` : String(e));
     if (me.stopped) throw new BuildError('stopped');
     if (e instanceof BuildError) throw e;
-    // обрыв связи или ответ сервера с ошибкой посреди загрузки и сборки
-    throw new BuildError(e instanceof ApiError ? 'failed' : 'offline');
+    // «нет связи» — только когда сеть правда оборвалась (или не дождались ответа); остальное — «не получилось»
+    const net = e instanceof Error && (e.name === 'AbortError' || /network|fetch|timed? ?out|connection/i.test(e.message));
+    throw new BuildError(!(e instanceof ApiError) && net ? 'offline' : 'failed');
   } finally {
     if (running === me) running = null;
   }
