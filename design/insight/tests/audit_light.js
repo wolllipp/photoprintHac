@@ -14,7 +14,8 @@ const shot=async n=>{await sleep(250);const r=await send('Page.captureScreenshot
 const R=[];const ok=(n,c,x='')=>R.push((c?'PASS ':'FAIL ')+n+(x?' | '+x:''));
 await send('Page.enable');await send('Runtime.enable');await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
 await send('Page.navigate',{url:URLF+'#/overview'});await sleep(900);
-const SCREENS=[['ceo','#/overview'],['ceo','#/deviations'],['ceo','#/deviations/D-118'],['ceo','#/assistant'],['ceo','#/meetings'],['ceo','#/data'],['ceo','#/security'],['head','#/overview'],['manager','#/tasks']];
+const firstOrder=await ev(`InsightData.orders({from:InsightData.meta().stories.batch,line:0,shift:1,defects:true})[0].id`);
+const SCREENS=[['ceo','#/overview'],['ceo','#/deviations'],['ceo','#/deviations/D-118'],['ceo','#/deviations/D-120'],['ceo',`#/orders/${firstOrder}/D-118`],['ceo','#/assistant'],['ceo','#/meetings'],['ceo','#/data'],['ceo','#/security'],['head','#/overview'],['manager','#/tasks']];
 for(const theme of ['dark','light']){
   await ev(`localStorage.setItem('insight-theme','${theme}');document.documentElement.dataset.theme='${theme}'`);
   for(const w of [1440,390]){

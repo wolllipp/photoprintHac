@@ -163,6 +163,9 @@ const recentOrder = d => { for (let t = 0; t < 30; t++) { const pool = byDay[Mat
 let ticketNo = 50001;
 const zOf = p => { const a = [[0.76, 0.706], [0.8, 0.842], [0.92, 1.405]]; return a.reduce((best, x) => Math.abs(x[0] - p) < Math.abs(best[0] - p) ? x : best)[1]; };
 const addTicket = (d, topic, o) => {
+  // Жалоба на брак или доставку приходит после отгрузки. Если заказ в пределах данных ещё не отгружен, клиент спрашивает о сроках.
+  // Случайных чисел вызывается столько же, сколько раньше, поэтому остальные данные не меняются
+  if (o && (topic === 1 || topic === 3) && d <= o[14]) { if (o[14] + 1 < DAYS) d = o[14] + 1; else topic = 0; }
   const sla = TOPIC_SLA[topic], target = d >= BATCH ? 0.8 : SEASON(d) ? 0.86 : 0.92, sd = 0.7;
   const resolve = Math.max(1, Math.round(sla * Math.exp(-sd * zOf(target) + sd * normal())));
   tickets.push([`T-${ticketNo++}`, o ? o[1] : customers[Math.floor(rnd() * customers.length)][0], o && NEEDS_ORDER[topic] ? o[0] : null, d, pick(HOUR_W), topic, pick(T_CHANNEL_W), sla, resolve]);

@@ -1152,3 +1152,27 @@ code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-siz
 .kpi-fc { display: block; margin-top: 4px; font-size: var(--t-xs); color: var(--ink-3); }
 .pulse-crit { color: inherit; }
 @media (max-width: 900px) { .fc-body { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Этап 4: заказы-основания и карточка заказа ---------- */
+.basis .w-head { flex-wrap: wrap; gap: 4px 16px; }
+.order-link { font-weight: 700; color: var(--coral-link); white-space: nowrap; }
+.order-next { display: block; margin-top: 2px; max-width: 46ch; }
+.order-act { display: flex; flex-direction: column; gap: 8px; }
+.order-next-big { margin: 0; font-size: var(--t-md); font-weight: 600; line-height: 1.4; }
+.order-dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: var(--t-sm); }
+.order-dl dt { color: var(--ink-3); }
+.order-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.order-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.order-src .w-head { margin-bottom: 10px; }
+.order-tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: var(--t-sm); }
+.order-tl li { display: grid; grid-template-columns: 9.5em auto minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.order-tl .tl-at { color: var(--ink-3); }
+.order-tl .badge { justify-self: start; }
+.order-tickets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: var(--t-sm); }
+.order-tickets li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.order-tickets .muted { flex-basis: 100%; }
+.order-head { justify-content: flex-start; gap: 16px; flex-wrap: wrap; }
+.order-head .badge { align-self: center; }
+.order-path { margin-top: 16px; }
+@media (max-width: 900px) { .order-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .order-tl li { grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; } .order-tl li > span:last-child { grid-column: 1 / -1; } }

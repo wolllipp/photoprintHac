@@ -282,7 +282,66 @@ const InsightData = (() => {
       method: "Спрос недели — заказы той же недели прошлого года (ERP) с поправкой на рост. Мощность — паспорт линий (ERP); переплёт — вышедшие люди той же недели прошлого года (HR) × 70 книг за смену. Дефицит — спрос выше 90 % мощности." };
   }
 
+  /* ---------- Заказы-основания и карточка заказа (этап 4, слайды 8 и 41) ---------- */
+  // Экран передаёт фильтр отклонения, отбор делает слой данных (позже — GET /api/insight/orders?…, notes/26 п. 11).
+  // ФИО нет нигде: клиент — только customer_id. Себестоимость отдаётся, но экран показывает её только тем, кому открыта маржа.
+  let TBO = null;
+  const ticketsByOrder = () => { if (!TBO) { TBO = new Map(); D.tickets.forEach(t => { if (t.order_id) { if (!TBO.has(t.order_id)) TBO.set(t.order_id, []); TBO.get(t.order_id).push(t); } }); } return TBO; };
+  let PBO = null;
+  const paymentOf = id => { if (!PBO) PBO = new Map(D.payments.map(p => [p.order_id, p])); return PBO.get(id) || null; };
+  const pad2 = n => String(n).padStart(2, "0");
+  // Время событий: день от meta.start и час по Минску (+03:00); минуты могут перейти на следующий день
+  const tsOf = (d, h) => { const t = new Date(D.start + d * DAY + Math.round(h * 60) * 6e4); return `${t.toISOString().slice(0, 16)}:00+03:00`; };
+  const isFirstOrder = o => firstDay.get(o.customer_id) === o.day;
+  // Ответственный и следующий шаг по заказу. Правило одно для экрана и сервера; порядок — от самого срочного
+  function orderAction(o, tks) {
+    const late = o.ship_day > o.promise_day, overSla = tks.find(t => t.resolve_min > t.sla_min), claim = tks.find(t => t.topic === 1); // 1 — «Брак»
+    if (o.defects > 0) return { owner: "Начальник производства", reason: "брак", next: `Переделать ${o.defects} из ${o.units} шт. по фото клиента${claim ? ` и закрыть обращение ${claim.ticket_id}` : ""}` };
+    if (late) return { owner: "Начальник производства", reason: "опоздание", next: "Сообщить клиенту фактическую дату отгрузки и решить, нужна ли компенсация" };
+    if (o.coupon && !isFirstOrder(o)) return { owner: "Руководитель продаж", reason: "купон", next: "Купон применён к повторному заказу: по предложенному правилу купон — только на первый заказ" };
+    if (overSla) return { owner: "Руководитель поддержки", reason: "SLA", next: `Разобрать, почему обращение ${overSla.ticket_id} решено позже срока` };
+    return { owner: null, reason: null, next: "Действий не требуется" };
+  }
+  function brief(o) {
+    const tks = ticketsByOrder().get(o.order_id) || [], p = paymentOf(o.order_id);
+    return { id: o.order_id, customer_id: o.customer_id, date: isoOf(o.day), ts: tsOf(o.day, o.hour), product: D.dicts.products[o.product], line: D.dicts.lines[o.line], shift: D.dicts.shifts[o.shift],
+      units: o.units, defects: o.defects, coupon: !!o.coupon, net: p ? p.net : null, late: o.ship_day > o.promise_day, tickets: tks.length, action: orderAction(o, tks) };
+  }
+  // q: { from: "YYYY-MM-DD", line, shift, product, coupon: true|false, defects: true }
+  function orders(q = {}) {
+    const from = q.from ? Math.round((Date.parse(q.from + "T00:00:00Z") - D.start) / DAY) : 0;
+    return D.orders.filter(o => o.day >= from && (q.line == null || o.line === q.line) && (q.shift == null || o.shift === q.shift) && (q.product == null || o.product === q.product)
+      && (q.coupon == null || !!o.coupon === q.coupon) && (!q.defects || o.defects > 0))
+      .sort((a, b) => b.day - a.day || b.hour - a.hour).map(brief);
+  }
+  function order(id) {
+    const o = D.byOrder.get(id); if (!o) return null;
+    const tks = (ticketsByOrder().get(id) || []).slice().sort((a, b) => a.day - b.day || a.hour - b.hour), p = paymentOf(id);
+    const c = D.customersRaw.find(x => x.customer_id === o.customer_id) || null, last = D.days - 1, shipped = o.ship_day <= last;
+    const n12 = (ordersOfCustomer.get(o.customer_id) || []).filter(x => x > o.day - 365 && x <= o.day).length;
+    const ev = [
+      { ts: tsOf(o.day, o.hour), source: "erp", text: `Заказ принят: ${D.dicts.channels[o.channel] || "канал не указан"}` },
+      p && { ts: tsOf(p.day, o.hour + 0.05), source: "ledger", text: "Оплата прошла в 1С" },
+      { ts: tsOf(o.day, o.hour + 0.05 + o.moderation_min / 60), source: "erp", text: `Модерация макета: ${o.moderation_min} мин${o.moderation_min > 120 ? ", дольше 2 ч" : ""}` },
+      shipped && { ts: tsOf(o.ship_day, o.ship_hour), source: "erp", text: o.ship_day > o.promise_day ? `Отгружен с опозданием, обещали ${isoOf(o.promise_day)}` : "Отгружен в срок" },
+      shipped && o.defects > 0 && { ts: tsOf(o.ship_day, o.ship_hour), source: "erp", text: `Контроль качества: брак ${o.defects} из ${o.units} шт.` },
+      ...tks.flatMap(t => [
+        { ts: tsOf(t.day, t.hour), source: "support", text: `Обращение ${t.ticket_id}: ${D.dicts.topics[t.topic]}, ${D.dicts.ticketChannels[t.channel]}` },
+        { ts: tsOf(t.day, t.hour + t.resolve_min / 60), source: "support", text: `Обращение ${t.ticket_id} решено за ${t.resolve_min} мин${t.resolve_min > t.sla_min ? `, позже SLA (${t.sla_min} мин)` : ", в срок"}` },
+      ]),
+    ].filter(Boolean).sort((a, b) => (a.ts < b.ts ? -1 : 1));
+    return {
+      ...brief(o),
+      erp: { units: o.units, list_price: o.list_price, discount: o.discount, coupon: !!o.coupon, channel: D.dicts.channels[o.channel] || null, promise: isoOf(o.promise_day), ship: shipped ? tsOf(o.ship_day, o.ship_hour) : null,
+        moderation_min: o.moderation_min, lead_h: shipped ? (o.ship_day - o.day) * 24 + o.ship_hour - o.hour : null, status: !shipped ? "в производстве" : o.ship_day > o.promise_day ? "отгружен с опозданием" : "отгружен в срок" },
+      ledger: p ? { date: isoOf(p.day), net: p.net, discount: p.discount, cost: p.cost } : null,
+      crm: c ? { customer_id: c.customer_id, first: isoOf(firstDay.get(c.customer_id)), channel: D.dicts.channels[c.channel] || null, occasion: D.dicts.occasions[c.occasion] || null, orders12m: n12, firstOrder: isFirstOrder(o) } : null,
+      support: tks.map(t => ({ id: t.ticket_id, ts: tsOf(t.day, t.hour), topic: D.dicts.topics[t.topic], channel: D.dicts.ticketChannels[t.channel], sla_min: t.sla_min, resolve_min: t.resolve_min, inSla: t.resolve_min <= t.sla_min })),
+      events: ev,
+    };
+  }
+
   return { load, boot, kpis, sources: () => SOURCES.map(s => ({ ...s, ...freshness(s) })), quality, contract, depts: () => DEPTS, statusText: s => STATUS_TEXT[s], dayOf, isoOf, meta: () => D.meta, days: () => D.days,
-    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast };
+    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order };
 })();
 InsightData.boot();

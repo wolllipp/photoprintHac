@@ -638,6 +638,8 @@ const INITIAL = () => ({
   dept: "prod", fDept: null, fProduct: null, calAnchor: DEMO.meta.today, calDay: DEMO.meta.today, edit: false, doneTasks: {},
   /* Этап 3: прогноз — горизонт (4 недели или сезон) и рост спроса к прошлому году */
   fcHorizon: 4, fcGrowth: 0,
+  /* Этап 4: развёрнут ли полный список заказов-оснований по отклонению */
+  basisAll: {},
 });
 let S = INITIAL();
 let typingTimer = null;
@@ -817,7 +819,8 @@ const fill = (tpl, f) => tpl.replace(/\{(\w+)\}/g, (_, k) => f[k]);
 const dayRange = (a, b) => [InsightData.dayOf(weekStart(a)), InsightData.dayOf(weekStart(b)) + 6];
 /* Срез расчёта: фильтр продукта или линии и область видимости роли (начальник производства видит обеспеченность только своих смен) */
 const kctx = () => InsightData.ctx({ product: S.fProduct, line: S.line ? InsightData.lines().indexOf(S.line) : null, role: ROLE_API[S.role], dept: S.dept });
-const KPI_ALL = InsightData.kpis().map(k => ({ ...k, f: k.fmt, link: k.id === "defect" ? "#/deviations/" + DEMO.deviationsMeta.main : null,
+const KPI_DEV = { defect: "D-118", discount: "D-117" }; // плитка ведёт в отклонение, а оттуда — к заказам-основаниям
+const KPI_ALL = InsightData.kpis().map(k => ({ ...k, f: k.fmt, link: KPI_DEV[k.id] ? "#/deviations/" + KPI_DEV[k.id] : null,
   calc: (a, b) => k.calc(...dayRange(a, b), kctx()), statusOf: (a, b, cur, prev) => k.status(cur, prev, ...dayRange(a, b), kctx()), detailOf: k.detail ? (a, b) => k.detail(...dayRange(a, b), kctx()) : null }));
 const KPI = InsightData.depts().map(d => ({ group: d.name, dept: d.id, items: KPI_ALL.filter(k => k.dept === d.id) }));
 const kpiById = id => KPI_ALL.find(k => k.id === id);
@@ -853,7 +856,8 @@ function pulseHtml() {
   const r = homeRange(), own = S.role === "head" ? S.dept : null;
   const tile = id => { const k = kpiById(id); if (!kpiOpen(k)) return `<div class="kpi-tile"><span class="lg-label">${esc(k.label)}</span><p class="note small">${esc(closedText(k))}.</p></div>`;
     const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
-    return `<div class="kpi-tile"><span class="lg-label">${k.link ? `<a class="kpi-link" href="${k.link}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
+    const lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null;
+    return `<div class="kpi-tile"><span class="lg-label">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
   const filters = [fbMenu("Период", "period", [[2, "2 недели"], [4, "4 недели"], [8, "8 недель"]], S.period, 4),
     fbMenu("Подразделение", "fDept", [["all", "Все"]].concat(InsightData.depts().map(d => [d.id, d.name])), S.fDept || "all", own || "all"),
     fbMenu("Продукт", "fProduct", [["all", "Все"]].concat(PRODUCT_SHORT.map((p, i) => [i, p])), S.fProduct == null ? "all" : S.fProduct, "all")];
@@ -1553,7 +1557,7 @@ function vDeviationDetail(id) {
       : `<section class="sheet"><h2>${lb[0]} и ${lb[1].toLowerCase()}</h2>${barsHtml([{ label: lb[0], value: I.value, text: row.value, selected: true }, { label: lb[1], value: I.d.norm, text: row.norm }])}<p class="hero-cap">${goal}</p></section>`;
     const x = { top, now: I.value, goal, was: fPct(I.d.now), closed: beforeAfter(fPct(I.d.now), row.value, goal, row.norm), cause: I.cause };
     if (stage === "closed") return closedScreen(head, C, x);
-    return `${head}<div class="two card-grid${stage === "form" ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${compare}</div>${histHtml(C)}`;
+    return `${head}<div class="two card-grid${stage === "form" ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${compare}</div>${basisHtml(id)}${histHtml(C)}`;
   }
   const f = factsFull(), dims = decompose(), can = isCeo(), cons = consequences(), coin = coincidences();
   const dimHtml = dims.map((d, i) => `<details class="dim${i === 0 ? " top" : ""}"><summary>
@@ -1577,6 +1581,7 @@ function vDeviationDetail(id) {
   const showForm = stage === "form";
   return `${head}
   <div class="two card-grid${showForm ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${right}</div>
+  ${basisHtml(id)}
   ${histHtml(C)}
   ${stage === "check" || stage === "noeffect" ? tasksFold(C) : ""}
   ${stage === "open" || stage === "form" ? `<section class="sheet"><h2>Где именно вырос брак</h2><div class="dims">${dimHtml}</div></section>` : ""}
@@ -1594,6 +1599,57 @@ function vDeviationDetail(id) {
     <section class="sheet"><h2>Источники</h2>${sourcesHtml(["defects", "downtime", "material", "regulation"])}<a class="small" href="#/data">Проверить качество этих данных</a></section></div>
   </div></details>`;
 }
+/* ---------- Заказы-основания и карточка заказа (этап 4, слайды 8 и 41) ---------- */
+/* Какие заказы стоят за отклонением. Фильтр уходит в слой данных, там же отбор и правило «ответственный и следующий шаг».
+   D-119 (смены) и D-120 (прогноз) к конкретным заказам не сводятся, поэтому оснований у них нет */
+const BASIS = {
+  "D-118": () => ({ q: { from: InsightData.meta().stories.batch, line: InsightData.lines().indexOf("Ricoh"), shift: 1, defects: true }, rule: "Ricoh, ночная смена, есть брак", what: "брак" }),
+  "D-117": () => ({ q: { from: InsightData.meta().stories.promo, product: InsightData.products().indexOf("Фотокнига Premium"), coupon: true }, rule: "Фотокнига Premium по купону", what: "скидка" }),
+};
+const basisOf = dev => { const b = BASIS[dev] && BASIS[dev](); return b ? { ...b, list: InsightData.orders(b.q) } : null; };
+/* Руководитель подразделения открывает только заказы из оснований своих отклонений; директор — любые. Позже то же проверяет сервер */
+const orderVisible = id => isCeo() || (S.role === "head" && Object.keys(BASIS).some(dev => devVisible(dev) && deviationRows().some(r => r.id === dev) && basisOf(dev).list.some(o => o.id === id)));
+const NF2 = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fMoney2 = v => v == null ? "—" : NF2.format(v) + " руб.";
+const fTs = ts => `${fcDay(ts.slice(0, 10))}, ${ts.slice(11, 16)}`;
+const srcShort = id => (InsightData.sources().find(s => s.id === id) || { short: id }).short;
+function basisHtml(dev) {
+  const b = basisOf(dev); if (!b) return "";
+  const all = !!S.basisAll[dev], shown = all ? b.list : b.list.slice(0, 6), n = b.list.length;
+  const val = o => b.what === "брак" ? `${o.defects} из ${o.units} шт.` : o.net != null ? `оплачено ${fMoney2(o.net)}` : "оплаты нет";
+  const rows = shown.map(o => `<tr><td><a class="order-link" href="#/orders/${esc(o.id)}/${esc(dev)}">${esc(o.id)}</a></td><td class="num">${esc(fTs(o.ts))}</td><td>${esc(o.product)}</td><td class="num">${esc(val(o))}</td>
+    <td class="r num">${o.tickets ? o.tickets : '<span class="muted">0</span>'}</td><td>${o.action.owner ? `<b>${esc(o.action.owner)}</b><span class="muted small order-next">${esc(o.action.next)}</span>` : `<span class="muted">${esc(o.action.next)}</span>`}</td></tr>`).join("");
+  return `<section class="sheet basis" aria-labelledby="basis-h"><div class="w-head"><h2 id="basis-h">Заказы-основания <span class="goal-count">${n}</span></h2><span class="muted small">${esc(b.rule)}, с ${fcDay(b.q.from)} · ERP, 1С, CRM, поддержка</span></div>
+    ${n ? `<div class="table-wrap" data-label="Заказы-основания"><table><thead><tr><th>Заказ</th><th>Когда</th><th>Продукт</th><th>${b.what === "брак" ? "Брак" : "Оплата"}</th><th class="r">Обращения</th><th>Ответственный и шаг</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${n > 6 ? `<button class="btn btn-quiet btn-sm" data-act="basisAll" data-arg="${esc(dev)}" aria-expanded="${all}">${all ? "Свернуть" : `Показать все ${n}`}</button>` : ""}` : `<p class="muted">Заказов под это правило нет.</p>`}</section>`;
+}
+function vOrderDetail(id) {
+  const from = (location.hash.replace(/^#\/?/, "").split("/")[2] || "").trim(), back = from && BASIS[from] && devVisible(from) ? from : null;
+  const crumb = `<a class="btn btn-outline btn-sm crumb" href="${back ? "#/deviations/" + esc(back) : "#/deviations"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>${back ? "К отклонению " + esc(back) : "Все отклонения"}</a>`;
+  const o = InsightData.order(id);
+  if (!o) return `${crumb}${stateBlock("Заказ не найден", `Заказа ${id} нет в данных ERP.`, "")}`;
+  if (!orderVisible(id)) return `${crumb}${stateBlock("Нет доступа", "Руководитель подразделения видит только заказы, на которых основаны отклонения его подразделения.", "")}`;
+  const money = kpiOpen(kpiById("margin")), E = o.erp, L = o.ledger, C = o.crm;
+  const dl = rows => `<dl class="order-dl">${rows.filter(Boolean).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
+  const src = (key, title, body) => `<section class="sheet order-src"><div class="w-head"><h2>${title}</h2><span class="badge b-ai">${esc(srcShort(key))}</span></div>${body}</section>`;
+  const st = E.status === "отгружен в срок" ? "b-done" : E.status === "в производстве" ? "b-work" : "b-open";
+  const act = o.action.owner
+    ? `<span class="lg-label">Следующий шаг</span><p class="order-next-big">${esc(o.action.next)}</p>${dl([["Ответственный", `<b>${esc(o.action.owner)}</b>`], ["Почему", esc(o.action.reason)]])}`
+    : `<span class="lg-label">Следующий шаг</span><p class="order-next-big">${esc(o.action.next)}</p>`;
+  const tickets = o.support.length ? `<ul class="order-tickets">${o.support.map(t => `<li><b>${esc(t.id)}</b> · ${esc(t.topic)} · ${esc(t.channel)}<span class="muted small">${esc(fTs(t.ts))} · решено за ${t.resolve_min} мин при SLA ${t.sla_min} мин</span><span class="badge ${t.inSla ? "b-done" : "b-open"}">${t.inSla ? "в срок" : "позже SLA"}</span></li>`).join("")}</ul>` : `<p class="muted small">Обращений по заказу нет.</p>`;
+  const tl = `<section class="sheet order-path"><h2>Путь заказа по всем источникам</h2><ol class="order-tl">${o.events.map(e => `<li><span class="tl-at num">${esc(fTs(e.ts))}</span><span class="badge b-ai">${esc(srcShort(e.source))}</span><span>${esc(e.text)}</span></li>`).join("")}</ol></section>`;
+  return `${crumb}<div class="page-head order-head"><h1 tabindex="-1">Заказ ${esc(o.id)}</h1><span class="badge ${st}">${esc(cap1(E.status))}</span></div>
+  <p class="lead">${esc(o.product)} · ${esc(o.line)}, ${esc(o.shift.toLowerCase())} · ${esc(fTs(o.ts))}</p>
+  <section class="sheet dark-card order-act">${act}</section>
+  <div class="order-grid">
+    ${src("erp", "Производство", dl([["Количество", `${E.units} шт.`], ["Брак", o.defects ? `<b>${o.defects} шт.</b>` : "нет"], ["Обещали", fcDay(E.promise)], ["Отгружен", E.ship ? esc(fTs(E.ship)) : "ещё нет"], ["Lead time", E.lead_h != null ? `${E.lead_h} ч` : "—"], ["Модерация", `${E.moderation_min} мин`], ["Канал", esc(E.channel || "не указан")]]))}
+    ${src("ledger", "Оплата", L ? dl([["Дата", fcDay(L.date)], ["Оплачено", fMoney2(L.net)], ["Скидка", `${fMoney2(L.discount)}${o.coupon ? " · по купону" : ""}`], money ? ["Себестоимость", fMoney2(L.cost)] : ["Себестоимость", '<span class="muted">закрыто: видят финансы и директор</span>'], money && L.net ? ["Маржа заказа", fPct((L.net - L.cost) / L.net)] : null]) : `<p class="muted small">Оплата в 1С не найдена.</p>`)}
+    ${src("crm", "Клиент", C ? dl([["Клиент", `<code>${esc(C.customer_id)}</code>`], ["Первый заказ", fDate(C.first)], ["Заказов за 12 мес.", fInt(C.orders12m)], ["Этот заказ", C.firstOrder ? "первый" : "повторный"], ["Канал", esc(C.channel || "не указан")], ["Повод", esc(C.occasion || "не указан")]]) + '<p class="hint">ФИО и контакты не показываются, только идентификатор клиента.</p>' : `<p class="muted small">Клиента нет в CRM: строка отложена на разбор.</p>`)}
+    ${src("support", "Обращения", tickets)}
+  </div>
+  ${tl}`;
+}
+
 /* ---------- Экран: ассистент ---------- */
 function intentOf(q) {
   const s = q.toLowerCase();
@@ -1866,6 +1922,8 @@ const ROUTES = [
   { path: "meetings", label: "Встречи", roles: ["ceo", "manager"], view: vMeetings, count: "meet" },
   { path: "data", label: "Качество данных", roles: ["ceo", "manager", "admin"], view: vData, sep: true },
   { path: "security", label: "Журнал и защита", roles: ["ceo", "admin"], view: vSecurity, sep: true },
+  /* Карточка заказа открывается из оснований отклонения, в меню её нет */
+  { path: "orders", label: "Заказ", roles: ["ceo", "head"], view: () => stateBlock("Выберите заказ", "Заказы открываются из карточки отклонения, в блоке «Заказы-основания».", '<a class="btn btn-outline" href="#/deviations">К отклонениям</a>'), hidden: true },
 ];
 const parseHash = () => {
   const parts = location.hash.replace(/^#\/?/, "").split("/"); let id = parts[1] || null;
@@ -1921,7 +1979,7 @@ document.addEventListener("keydown", ev => { if (ev.key === "Escape" && tipFor) 
 
 function renderNav(cur) {
   closeNavTip();
-  const allowed = ROUTES.filter(r => r.roles.includes(S.role));
+  const allowed = ROUTES.filter(r => r.roles.includes(S.role) && !r.hidden);
   const countOf = r => r.count === "meet" ? (isCeo() ? S.meetings.filter(needsOut).length : 0) : r.count === "mine" ? myOpen().length : r.count && isCeo() ? deviationRows().filter(x => ["decide", "review"].includes(caseState(x.id).group)).length : 0;
   const item = r => { const n = countOf(r); return `<a href="#/${r.path}"${r.path === cur ? ' aria-current="page"' : ""}>${icon(r.path)}<span>${esc(r.label)}</span>${n ? `<span class="nav-count" aria-label="Нужно ваше внимание: ${n}">${n}</span>` : ""}</a>`; };
   const risky = mainDeviation().triggered && S.status !== "done";
@@ -1974,7 +2032,7 @@ function render(focusKey) {
   else if (S.state === "error") html = stateBlock("Не удалось получить данные", "Витрина не ответила. Данные не потеряны, запрос можно повторить.", `<button class="btn btn-primary" data-act="retry">Повторить</button>`);
   else {
     html = id && route.path === "deviations" && !devVisible(id) ? stateBlock("Нет доступа", `Отклонение ${esc(id)} относится к другому подразделению. Руководитель подразделения видит только свои отклонения.`, `<a class="btn btn-outline" href="#/deviations">К своим отклонениям</a>`)
-      : id && route.path === "deviations" ? vDeviationDetail(id) : id && route.path === "tasks" ? vTaskDetail(id) : id && route.path === "meetings" ? vMeetingDetail(id) : route.view();
+      : id && route.path === "deviations" ? vDeviationDetail(id) : id && route.path === "tasks" ? vTaskDetail(id) : id && route.path === "meetings" ? vMeetingDetail(id) : id && route.path === "orders" ? vOrderDetail(id) : route.view();
     S.visited[id && path === "deviations" ? "cause" : path] = true;
   }
   view.innerHTML = html;
@@ -2063,6 +2121,7 @@ const ACT = {
   period: a => { S.period = +a; },
   fDept: a => { S.fDept = a === "all" ? null : a; announce("Подразделение: " + (S.fDept ? deptOf(S.fDept).name : "все")); },
   fReset: () => { S.fDept = S.role === "head" ? S.dept : null; S.fProduct = null; S.period = 4; announce("Фильтры сброшены"); },
+  basisAll: a => { S.basisAll[a] = !S.basisAll[a]; },
   fcHorizon: a => { S.fcHorizon = a === "season" ? "season" : 4; announce(S.fcHorizon === "season" ? "Прогноз на сезон" : "Прогноз на 4 недели"); },
   fcGrowth: a => { S.fcGrowth = +a; announce("Рост спроса: " + (S.fcGrowth ? "+" + Math.round(S.fcGrowth * 100) + " %" : "0 %")); },
   fProduct: a => { S.fProduct = a === "all" ? null : +a; announce("Продукт: " + (S.fProduct == null ? "все" : InsightData.products()[S.fProduct])); },
