@@ -89,6 +89,19 @@ def lint_pptx(session: str, name: str) -> list[str]:
         sigs.append(tuple(sorted(str(sh.shape_type) for sh in s.shapes)))
         if txt < 25:
             out.append(f"слайд {i}: почти нет текста, добавьте вывод и подписи")
+        for sh in s.shapes:  # оценка по ширине символов: PowerPoint без явного размера переносит текст и он вылезает из блока
+            if not sh.has_text_frame or not sh.text_frame.text.strip():
+                continue
+            need = 0.0
+            for para in sh.text_frame.paragraphs:
+                sz = next((r.font.size.pt for r in para.runs if r.font.size), None) or (para.font.size.pt if para.font.size else 18)
+                cpl = max(1, (sh.width / 914400 - 0.2) * 72 / (sz * 0.55))
+                longest = max((len(w) for w in para.text.split()), default=0)
+                need += max(1, -(-len(para.text) // int(cpl))) * sz * 1.2 / 72
+                if longest > cpl + 1:
+                    out.append(f"слайд {i}: слово «{max(para.text.split(), key=len)[:20]}» шире блока, оно разорвётся: расширьте блок или уменьшите кегль"); break
+            if need > sh.height / 914400 + 0.12:
+                out.append(f"слайд {i}: текст «{sh.text_frame.text[:30]}…» не помещается в блок (нужно ≈{need:.1f} дюйма, есть {sh.height / 914400:.1f}): сократите, уменьшите кегль или увеличьте блок и сдвиньте то, что ниже"); break
         for sh in s.shapes:
             if sh.left is not None and (sh.left + sh.width > p.slide_width * 1.02 or sh.top + sh.height > p.slide_height * 1.02):
                 out.append(f"слайд {i}: элемент выходит за край слайда"); break
@@ -100,4 +113,4 @@ def lint_pptx(session: str, name: str) -> list[str]:
         out.append("в презентации нет ни диаграмм, ни картинок: добавьте нативные диаграммы или графики там, где есть числа")
     if n > 4 and len(set(sigs[1:])) <= 1:
         out.append("все слайды устроены одинаково: варьируйте раскладки (крупное число, две колонки, диаграмма с выводом, схема, таймлайн)")
-    return out[:8]
+    return out[:12]
