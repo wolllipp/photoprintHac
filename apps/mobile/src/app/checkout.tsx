@@ -13,7 +13,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View
 import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isServerProject, orderOnServer, orderPrintsOnServer } from '@/api/book';
+import { isServerProject, orderErrorText, orderOnServer, orderPrintsOnServer } from '@/api/book';
 import { ChoiceTile } from '@/components/choice';
 import { TariffSheet } from '@/components/tariffSheet';
 import { Pik, Tap } from '@/components/ui';
@@ -58,6 +58,10 @@ export default function Checkout() {
   const [agree, setAgree] = useState({ offer: false, print: false });
   const [nudge, setNudge] = useState(false);
   const agreed = agree.offer && agree.print;
+  // заказ отправляется: кнопка неактивна; не вышло — текст ошибки над кнопкой, кнопка «Повторить»
+  const busy = useRef(false);
+  const [paying, setPaying] = useState(false);
+  const [payErr, setPayErr] = useState<string | null>(null);
   // куда везти: пункт выдачи или адрес (для курьера, Белпочты и EMS)
   const [pointId, setPointId] = useState(pref.pointId ?? pickupPoints[0].id);
   const point = pickupPoints.find((x) => x.id === pointId) ?? pickupPoints[0];
@@ -117,44 +121,51 @@ export default function Checkout() {
       scroll.current?.scrollToEnd({ animated: true });
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    // книга собрана на сервере — заказ тоже там; не вышло — оформляем как в демо, человек ничего не теряет
+    // запрос уже идёт — второе нажатие не создаёт второй заказ
+    if (busy.current) return;
+    busy.current = true;
+    setPaying(true);
+    setPayErr(null);
+    const payment = payId === 'erip' ? 'erip' : 'card';
+    // книга собрана на сервере — заказ тоже там. Не вышло — показываем ошибку и «Повторить»:
+    // заказ в «Заказах» не появляется, корзина и выбор на экране остаются
     const item = cart[0];
     let server: { id: string; number: number } | undefined;
-    if (item && isServerProject(item.projectId)) {
-      try {
+    try {
+      if (item && isServerProject(item.projectId)) {
         server = await orderOnServer({
           projectId: item.projectId,
           tariff: item.tariff,
           format: item.format,
           deliveryId,
           pickup: toDoor ? { title: 'Адрес доставки', address: addrLine } : { title: point.title, address: point.address },
-          payment: payId === 'erip' ? 'erip' : 'card',
+          payment,
           points: piksSpent,
           extras: [...extras],
           promo: promoOk ? promo.trim() : undefined,
         });
-      } catch {
-        server = undefined;
-      }
-    } else if (item && item.tariff === 'print' && item.prints?.length && item.prints.every((p) => p.uri.includes('/'))) {
-      // фотопечать из фото галереи — заказ на сервере (демо-снимки приложения на сервер не уходят)
-      try {
+      } else if (item && item.tariff === 'print' && item.prints?.length && item.prints.every((p) => p.uri.includes('/'))) {
+        // фотопечать из фото галереи — заказ на сервере (демо-снимки приложения на сервер не уходят)
         server = await orderPrintsOnServer({
           prints: item.prints,
           format: item.format,
           deliveryId,
           pickup: toDoor ? { title: 'Адрес доставки', address: addrLine } : { title: point.title, address: point.address },
-          payment: payId === 'erip' ? 'erip' : 'card',
+          payment,
           points: piksSpent,
           extras: [...extras],
           promo: promoOk ? promo.trim() : undefined,
         });
-      } catch {
-        server = undefined;
       }
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setPayErr(orderErrorText(e));
+      busy.current = false;
+      setPaying(false);
+      return;
     }
-    placeOrder(total, piksSpent, server);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    placeOrder(total, piksSpent, server, payment);
     router.dismissAll();
     router.navigate('/orders');
   };
@@ -351,8 +362,19 @@ export default function Checkout() {
       </ScrollView>
 
       <View style={[s.bottom, { paddingBottom: insets.bottom + 10 }]}>
-        <Tap style={[s.cta, !agreed && { opacity: 0.45 }]} onPress={onPay} accessibilityRole="button" accessibilityState={{ disabled: !agreed }} accessibilityLabel={agreed ? `Оплатить ${rub(total)}` : 'Оплатить — сначала отметьте согласия'}>
-          <Text style={s.ctaText}>{payId === 'erip' ? 'Получить номер ЕРИП' : 'Оплатить'}</Text>
+        {payErr ? (
+          <Animated.View entering={FadeIn.duration(200)} style={s.payErr} accessibilityLiveRegion="polite">
+            <Text style={s.payErrText}>{payErr}</Text>
+          </Animated.View>
+        ) : null}
+        <Tap
+          style={[s.cta, (!agreed || paying) && { opacity: 0.45 }]}
+          onPress={onPay}
+          disabled={paying}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !agreed || paying, busy: paying }}
+          accessibilityLabel={paying ? 'Оформляем заказ' : agreed ? `${payErr ? 'Повторить' : 'Оплатить'} ${rub(total)}` : 'Оплатить — сначала отметьте согласия'}>
+          <Text style={s.ctaText}>{paying ? 'Оформляем…' : payErr ? 'Повторить' : payId === 'erip' ? 'Получить номер ЕРИП' : 'Оплатить'}</Text>
           <View style={s.ctaSum}>
             <AnimatedNumber value={total} format={rub} style={s.ctaPrice} />
           </View>
@@ -610,6 +632,8 @@ const s = StyleSheet.create({
   agreeLink: { fontFamily: fonts.semibold, color: colors.coralLink },
 
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: 'rgba(255,255,255,0.94)' },
+  payErr: { borderRadius: 16, borderWidth: 2, borderColor: colors.coralAction, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8 },
+  payErrText: { fontSize: 14, lineHeight: 19, fontFamily: fonts.medium, color: colors.fg },
   cta: { height: 58, borderRadius: 29, backgroundColor: colors.coralAction, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 24, paddingRight: 8 },
   ctaText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
   ctaSum: { height: 42, paddingHorizontal: 16, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },

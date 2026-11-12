@@ -68,7 +68,9 @@ export default function Orders() {
         {fresh ? (
           <Animated.View entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.paid}>
             <SuccessCheck size={32} />
-            <Text style={s.paidText}>Оплачено. Книга уже в очереди на печать</Text>
+            <Text style={s.paidText}>
+              {order?.payment === 'erip' ? 'Заказ принят и ожидает оплаты. Номер для оплаты в ЕРИП придёт в SMS' : 'Оплачено. Книга уже в очереди на печать'}
+            </Text>
           </Animated.View>
         ) : null}
 

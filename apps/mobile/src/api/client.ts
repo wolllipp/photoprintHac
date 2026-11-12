@@ -65,11 +65,18 @@ async function raw<T>(method: string, path: string, body?: unknown, auth = true)
     });
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new ApiError(res.status, (data && (data.detail as string)) || res.statusText);
+    if (!res.ok) throw new ApiError(res.status, detailText(data?.detail) || res.statusText);
     return data as T;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** detail у FastAPI — строка, а у ошибок проверки (422) — список; берём первую понятную фразу. */
+function detailText(d: unknown): string {
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d) && d[0] && typeof d[0].msg === 'string') return d[0].msg;
+  return '';
 }
 
 /** Гостевой токен: собирать книгу можно без входа. */

@@ -2,7 +2,7 @@
  * Главный путь через сервер: фото из галереи → загрузка → проект → сборка (этапы по-настоящему) → страницы → заказ → статус.
  * Экраны не меняются: они берут отсюда данные, а если сервер недоступен — работают на демо, как раньше.
  */
-import { API_URL, api, authHeaders, ensureRegistered, online } from '@/api/client';
+import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
 import { layoutOf } from '@/data/layouts';
 import { setRemoteSource } from '@/data/photos';
 
@@ -191,7 +191,8 @@ const DELIVERY: Record<string, string> = { evropochta: 'europost_pvz', courier: 
 
 /**
  * Заказ на сервере: перед ним — вход по телефону (заказывать гостю нельзя). Возвращает номер и id заказа.
- * Формат приложения «20×20» → «20x20»; если у тарифа на сервере такого формата нет — 20x20.
+ * Формат приложения «20×20» → «20x20». Ошибку не прячем и формат не подменяем: человек заказывает ровно то, что выбрал,
+ * а экран оформления показывает ошибку и «Повторить».
  */
 export async function orderOnServer(o: {
   projectId: string;
@@ -219,11 +220,17 @@ export async function orderOnServer(o: {
     extras: o.extras ?? [],
     promo_code: o.promo || undefined,
   };
-  try {
-    return await api.post<{ id: string; number: number; total: string }>('/orders', body);
-  } catch {
-    return await api.post<{ id: string; number: number; total: string }>('/orders', { ...body, format: '20x20' });
+  return api.post<{ id: string; number: number; total: string }>('/orders', body);
+}
+
+/** Ошибка заказа — понятной фразой для экрана оформления. */
+export function orderErrorText(e: unknown) {
+  if (e instanceof ApiError) {
+    if (e.status === 401 || e.status === 403) return 'Нужно войти по номеру телефона ещё раз';
+    if (e.status >= 500) return 'Сервер не принял заказ. Деньги не списаны — попробуйте ещё раз';
+    return e.message || 'Заказ не оформлен — проверьте данные';
   }
+  return 'Нет связи с сервером. Деньги не списаны — проверьте интернет и повторите';
 }
 
 /** Этап заказа на сервере → этап в приложении (0 принят · 1 проверен · 2 печать · 3 в пути · 4 готов). */

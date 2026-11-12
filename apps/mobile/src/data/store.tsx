@@ -68,6 +68,8 @@ export type PlacedOrder = {
   live: string;
   /** обращения в поддержку по этому заказу */
   support?: SupportTicket[];
+  /** способ оплаты: по ЕРИП заказ ждёт оплаты, «Оплачено» не пишем */
+  payment?: 'card' | 'erip';
 };
 export type SupportTicket = { number: number; topic: string; text: string; at: number; status: 'open' | 'answered' | 'closed'; slaHours: number };
 
@@ -136,7 +138,7 @@ type Store = {
   toggleExtra: (id: ExtraId) => void;
   clearCart: () => void;
   orders: PlacedOrder[];
-  placeOrder: (total: number, spentPoints?: number, server?: { id: string; number: number }) => PlacedOrder | null;
+  placeOrder: (total: number, spentPoints?: number, server?: { id: string; number: number }, payment?: 'card' | 'erip') => PlacedOrder | null;
   /** этап заказа обновился на сервере */
   setOrderStage: (id: string, stage: number) => void;
   addSupport: (orderId: string, t: SupportTicket) => void;
@@ -338,9 +340,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hideDraft: (id) => setHiddenDrafts((h) => (h.includes(id) ? h : [...h, id])),
       setOrderStage: (id, stage) => setOrders((o) => o.map((x) => (x.id === id && x.stage !== stage ? { ...x, stage } : x))),
       addSupport: (orderId, t) => setOrders((o) => o.map((x) => (x.id === orderId ? { ...x, support: [t, ...(x.support ?? [])] } : x))),
-      placeOrder: (total, spentPoints = 0, server) => {
+      placeOrder: (total, spentPoints = 0, server, payment = 'card') => {
         const item = cart[0];
         if (!item) return null;
+        const erip = payment === 'erip';
         const order: PlacedOrder = {
           id: server ? String(server.number) : String(4792100 + orders.length),
           serverId: server?.id,
@@ -351,9 +354,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           placedAt: new Date(),
           fresh: true,
           cover: item.cover,
-          stage: 1,
-          live: 'макет проверен — ставим в очередь печати',
+          // по ЕРИП деньги ещё не пришли — заказ только принят и ждёт оплаты
+          stage: erip ? 0 : 1,
+          live: erip ? 'ожидает оплаты по ЕРИП — номер придёт в SMS' : 'макет проверен — ставим в очередь печати',
           items: cart,
+          payment,
         };
         setOrders((o) => [order, ...o]);
         setCart([]);
