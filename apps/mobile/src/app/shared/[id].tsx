@@ -14,7 +14,7 @@ import QRCode from 'react-native-qrcode-svg';
 import Animated, { FadeIn, LinearTransition, ReduceMotion, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
+import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { sharedAlbums } from '@/data/demo';
 import { pic, type PhotoName } from '@/data/photos';
@@ -55,7 +55,7 @@ export default function Shared() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title={fresh ? 'Альбом создан' : 'Общий альбом'} />
+      <TitleBar title={fresh ? 'Альбом создан' : 'Общий альбом'} />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
         <Animated.View entering={enterItem(0)} style={{ gap: 4 }}>
           <TextInput value={name} onChangeText={setName} style={s.name} accessibilityLabel="Название альбома" />

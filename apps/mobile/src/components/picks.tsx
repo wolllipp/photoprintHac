@@ -1,25 +1,31 @@
 /**
- * Подборка на весь экран — как история: сверху полоски, касание справа — следующая, слева — предыдущая,
- * удержание — пауза. Внизу одна кнопка «Собрать эту книгу» — после неё идея становится черновиком. Открывается с кружка на главной.
+ * Идея книги на весь экран — как истории: сначала обложка с названием, потом несколько фото,
+ * которые примерно войдут в книгу (карточками), затем — следующая идея.
+ *  • касание справа — дальше, слева — назад;
+ *  • удержание — пауза: полоска замирает и продолжает с того же места, подписи прячутся, чтобы рассмотреть фото;
+ *  • свайп вниз — закрыть (экран едет за пальцем и уменьшается).
+ * Внизу всегда «Собрать эту книгу».
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { CaretRightIcon, XIcon } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { Easing, FadeIn, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { useEffect, useRef, useState } from 'react';
+import { Modal, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { GestureDetector, GestureHandlerRootView, useLongPressGesture, usePanGesture, useTapGesture, useSimultaneousGestures, useExclusiveGestures } from 'react-native-gesture-handler';
+import Animated, { cancelAnimation, Easing, Extrapolation, FadeIn, interpolate, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { Glass } from '@/components/glass';
 import { OverlapTitle } from '@/components/home';
 import { Tap } from '@/components/ui';
 import type { Suggestion } from '@/data/demo';
-import { pic } from '@/data/photos';
+import { pic, type PhotoName } from '@/data/photos';
 import { colors, fonts } from '@/theme';
 
-const SLIDE_MS = 6000;
+const FRAME_MS = 4500;
 
 export function PicksViewer({
   items,
@@ -29,7 +35,7 @@ export function PicksViewer({
   onOpenBook,
 }: {
   items: Suggestion[];
-  /** с какой подборки открыть; null — закрыто */
+  /** с какой идеи открыть; null — закрыто */
   start: number | null;
   onClose: () => void;
   onSeen: (id: string) => void;
@@ -37,109 +43,219 @@ export function PicksViewer({
 }) {
   return (
     <Modal visible={start !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      {start !== null ? <Viewer key={start} items={items} start={start} onClose={onClose} onSeen={onSeen} onOpenBook={onOpenBook} /> : null}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {start !== null ? <Viewer key={start} items={items} start={start} onClose={onClose} onSeen={onSeen} onOpenBook={onOpenBook} /> : null}
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
+/** Кадры одной идеи: обложка, потом фото из будущей книги. */
+const framesOf = (it: Suggestion): ('cover' | PhotoName)[] => ['cover', ...(it.pages ?? []).slice(0, 4)];
+
 function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggestion[]; start: number; onClose: () => void; onSeen: (id: string) => void; onOpenBook: (id: string) => void }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [page, setPage] = useState(start);
+  const [frame, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
-  const progress = useSharedValue(0);
-  const zoom = useSharedValue(1);
   const item = items[page];
+  const frames = framesOf(item);
 
-  const go = (d: 1 | -1) => {
-    const next = page + d;
-    if (next >= items.length) return onClose();
-    setPage(Math.max(0, next));
+  // полоска текущего кадра: на паузе замирает и потом продолжает с того же места
+  const progress = useSharedValue(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const next = () => {
+    if (frame < frames.length - 1) return setFrame((f) => f + 1);
+    if (page + 1 >= items.length) return onClose();
+    setPage((p) => p + 1);
+    setFrame(0);
   };
-
-  // открыли подборку — она просмотрена; кадр медленно приближается
+  const prev = () => {
+    if (frame > 0) return setFrame((f) => f - 1);
+    if (page > 0) {
+      setPage((p) => p - 1);
+      setFrame(0);
+    }
+  };
   useEffect(() => {
     onSeen(items[page].id);
-    zoom.value = 1;
-    zoom.value = withTiming(1.12, { duration: SLIDE_MS + 2000, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.System });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
-
-  // полоска заполняется, потом — следующая подборка; пока палец на экране — пауза (WCAG 2.2.2)
+  // новый кадр — полоска с нуля
   useEffect(() => {
-    progress.value = 0;
-    if (paused) return;
-    progress.value = withTiming(1, { duration: SLIDE_MS, easing: Easing.linear });
-    const t = setTimeout(() => go(1), SLIDE_MS);
-    return () => clearTimeout(t);
+    progress.set(0);
+  }, [page, frame, progress]);
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    if (paused) {
+      cancelAnimation(progress);
+      return;
+    }
+    const left = Math.max(0, 1 - progress.value);
+    progress.set(withTiming(1, { duration: FRAME_MS * left, easing: Easing.linear }));
+    timer.current = setTimeout(next, FRAME_MS * left);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, paused]);
+  }, [page, frame, paused]);
 
-  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
-  const titleSize = Math.max(36, Math.min(50, Math.round(width * 0.118)));
+  // свайп вниз — закрыть: экран едет за пальцем и чуть уменьшается
+  const drag = useSharedValue(0);
+  const pan = usePanGesture({
+    activeOffsetY: 12,
+    failOffsetX: [-20, 20],
+    // пауза — только когда свайп действительно начался (а не на любое касание)
+    onActivate: () => {
+      'worklet';
+      scheduleOnRN(setPaused, true);
+    },
+    onUpdate: (e) => {
+      'worklet';
+      drag.set(Math.max(0, e.translationY));
+    },
+    onDeactivate: (e) => {
+      'worklet';
+      if (drag.value > 140 || e.velocityY > 900) {
+        drag.set(withTiming(height, { duration: 220, easing: Easing.in(Easing.quad) }, (fin) => {
+          if (fin) scheduleOnRN(onClose);
+        }));
+      } else {
+        drag.set(withTiming(0, { duration: 260, easing: Easing.bezier(0.32, 0.72, 0, 1) }));
+        scheduleOnRN(setPaused, false);
+      }
+    },
+  });
+  // удержание — пауза; отпустил — дальше
+  const hold = useLongPressGesture({
+    minDuration: 180,
+    onActivate: () => {
+      'worklet';
+      scheduleOnRN(setPaused, true);
+    },
+    onFinalize: () => {
+      'worklet';
+      scheduleOnRN(setPaused, false);
+    },
+  });
+  // касание: левая треть — назад, остальное — дальше
+  const tap = useTapGesture({
+    onDeactivate: (e) => {
+      'worklet';
+      if (e.x < width / 3) scheduleOnRN(prev);
+      else scheduleOnRN(next);
+    },
+  });
+  const gestures = useSimultaneousGestures(pan, useExclusiveGestures(hold, tap));
+
+  // экран сначала просто едет за пальцем; уменьшаться и скругляться начинает чуть позже и плавно
+  const sheet = useAnimatedStyle(() => ({
+    transform: [{ translateY: drag.value }, { scale: interpolate(drag.value, [0, 60, 400], [1, 1, 0.92], Extrapolation.CLAMP) }],
+    borderRadius: interpolate(drag.value, [0, 60, 200], [0, 0, 24], Extrapolation.CLAMP),
+  }));
+  const bg = useAnimatedStyle(() => ({ opacity: interpolate(drag.value, [0, 400], [1, 0.35], Extrapolation.CLAMP) }));
+  // на паузе подписи и кнопки прячутся — видно только фото
+  // при удержании подписи и кнопки мягко растворяются (и так же мягко возвращаются)
+  const chrome = useAnimatedStyle(() => ({ opacity: withTiming(paused ? 0 : 1, { duration: paused ? 420 : 320, easing: Easing.bezier(0.33, 0, 0.2, 1) }) }));
+  const titleSize = Math.max(34, Math.min(48, Math.round(width * 0.112)));
+  const f = frames[frame];
 
   return (
-    <View style={s.screen}>
-      <StatusBar style="light" />
-      <Animated.View key={item.id} entering={FadeIn.duration(220)} style={[StyleSheet.absoluteFill, zoomStyle]}>
-        <Image source={pic(item.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
-      </Animated.View>
-      <LinearGradient colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']} locations={[0, 0.28]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']} locations={[0.45, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+    <View style={{ flex: 1 }}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }, bg]} />
+      <GestureDetector gesture={gestures}>
+        <Animated.View style={[s.screen, sheet]}>
+          <StatusBar style="light" />
 
-      {/* касание: слева — назад, справа — дальше; удержание — пауза */}
-      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row' }]}>
-        {([-1, 1] as const).map((d) => (
-          <Pressable
-            key={d}
-            style={{ flex: d === -1 ? 1 : 2 }}
-            onPressIn={() => setPaused(true)}
-            onPressOut={() => setPaused(false)}
-            onLongPress={() => {}}
-            onPress={() => go(d)}
-            accessibilityRole="button"
-            accessibilityLabel={d === -1 ? 'Предыдущая подборка' : 'Следующая подборка'}
-          />
-        ))}
-      </View>
+          {/* кадр: обложка во весь экран или фото карточкой на размытой обложке */}
+          {f === 'cover' ? (
+            <Cover key={`${item.id}-cover`} photo={item.photo} paused={paused} />
+          ) : (
+            <PhotoCard key={`${item.id}-${frame}`} cover={item.photo} photo={f} i={frame} width={width} />
+          )}
+          <LinearGradient colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']} locations={[0, 0.25]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.65)']} locations={[0.55, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      {/* верх: полоски и шапка */}
-      <View style={[s.top, { top: insets.top + 8 }]} pointerEvents="box-none">
-        <View style={s.bars} accessibilityLabel={`Подборка ${page + 1} из ${items.length}`}>
-          {items.map((it, i) => (
-            <Bar key={it.id} state={i < page ? 'done' : i === page ? 'now' : 'next'} progress={progress} />
-          ))}
-        </View>
-        <View style={s.head} pointerEvents="box-none">
-          <Image source={pic(item.photo)} style={s.thumb} contentFit="cover" />
-          <View style={{ flex: 1 }}>
-            <Text style={s.headTitle} numberOfLines={1}>Идея книги · ещё не заказана</Text>
-            <Text style={s.headSub} numberOfLines={1}>{item.meta}</Text>
-          </View>
-          <Tap onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="Закрыть">
-            <XIcon size={22} color="#fff" weight="bold" />
-          </Tap>
-        </View>
-      </View>
+          {/* верх: полоски кадров этой идеи и шапка */}
+          <Animated.View style={[s.top, { top: insets.top + 8 }, chrome]} pointerEvents="box-none">
+            <View style={s.bars} accessibilityLabel={`Идея ${page + 1} из ${items.length}, кадр ${frame + 1} из ${frames.length}`}>
+              {frames.map((_, i) => (
+                <Bar key={i} state={i < frame ? 'done' : i === frame ? 'now' : 'next'} progress={progress} />
+              ))}
+            </View>
+            <View style={s.head} pointerEvents="box-none">
+              <Image source={pic(item.photo)} style={s.thumb} contentFit="cover" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.headTitle} numberOfLines={1}>Идея книги · ещё не заказана</Text>
+                <Text style={s.headSub} numberOfLines={1}>{item.meta}</Text>
+              </View>
+              <Tap onPress={onClose} hitSlop={12} style={s.close} accessibilityRole="button" accessibilityLabel="Закрыть">
+                <XIcon size={22} color="#fff" weight="bold" />
+              </Tap>
+            </View>
+          </Animated.View>
 
-      {/* низ: название, пара слов и одна кнопка */}
-      <View style={[s.bottom, { bottom: insets.bottom + 16 }]} pointerEvents="box-none">
-        <View pointerEvents="none" style={{ alignItems: 'center', gap: 10 }}>
-          <OverlapTitle key={item.id} text={item.title} size={titleSize} maxWidth={width - 44} enter />
-          <Text style={s.desc}>{item.desc}</Text>
-        </View>
-        <Tap
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            onOpenBook(item.id);
-          }}
-          accessibilityRole="button"
-          style={{ alignSelf: 'stretch' }}>
-          <Glass style={s.cta} interactive>
-            <Text style={s.ctaText}>Собрать эту книгу</Text>
-            <CaretRightIcon size={16} color={colors.fg} weight="bold" />
-          </Glass>
-        </Tap>
+          {/* низ: на обложке — название и описание; на фото — «из книги» */}
+          <Animated.View style={[s.bottom, { bottom: insets.bottom + 16 }, chrome]} pointerEvents="box-none">
+            <View pointerEvents="none" style={{ alignItems: 'center', gap: 10 }}>
+              {f === 'cover' ? (
+                <>
+                  <OverlapTitle key={item.id} text={item.title} size={titleSize} maxWidth={width - 44} enter />
+                  <Text style={s.desc}>{item.desc}</Text>
+                </>
+              ) : (
+                <Animated.Text key={`cap-${frame}`} entering={FadeIn.duration(250)} style={s.caption}>
+                  Войдёт в книгу «{item.title}» · {frame} из {frames.length - 1}
+                </Animated.Text>
+              )}
+            </View>
+            <Tap
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                onOpenBook(item.id);
+              }}
+              accessibilityRole="button"
+              style={{ alignSelf: 'stretch' }}>
+              <Glass style={s.cta} interactive>
+                <Text style={s.ctaText}>Собрать эту книгу</Text>
+                <CaretRightIcon size={16} color={colors.fg} weight="bold" />
+              </Glass>
+            </Tap>
+          </Animated.View>
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
+
+/** Обложка во весь экран, медленно приближается (на паузе — замирает). */
+function Cover({ photo, paused }: { photo: PhotoName; paused: boolean }) {
+  const zoom = useSharedValue(1);
+  useEffect(() => {
+    if (paused) return cancelAnimation(zoom);
+    zoom.set(withTiming(1.12, { duration: FRAME_MS * 2, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.System }));
+  }, [paused, zoom]);
+  const a = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
+  return (
+    <Animated.View entering={FadeIn.duration(220)} style={[StyleSheet.absoluteFill, a]}>
+      <Image source={pic(photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+    </Animated.View>
+  );
+}
+
+/** Фото из будущей книги — карточкой с белыми полями на размытой обложке; каждая чуть повёрнута по-своему. */
+function PhotoCard({ cover, photo, i, width }: { cover: PhotoName; photo: PhotoName; i: number; width: number }) {
+  const w = width * 0.74;
+  const tilt = [-3, 2.5, -1.5, 3][i % 4];
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Image source={pic(cover)} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={40} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(20,16,14,0.35)' }]} />
+      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', paddingBottom: 60 }]}>
+        <Animated.View entering={FadeIn.duration(260)} style={[s.card, { width: w, height: w * 1.22, transform: [{ rotate: `${tilt}deg` }] }]}>
+          <Image source={pic(photo)} style={{ flex: 1, borderRadius: 4 }} contentFit="cover" />
+        </Animated.View>
       </View>
     </View>
   );
@@ -167,6 +283,8 @@ const s = StyleSheet.create({
   close: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   bottom: { position: 'absolute', left: 18, right: 18, gap: 22 },
   desc: { fontSize: 16, lineHeight: 22, fontFamily: fonts.accent, color: 'rgba(255,255,255,0.9)', textAlign: 'center', maxWidth: 320 },
+  caption: { fontSize: 15, fontFamily: fonts.semibold, color: 'rgba(255,255,255,0.92)', textAlign: 'center' },
+  card: { backgroundColor: '#fff', padding: 8, paddingBottom: 28, borderRadius: 6, boxShadow: '0 18px 40px rgba(0,0,0,0.35)' },
   cta: { height: 58, borderRadius: 29, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   ctaText: { fontSize: 17, fontFamily: fonts.bold, color: colors.fg, letterSpacing: -0.2 },
 });

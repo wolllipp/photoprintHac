@@ -1,5 +1,6 @@
 /**
- * Профиль (по аватару на главной): кто вы, переходы к пикам, дизайнам и заказам, уведомления,
+ * Профиль (по аватару на главной): кто вы, «Мои данные» (имя, телефон, доставка по умолчанию, карты — правка листом снизу),
+ * переходы к пикам, черновикам и заказам, уведомления,
  * настройки приложения, приватность (обработка фото ИИ, удалить мои фото) и выход.
  * Удаление фото и выход — необратимы, поэтому с подтверждением (apple-design: подтверждать только такое).
  */
@@ -11,14 +12,22 @@ import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ProfileEdit, type EditWhat } from '@/components/profileEdit';
 import { Pik, Tap } from '@/components/ui';
+import { delivery, pickupPoints } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { ease } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
-  const { aiConsent, setAiConsent, phone, points, orders } = useStore();
+  const { aiConsent, setAiConsent, phone, points, orders, name, delivery: pref, cards, cardId } = useStore();
+  // что сейчас правим — листом снизу
+  const [edit, setEdit] = useState<EditWhat | null>(null);
+  const method = delivery.find((d) => d.id === pref.deliveryId) ?? delivery[0];
+  const point = pickupPoints.find((p) => p.id === pref.pointId);
+  const where = pref.deliveryId === 'evropochta' ? (point ? `${point.title}, ${point.address}` : 'пункт не выбран') : pref.address ? pref.address.street : 'адрес не указан';
+  const card = cards.find((c) => c.id === cardId) ?? cards[0];
   const [notify, setNotify] = useState({ status: true, promo: false });
   const [deleted, setDeleted] = useState(false);
   const enter = (i: number) => FadeInDown.delay(50 * i).duration(380).easing(ease.smoothOut);
@@ -50,12 +59,21 @@ export default function Profile() {
             <Text style={s.avatarText}>И</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.name}>Иван</Text>
+            <Text style={s.name}>{name}</Text>
             <Text style={s.phone}>{phone}</Text>
           </View>
           <Tap style={[s.round, { alignSelf: 'flex-start' }]} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Закрыть" hitSlop={8}>
             <XIcon size={16} color={colors.fg} weight="bold" />
           </Tap>
+        </Animated.View>
+
+        {/* мои данные — всё, что нужно для заказа, правится здесь */}
+        <Text style={s.h2}>Мои данные</Text>
+        <Animated.View entering={enter(1)} style={s.group}>
+          <Row title="Имя" sub={name} onPress={() => setEdit('name')} />
+          <Row title="Телефон" sub={phone} onPress={() => setEdit('phone')} />
+          <Row title="Доставка" sub={`${method.title.split(' · ')[0]} · ${where}`} onPress={() => setEdit('delivery')} />
+          <Row title="Карты" sub={card ? `${card.brand} •• ${card.last4} · основная${cards.length > 1 ? ` · ещё ${cards.length - 1}` : ''}` : 'не добавлены'} onPress={() => setEdit('cards')} />
         </Animated.View>
 
         {/* переходы */}
@@ -99,6 +117,7 @@ export default function Profile() {
           <Text style={s.logoutText}>Выйти</Text>
         </Tap>
       </ScrollView>
+      {edit ? <ProfileEdit what={edit} onClose={() => setEdit(null)} /> : null}
     </View>
   );
 }

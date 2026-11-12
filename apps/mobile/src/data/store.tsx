@@ -39,6 +39,11 @@ export type ExtraId = (typeof EXTRAS)[number]['id'];
 export const cartTotal = (cart: CartItem[], extras: ExtraId[]) =>
   Math.round((cart.reduce((a, it) => a + it.price * it.qty, 0) + EXTRAS.filter((e) => extras.includes(e.id)).reduce((a, e) => a + e.price, 0)) * 100) / 100;
 
+/** Адрес доставки до двери (курьер, Белпочта, EMS). */
+export type Address = { street: string; flat: string; entrance: string; note: string };
+/** Доставка по умолчанию — из профиля; оформление открывается с ней. */
+export type DeliveryPref = { deliveryId: string; pointId: string; address: Address | null };
+
 export type LastBook = { title: string; cover: Pic; params: Record<string, string>; at: number };
 
 export type PlacedOrder = {
@@ -100,6 +105,13 @@ type Store = {
   setCardId: (id: string) => void;
   addCard: (c: Card) => void;
   phone: string;
+  /** имя в профиле */
+  name: string;
+  setName: (v: string) => void;
+  delivery: DeliveryPref;
+  setDelivery: (d: DeliveryPref) => void;
+  /** убрать сохранённую карту */
+  removeCard: (id: string) => void;
   /** согласие на обработку фото ИИ (A14) */
   /** брошенная сборка: книга дошла до превью, но не попала в корзину (A11) */
   /** подсказка жестов при просмотре книги («→ нравится · ← поменять») уже показана */
@@ -164,6 +176,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cardList, setCardList] = useState<Card[]>(demoCards);
   const [cardId, setCardId] = useState(demoCards[0].id);
   const [phone, setPhone] = useState(phoneMasked);
+  const [name, setName] = useState('Иван');
+  const [delivery, setDelivery] = useState<DeliveryPref>({ deliveryId: 'evropochta', pointId: 'p112', address: null });
   const [aiConsent, setAiConsent] = useState(false);
   const [lastBook, setLastBook] = useState<LastBook | null>(null);
   const [gesturesSeen, setGesturesSeen] = useState(false);
@@ -191,6 +205,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(v.cards) && v.cards.length) setCardList(v.cards);
         if (typeof v.cardId === 'string') setCardId(v.cardId);
         if (typeof v.phone === 'string') setPhone(v.phone);
+        if (typeof v.name === 'string') setName(v.name);
+        if (v.delivery && typeof v.delivery === 'object') setDelivery(v.delivery);
         if (typeof v.aiConsent === 'boolean') setAiConsent(v.aiConsent);
         if (v.lastBook) setLastBook(v.lastBook);
         // подсказка теперь про свайпы в книге — старый флаг от корзины не считаем
@@ -206,8 +222,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste, name, delivery })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, name, delivery]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -250,6 +266,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       phone,
       setPhone,
+      name,
+      setName,
+      delivery,
+      setDelivery,
+      removeCard: (id) => {
+        setCardList((l) => {
+          const next = l.filter((c) => c.id !== id);
+          if (cardId === id && next[0]) setCardId(next[0].id);
+          return next;
+        });
+      },
       aiConsent,
       lastBook,
       gesturesSeen,
@@ -319,7 +346,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating, name, delivery],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

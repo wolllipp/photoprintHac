@@ -8,13 +8,14 @@ import { ArrowRightIcon, LinkSimpleIcon, MicrophoneIcon } from 'phosphor-react-n
 import { useEffect, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { Easing, SlideInDown, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { tiles } from '@/data/demo';
+import { SHEET_TAIL, sheetIn } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export type NewChoice = 'photos' | 'words' | 'voice' | 'print' | 'shared';
@@ -63,11 +64,11 @@ export function NewSheet({ visible, onClose, onPick, onDismissed }: { visible: b
         </Animated.View>
         <GestureDetector gesture={pan}>
         <Animated.View
-          entering={SlideInDown.duration(320).easing(Easing.out(Easing.cubic))}
+          entering={sheetIn}
           onLayout={(e) => {
             h.set(e.nativeEvent.layout.height);
           }}
-          style={[s.sheet, { paddingBottom: insets.bottom + 16 }, slide]}>
+          style={[s.sheet, { marginBottom: -SHEET_TAIL, paddingBottom: insets.bottom + 16 + SHEET_TAIL }, slide]}>
           <View style={s.grab} />
           <Text style={s.title}>Что создаём?</Text>
 

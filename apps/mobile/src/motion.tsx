@@ -11,6 +11,8 @@ import Animated, {
   FadeInDown,
   Keyframe,
   ReduceMotion,
+  SlideInDown,
+  SlideOutDown,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -31,6 +33,14 @@ export const ease = {
 export const sheetSpring = { damping: 26, stiffness: 260, mass: 1, reduceMotion: ReduceMotion.System } as const;
 /** После броска пальцем — лёгкий отскок. */
 export const flickSpring = { damping: 20, stiffness: 240, mass: 1, reduceMotion: ReduceMotion.System } as const;
+
+/**
+ * Лист снизу: мягко выезжает по кривой iOS-листа — без пружины, поэтому не перелетает вверх и не «отрывается» от края.
+ * SHEET_TAIL — фон листа уходит под нижний край с запасом: даже на последних кадрах снизу не видно зазора.
+ */
+export const sheetIn = SlideInDown.duration(380).easing(Easing.bezier(0.32, 0.72, 0, 1)).reduceMotion(ReduceMotion.System);
+export const sheetOut = SlideOutDown.duration(240).easing(Easing.bezier(0.32, 0, 0.67, 0)).reduceMotion(ReduceMotion.System);
+export const SHEET_TAIL = 80;
 
 /** Появление элемента списка: подъём на 12 px с затуханием, шаг 40 мс. */
 export const enterItem = (index = 0) =>

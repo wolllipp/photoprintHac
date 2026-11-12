@@ -11,7 +11,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
+import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { type PhotoName, pic } from '@/data/photos';
 import { duration, ThinkingLine } from '@/motion';
@@ -96,14 +96,15 @@ export default function Build() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 12 }]}>
-      <NavBar title="" />
-      <View style={s.body}>
-        <View style={{ gap: 4 }} accessibilityLiveRegion="polite">
-          <Animated.Text key={done ? 'done' : 'work'} entering={FadeIn.duration(duration.slow)} style={s.title}>
+      <TitleBar
+        title={
+          <Animated.Text key={done ? 'done' : 'work'} entering={FadeIn.duration(duration.slow)} style={s.title} numberOfLines={1} accessibilityRole="header">
             {done ? 'Книга готова' : 'Собираем книгу'}
           </Animated.Text>
-          <Text style={s.sub}>{title} · обычно до 30 секунд</Text>
-        </View>
+        }
+      />
+      <View style={s.body}>
+        <Text style={s.sub} accessibilityLiveRegion="polite">{title} · обычно до 30 секунд</Text>
 
         {/* фотокарточки кружатся по экрану */}
         {/* высота сцены — сколько осталось места: карточки не наезжают на строку и кнопку */}
@@ -138,7 +139,7 @@ export default function Build() {
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { flex: 1, paddingHorizontal: 16, gap: 18, paddingTop: 4 },
-  title: { fontSize: 32, lineHeight: 38, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
+  title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
   sub: { fontSize: 15, fontFamily: fonts.regular, color: colors.mut },
   stage: { flex: 1, justifyContent: 'center', overflow: 'hidden' },
   card: { position: 'absolute', backgroundColor: '#fff', borderRadius: 10, padding: 5, paddingBottom: 16, boxShadow: '0 8px 20px rgba(60,40,30,0.2)' },

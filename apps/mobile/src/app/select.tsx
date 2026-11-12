@@ -13,7 +13,7 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import Animated, { FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue, withSpring, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
+import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { pic, type PhotoName } from '@/data/photos';
 import { AnimatedNumber, ease } from '@/motion';
@@ -40,10 +40,9 @@ export default function Select() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title="" />
+      <TitleBar title="Отбор фото" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={{ gap: 4 }}>
-          <Text style={s.title}>Отбор фото</Text>
           <View style={s.countRow} accessibilityLiveRegion="polite">
             <AnimatedNumber value={count} format={String} style={s.count} />
             <Text style={s.of}>из 214 · 4 главы</Text>

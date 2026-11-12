@@ -9,6 +9,8 @@ export type Suggestion = {
   photo: PhotoName;
   /** описание на полноэкранном слайде */
   desc: string;
+  /** какие фото примерно войдут в книгу — показываем после обложки */
+  pages?: PhotoName[];
   title: string;
   meta: string;
   tag: string;
@@ -37,10 +39,10 @@ export const points = 350;
 
 /** Первый — главный черновик в большом блоке главной. */
 export const suggestions: Suggestion[] = [
-  { id: 'minsk', photo: 'city-sunset', desc: 'Прогулки по осеннему городу — уже разложили лучшие кадры на 24 страницы', title: 'Октябрь в Минске', meta: '86 фото · 24 страницы', tag: 'черновик готов', tagTone: 'coral', cover: ['g2', 'g6', 'g3'] },
-  { id: 'birthday', photo: 'birthday-cake', desc: 'Свечи, торт и все, кто пришёл. Черновик готов — осталось выбрать обложку', title: 'День рождения', meta: '64 фото · 20 стр.', tag: 'черновик готов', tagTone: 'coral', cover: ['g5', 'g3', 'g1'] },
-  { id: 'friends', photo: 'friends-selfie', desc: '112 снимков с друзьями за осень. Убрали дубли и смазанные', title: 'Мы с друзьями', meta: '112 фото · 32 стр.', tag: 'черновик готов', tagTone: 'coral', cover: ['g1', 'g4', 'g6'] },
-  { id: 'year-2026', photo: 'night-window', desc: 'Весь ваш год в одной книге. Успеем напечатать к Новому году', title: 'Книга года 2026', meta: '1 240 фото · к 20 дек', tag: 'к Новому году', tagTone: 'green', cover: ['g6', 'g1', 'g4'] },
+  { id: 'minsk', photo: 'city-sunset', desc: 'Прогулки по осеннему городу — уже разложили лучшие кадры на 24 страницы', title: 'Октябрь в Минске', meta: '86 фото · 24 страницы', pages: ['night-window', 'cafe-interior', 'concert', 'cafe-dessert'], tag: 'черновик готов', tagTone: 'coral', cover: ['g2', 'g6', 'g3'] },
+  { id: 'birthday', photo: 'birthday-cake', desc: 'Свечи, торт и все, кто пришёл. Черновик готов — осталось выбрать обложку', title: 'День рождения', meta: '64 фото · 24 стр.', pages: ['friends-night', 'bouquet', 'friends-selfie', 'roses'], tag: 'черновик готов', tagTone: 'coral', cover: ['g5', 'g3', 'g1'] },
+  { id: 'friends', photo: 'friends-selfie', desc: '112 снимков с друзьями за осень. Убрали дубли и смазанные', title: 'Мы с друзьями', meta: '112 фото · 32 стр.', pages: ['friends-night', 'cafe-dessert', 'concert', 'city-sunset'], tag: 'черновик готов', tagTone: 'coral', cover: ['g1', 'g4', 'g6'] },
+  { id: 'year-2026', photo: 'night-window', desc: 'Весь ваш год в одной книге. Успеем напечатать к Новому году', title: 'Книга года 2026', meta: '1 240 фото · к 20 дек', pages: ['roses', 'city-sunset', 'bouquet', 'cafe-interior'], tag: 'к Новому году', tagTone: 'green', cover: ['g6', 'g1', 'g4'] },
 ];
 
 export const albums: Album[] = [

@@ -13,7 +13,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, T
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
+import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { PRINT_DAYS } from '@/data/demo';
 import { dayMonth, daysWord } from '@/data/occasions';
@@ -84,7 +84,7 @@ export default function NewShared() {
 
   return (
     <KeyboardAvoidingView style={[s.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <NavBar title="Новый альбом" />
+      <TitleBar title="Новый альбом" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
         {/* для чего — от этого зависит, когда собираем фото */}
         <Animated.View entering={enterItem(0)} style={s.kinds} accessibilityRole="radiogroup">

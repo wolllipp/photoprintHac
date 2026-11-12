@@ -10,16 +10,20 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 import { BookOpenIcon, HouseSimpleIcon, PackageIcon } from 'phosphor-react-native';
-import { useRef, type ComponentType } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { useRef, useState, type ComponentType } from 'react';
+import { Image } from 'expo-image';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { NewSheet, type NewChoice } from '@/components/newSheet';
+import { Tap } from '@/components/ui';
 import { BOOK, fitPages } from '@/data/demo';
 import { useStore } from '@/data/store';
+import { SHEET_TAIL, sheetIn, sheetOut } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 type IconProps = { size: number; color: string; weight: 'regular' | 'fill' };
@@ -92,21 +96,13 @@ const MIN_PHOTOS = BOOK.lite.min;
  * Книга из фото: выбрали в галерее — сразу собираем; объём по числу снимков (в среднем 1–2 на страницу).
  * Фото меньше 24 — честно говорим: книга не может быть меньше 24 страниц. Можно добрать фото или напечатать эти как фотографии.
  */
-async function bookFromPhotos(have: string[] = []) {
+async function bookFromPhotos(have: string[] = [], onShort?: (uris: string[]) => void) {
   const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
   if (res.canceled || !res.assets.length) return;
   const uris = [...have, ...res.assets.map((a) => a.uri).filter((u) => !have.includes(u))];
   const n = uris.length;
   if (n < MIN_PHOTOS) {
-    Alert.alert(
-      'Нужно больше фото',
-      `Самая маленькая книга — ${MIN_PHOTOS} страницы, на каждую нужно хотя бы одно фото. Выбрано ${n} — добавьте ещё ${MIN_PHOTOS - n}.`,
-      [
-        { text: 'Добавить фото', onPress: () => bookFromPhotos(uris).catch(() => {}) },
-        { text: 'Напечатать как фото', onPress: () => router.push({ pathname: '/print', params: { photos: JSON.stringify(uris) } }) },
-        { text: 'Отмена', style: 'cancel' },
-      ],
-    );
+    onShort?.(uris);
     return;
   }
   router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(fitPages('lite', Math.round(n / 1.6))) } });
@@ -122,13 +118,15 @@ async function printFromPhotos() {
 /** Лист «Создать» — один на все вкладки: открывается и «+» в меню, и кружком на главной. */
 export function CreateHost() {
   const { creating, setCreating } = useStore();
+  // фото для книги мало — своё окно в стиле приложения (а не системное)
+  const [short, setShort] = useState<string[] | null>(null);
   // галерею открываем, только когда лист закрылся полностью: iOS молча не покажет второе окно поверх закрывающегося
   const wantGallery = useRef<'book' | 'print' | null>(null);
   const openGallery = () => {
     const want = wantGallery.current;
     if (!want) return;
     wantGallery.current = null;
-    (want === 'book' ? bookFromPhotos() : printFromPhotos()).catch(() => {});
+    (want === 'book' ? bookFromPhotos([], setShort) : printFromPhotos()).catch(() => {});
   };
   const onPick = (c: NewChoice) => {
     setCreating(false);
@@ -141,7 +139,81 @@ export function CreateHost() {
     else if (c === 'voice') router.push({ pathname: '/story', params: { voice: '1' } });
     else router.push('/shared');
   };
-  return <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} onDismissed={openGallery} />;
+  return (
+    <>
+      <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} onDismissed={openGallery} />
+      {short ? (
+        <ShortSheet
+          uris={short}
+          onAdd={() => {
+            const have = short;
+            setShort(null);
+            bookFromPhotos(have, setShort).catch(() => {});
+          }}
+          onPrint={() => {
+            const have = short;
+            setShort(null);
+            router.push({ pathname: '/print', params: { photos: JSON.stringify(have) } });
+          }}
+          onClose={() => setShort(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * «Нужно больше фото» — в стиле приложения: лист снизу, полоса «10 из 24», выбранные фото,
+ * главное действие — добрать фото; запасное — напечатать эти как фотографии.
+ */
+function ShortSheet({ uris, onAdd, onPrint, onClose }: { uris: string[]; onAdd: () => void; onPrint: () => void; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const n = uris.length;
+  const need = MIN_PHOTOS - n;
+  const shown = uris.slice(0, 5);
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(240)} style={[StyleSheet.absoluteFill, s.scrim]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
+      </Animated.View>
+      <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, { bottom: -SHEET_TAIL, paddingBottom: insets.bottom + 16 + SHEET_TAIL }]}>
+        <View style={s.grab} />
+        <Text style={s.title}>Нужно больше фото</Text>
+        <Text style={s.text}>Самая маленькая книга — {MIN_PHOTOS} страницы, на каждую нужно хотя бы одно фото.</Text>
+
+        {/* сколько есть и сколько нужно */}
+        <View style={{ gap: 8 }}>
+          <View style={s.countRow}>
+            <Text style={s.count}>
+              {n} <Text style={s.countOf}>из {MIN_PHOTOS} фото</Text>
+            </Text>
+            <Text style={s.need}>ещё {need}</Text>
+          </View>
+          <View style={s.track}>
+            <View style={[s.fill, { width: `${(n / MIN_PHOTOS) * 100}%` }]} />
+          </View>
+        </View>
+
+        <View style={s.thumbs}>
+          {shown.map((u) => (
+            <Image key={u} source={{ uri: u }} style={s.thumb} contentFit="cover" />
+          ))}
+          {n > shown.length ? (
+            <View style={[s.thumb, s.more]}>
+              <Text style={s.moreText}>+{n - shown.length}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Tap style={s.primary} onPress={onAdd} accessibilityRole="button">
+          <Text style={s.primaryText}>Добавить ещё {need} фото</Text>
+        </Tap>
+        <Tap style={s.secondary} onPress={onPrint} accessibilityRole="button">
+          <Text style={s.secondaryText}>Напечатать эти как фото</Text>
+        </Tap>
+      </Animated.View>
+    </View>
+  );
 }
 
 const s = StyleSheet.create({
@@ -152,5 +224,24 @@ const s = StyleSheet.create({
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   btnOn: { backgroundColor: colors.coralAction, borderRadius: 20 },
   badge: { position: 'absolute', top: -5, right: -5, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, borderWidth: 2, borderColor: colors.bg, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  scrim: { backgroundColor: 'rgba(20,16,14,0.35)' },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 18, paddingTop: 8, gap: 14 },
+  grab: { alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
+  title: { fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
+  text: { fontSize: 15, lineHeight: 21, fontFamily: fonts.medium, color: colors.mut, marginTop: -6 },
+  countRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  count: { fontSize: 22, fontFamily: fonts.display, color: colors.fg, fontVariant: ['tabular-nums'] },
+  countOf: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
+  need: { fontSize: 14, fontFamily: fonts.semibold, color: colors.coralAction },
+  track: { height: 8, borderRadius: 4, backgroundColor: colors.card, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
+  thumbs: { flexDirection: 'row', gap: 6 },
+  thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.card2 },
+  more: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
+  moreText: { fontSize: 14, fontFamily: fonts.bold, color: colors.mut },
+  primary: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
+  secondary: { height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', marginTop: -4 },
+  secondaryText: { fontSize: 16, fontFamily: fonts.semibold, color: colors.fg },
   badgeText: { fontSize: 10.5, fontFamily: fonts.bold, color: '#fff' },
 });

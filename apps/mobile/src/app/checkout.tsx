@@ -10,7 +10,7 @@ import { router } from 'expo-router';
 import { CheckIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChoiceTile } from '@/components/choice';
@@ -18,7 +18,7 @@ import { Pik, Tap } from '@/components/ui';
 import { delivery, payments, pickupPoints, PIK_RATE, piksUsable } from '@/data/demo';
 import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore } from '@/data/store';
-import { AnimatedNumber, ease } from '@/motion';
+import { AnimatedNumber, ease, SHEET_TAIL, sheetIn } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 export default function Checkout() {
@@ -34,7 +34,9 @@ export default function Checkout() {
   const [code, setCode] = useState('');
   const [codeErr, setCodeErr] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  const [deliveryId, setDeliveryId] = useState<string>(delivery[0].id);
+  // доставка — по умолчанию та, что в профиле
+  const pref = useStore().delivery;
+  const [deliveryId, setDeliveryId] = useState<string>(pref.deliveryId ?? delivery[0].id);
   const [payId, setPayId] = useState<string>(payments[0].id);
   const [usePiks, setUsePiks] = useState(false);
   // согласия, как на сайте: без обеих галочек оплатить нельзя
@@ -42,11 +44,11 @@ export default function Checkout() {
   const [nudge, setNudge] = useState(false);
   const agreed = agree.offer && agree.print;
   // куда везти: пункт выдачи или адрес (для курьера, Белпочты и EMS)
-  const [pointId, setPointId] = useState(pickupPoints[0].id);
+  const [pointId, setPointId] = useState(pref.pointId ?? pickupPoints[0].id);
   const point = pickupPoints.find((x) => x.id === pointId) ?? pickupPoints[0];
   const [pickOpen, setPickOpen] = useState(false);
   type Addr = { street: string; flat: string; entrance: string; note: string };
-  const [address, setAddress] = useState<Addr | null>(null);
+  const [address, setAddress] = useState<Addr | null>(pref.address);
   const [draftAddr, setDraftAddr] = useState<Addr>({ street: '', flat: '', entrance: '', note: '' });
   const [addrOpen, setAddrOpen] = useState(false);
   const [nudgeAddr, setNudgeAddr] = useState(false);
@@ -443,11 +445,11 @@ function PhoneSheet({ title = 'Номер телефона', onClose, children }
   const insets = useSafeAreaInsets();
   const kb = useAnimatedKeyboard();
   const bottom = insets.bottom;
-  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(kb.height.value, bottom) + 16 }));
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(kb.height.value, bottom) + 16 + SHEET_TAIL }));
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
       <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
-      <Animated.View entering={SlideInDown.duration(340).easing(Easing.out(Easing.cubic))} style={[s.sheet, lift]}>
+      <Animated.View entering={sheetIn} style={[s.sheet, { marginBottom: -SHEET_TAIL }, lift]}>
         <View style={s.grab} />
         <Text style={s.sheetTitle}>{title}</Text>
         {children}

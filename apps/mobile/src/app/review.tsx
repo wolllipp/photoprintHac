@@ -17,7 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ChatCircleTextIcon, CheckIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditorGuide } from '@/components/editorGuide';
@@ -27,7 +27,7 @@ import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tari
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { ThinkingLine } from '@/motion';
+import { SHEET_TAIL, sheetIn, sheetOut, ThinkingLine } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 /**
@@ -554,7 +554,7 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, 
       <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
       </Animated.View>
-      <Animated.View entering={SlideInDown.springify().damping(24).stiffness(200).mass(0.9)} exiting={SlideOutDown.duration(220).easing(Easing.in(Easing.quad))} style={[s.sheet, s.sheetAbs, { paddingBottom: bottom + 12 }]}>
+      <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, s.sheetAbs, { bottom: -SHEET_TAIL, paddingBottom: bottom + 12 + SHEET_TAIL }]}>
         <View style={s.menuHead}>
           {k ? <Image source={pic(k)} style={s.menuThumb} contentFit="cover" /> : null}
           <View style={{ flex: 1 }}>

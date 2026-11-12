@@ -11,7 +11,7 @@ import { router } from 'expo-router';
 import { CaretDownIcon, CheckIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
@@ -22,8 +22,6 @@ import { colors, fonts } from '@/theme';
 
 const STAGES = ['Принят', 'Проверен', 'Печать', 'В пути', 'Готов'];
 const NOW = ['Заказ принят', 'Проверяем макет', 'Печатаем', 'Едет к вам', 'Можно забирать'];
-/** Что будет следующим шагом — строкой под полосой. */
-const NEXT = ['проверим макет', 'печать', 'отправка', 'можно забирать', ''];
 /** «Европочта · ПВЗ №112, Притыцкого, 29» → «ПВЗ №112». */
 const place = (live: string) => live.split(' · ').pop()?.split(',')[0] ?? live;
 
@@ -84,7 +82,7 @@ export default function Orders() {
                   ) : null}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
-                      <Text style={s.btnText}>Проблема с заказом</Text>
+                      <Text style={s.btnText} numberOfLines={1}>Есть проблема</Text>
                     </Tap>
                     {o.items?.length ? (
                       <Tap
@@ -97,7 +95,7 @@ export default function Orders() {
                         }}
                         accessibilityRole="button"
                         accessibilityLabel="Заказать ещё раз то же самое">
-                        <Text style={s.btnText}>Заказать ещё</Text>
+                        <Text style={s.btnText} numberOfLines={1}>Заказать ещё</Text>
                       </Tap>
                     ) : null}
                   </View>
@@ -182,20 +180,35 @@ function SectionTitle({ title, n, tone }: { title: string; n: number; tone: 'cor
  */
 function OrderRow({ order, open, onToggle, children }: { order: PlacedOrder; open: boolean; onToggle: () => void; children?: ReactNode }) {
   const ready = order.stage >= 4;
-  const turn = useAnimatedStyle(() => ({ transform: [{ rotate: withTiming(open ? '180deg' : '0deg', { duration: 220 }) }] }));
+  const turn = useAnimatedStyle(() => ({ transform: [{ rotate: withTiming(open ? '180deg' : '0deg', { duration: 260 }) }] }));
+  // раскрытие и сворачивание — одним движением высоты (туда и обратно одинаково плавно):
+  // содержимое всегда на месте и измерено, а видимая высота плавно растёт от 0 до него и обратно
+  const [bodyH, setBodyH] = useState(0);
+  const p = useSharedValue(open ? 1 : 0);
+  useEffect(() => {
+    p.set(withTiming(open ? 1 : 0, { duration: 320, easing: Easing.bezier(0.32, 0.72, 0, 1) }));
+  }, [open, p]);
+  const body = useAnimatedStyle(() => ({ height: p.value * bodyH, opacity: Math.min(1, p.value * 1.4) }));
   return (
-    <Animated.View layout={LinearTransition.duration(260).easing(ease.smoothOut)} style={s.card}>
+    <View style={s.card}>
       <Tap onPress={onToggle} style={{ gap: 12 }} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${order.title}: ${NOW[order.stage]}${ready ? '' : `, будет ${order.readyBy}`}`}>
-        {/* что за заказ — мелко; что сейчас — крупно; когда и где — строкой ниже */}
+        {/* что за книга — крупно, с обложкой; стадия и когда будет — строкой под ней */}
         <View style={s.cardHead}>
-          <Text style={s.orderTitle} numberOfLines={1}>«{order.title}»</Text>
+          <Image source={pic(order.cover)} style={s.thumb} contentFit="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={s.bookTitle} numberOfLines={1}>{order.title}</Text>
+            <Text style={s.cardSub} numberOfLines={1}>{order.tariffName} · №{order.id} · {rub(order.total)}</Text>
+          </View>
           <Animated.View style={turn}>
             <CaretDownIcon size={16} color={colors.mut} weight="bold" />
           </Animated.View>
         </View>
-        <View style={{ gap: 2 }}>
-          <Text style={[s.stage, ready && { color: colors.tealInk }]} numberOfLines={1}>{NOW[order.stage]}</Text>
-          <Text style={s.eta} numberOfLines={1}>{ready ? place(order.live) : `будет ${order.readyBy} в ${place(order.live)}`}</Text>
+        <View style={s.statusLine}>
+          <View style={[s.statusDot, ready && { backgroundColor: colors.tealInk }]} />
+          <Text style={s.statusText} numberOfLines={1}>
+            <Text style={[s.stage, ready && { color: colors.tealInk }]}>{NOW[order.stage]}</Text>
+            <Text style={s.eta}>{ready ? ` · ${place(order.live)}` : ` · будет ${order.readyBy} в ${place(order.live)}`}</Text>
+          </Text>
         </View>
         {/* полоса из пяти отрезков: пройденные — коралловые, текущий — наполовину */}
         <View style={s.segs}>
@@ -205,10 +218,9 @@ function OrderRow({ order, open, onToggle, children }: { order: PlacedOrder; ope
             </View>
           ))}
         </View>
-        <Text style={s.next} numberOfLines={1}>{ready ? 'заказ готов — заберите в течение 7 дней' : `дальше: «${NEXT[order.stage]}»${order.stage === 3 ? ' — придёт SMS' : ''}`}</Text>
       </Tap>
-      {open ? (
-        <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(140)} style={{ gap: 14 }}>
+      <Animated.View style={[{ overflow: 'hidden' }, body]} pointerEvents={open ? 'auto' : 'none'}>
+        <View style={s.body} onLayout={(e) => setBodyH(e.nativeEvent.layout.height)}>
           <LinearGradient
             colors={['rgba(60,40,30,0)', 'rgba(60,40,30,0.2)', 'rgba(60,40,30,0)']}
             start={{ x: 0, y: 0 }}
@@ -217,9 +229,9 @@ function OrderRow({ order, open, onToggle, children }: { order: PlacedOrder; ope
           />
           <Timeline order={order} />
           {children}
-        </Animated.View>
-      ) : null}
-    </Animated.View>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -321,7 +333,9 @@ const s = StyleSheet.create({
   paid: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.peach, borderRadius: 22, padding: 14 },
   paidText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
 
-  card: { backgroundColor: colors.card, borderRadius: 24, padding: 14, gap: 14 },
+  card: { backgroundColor: colors.card, borderRadius: 24, padding: 14 },
+  // раскрытая часть: стоит поверх, чтобы её высота мерилась целиком, а видимая — анимировалась
+  body: { position: 'absolute', left: 0, right: 0, top: 0, paddingTop: 14, gap: 14 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sec: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   secPill: { minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
@@ -333,13 +347,16 @@ const s = StyleSheet.create({
   doneCheck: { position: 'absolute', right: -5, bottom: -5, width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.bg, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
   doneLink: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink },
-  orderTitle: { flex: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.mut },
-  stage: { fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.5, color: colors.fg },
-  eta: { fontSize: 15, lineHeight: 20, fontFamily: fonts.semibold, color: colors.coralAction },
+  thumb: { width: 44, height: 52, borderRadius: 10 },
+  bookTitle: { fontSize: 20, lineHeight: 25, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
+  statusLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coralAction },
+  statusText: { flex: 1 },
+  stage: { fontSize: 16, fontFamily: fonts.bold, color: colors.coralAction },
+  eta: { fontSize: 15, fontFamily: fonts.medium, color: colors.fg },
   segs: { flexDirection: 'row', gap: 5 },
   seg: { flex: 1, height: 7, borderRadius: 4, backgroundColor: colors.card2, overflow: 'hidden' },
   segFill: { height: 7, borderRadius: 4, backgroundColor: colors.coralAction },
-  next: { fontSize: 13.5, fontFamily: fonts.medium, color: colors.mut },
   cardSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 2 },
   divider: { height: 1, marginHorizontal: -12 },
 
@@ -349,7 +366,7 @@ const s = StyleSheet.create({
   btn: { flex: 1, height: 52, borderRadius: 26, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   btnMain: { height: 54, borderRadius: 27, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   btnDone: { backgroundColor: colors.tealTint },
-  btnText: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg },
+  btnText: { fontSize: 15.5, fontFamily: fonts.semibold, color: colors.fg, textAlign: 'center' },
   tl: { paddingTop: 2 },
   tlRow: { flexDirection: 'row', gap: 12 },
   tlRail: { width: 18, alignItems: 'center' },

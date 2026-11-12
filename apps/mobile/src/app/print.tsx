@@ -9,17 +9,17 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { CaretLeftIcon, MinusIcon, PlusIcon } from 'phosphor-react-native';
+import { MinusIcon, PlusIcon } from 'phosphor-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
-import { AnimatedNumber, ease } from '@/motion';
+import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 // цены — с сайта (цифровая печать, от 0,49 р.); источник правды — справочник D14
@@ -99,15 +99,7 @@ export default function Print() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      {/* «назад» и заголовок — в одну линию */}
-      <View style={s.head}>
-        <Tap style={s.back} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Назад" hitSlop={8}>
-          <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
-        </Tap>
-        <Animated.Text entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.title} accessibilityRole="header">
-          Фотопечать
-        </Animated.Text>
-      </View>
+      <TitleBar title="Фотопечать" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
 
         {/* формат */}

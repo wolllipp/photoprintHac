@@ -6,11 +6,12 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, SlideInDown } from 'react-native-reanimated';
+import Animated, {  } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pik, Tap } from '@/components/ui';
 import { pic, type Pic } from '@/data/photos';
+import { SHEET_TAIL, sheetIn } from '@/motion';
 import { colors, fonts } from '@/theme';
 
 /** «Карелия, июль» → karelia-iyul — короткий адрес ссылки. */
@@ -30,7 +31,7 @@ export function ShareBookSheet({ visible, title, cover, meta, onClose }: { visib
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Pressable style={[StyleSheet.absoluteFill, s.scrim]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
-        <Animated.View entering={SlideInDown.duration(340).easing(Easing.out(Easing.cubic))} style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        <Animated.View entering={sheetIn} style={[s.sheet, { marginBottom: -SHEET_TAIL, paddingBottom: insets.bottom + 16 + SHEET_TAIL }]}>
           <View style={s.grab} />
           <Text style={s.title}>Поделиться книгой</Text>
 

@@ -5,11 +5,12 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { CaretLeftIcon, PlusIcon } from 'phosphor-react-native';
+import { PlusIcon } from 'phosphor-react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { sharedAlbums } from '@/data/demo';
 import { pic } from '@/data/photos';
@@ -20,13 +21,7 @@ export default function SharedList() {
   const insets = useSafeAreaInsets();
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      {/* «назад» и заголовок — в одну линию */}
-      <View style={s.head}>
-        <Tap style={s.back} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Назад" hitSlop={8}>
-          <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
-        </Tap>
-        <Text style={s.title} accessibilityRole="header">Общие альбомы</Text>
-      </View>
+      <TitleBar title="Общие альбомы" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
         <Text style={s.lead}>Отправьте ссылку родным — каждый добавит свои фото, без приложения. Из всех снимков — одна книга.</Text>
 

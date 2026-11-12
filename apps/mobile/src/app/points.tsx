@@ -9,7 +9,7 @@ import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
+import { TitleBar } from '@/components/nav';
 import { Pik, Tap } from '@/components/ui';
 import { PIK_RATE, pikHistory } from '@/data/demo';
 import { rub, useStore } from '@/data/store';
@@ -27,7 +27,7 @@ export default function Points() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title="" />
+      <TitleBar title="Пики" />
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 100 }]}>
         <Animated.View entering={enterItem(0)} style={s.balance}>
           <Text style={s.label}>Ваши пики</Text>
