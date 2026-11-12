@@ -37,6 +37,9 @@ ASSISTANT_DATA_URL=http://localhost:8000/insight/data uv run uvicorn app.server:
 
 # 4. Дашборд Insight (трек 1) + экран «Ассистент» — в новом окне
 python3 -m http.server 8080 --directory design/insight  # http://localhost:8080
+
+# 5. Ассистент отдельной страницей в стиле приложения (трек 3) — в новом окне
+python3 -m http.server 8090 --directory design/assistant  # http://localhost:8090 (другой адрес сервиса: ?api=http://host:8001)
 ```
 
 **Тестовые учётные записи и роли**
