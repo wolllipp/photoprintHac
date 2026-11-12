@@ -121,6 +121,9 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
     goods = price + extras  # товары и допуслуги — как в приложении
     ship = delivery_cost(dm, price)  # порог бесплатной доставки — по цене товаров до скидок
     gross = goods - promo + ship
+    # строка клиента под блокировкой до конца транзакции: параллельные заказы считают баланс по очереди
+    # и не спишут одни и те же пики дважды (план 1.8)
+    await s.execute(select(User.id).where(User.id == user.id).with_for_update())
     balance = await points_balance(s, user.id)
     if body.points_to_spend > balance:
         raise HTTPException(422, f"не хватает пиков: есть {balance}")

@@ -91,6 +91,12 @@ async def locked_owned_project(s: AsyncSession, project_id: uuid.UUID, user: Use
     return p
 
 
+def ensure_editable(p: Project) -> None:
+    """Заказанную книгу не меняют: печатается ровно то, за что заплатили (план 1.7)."""
+    if p.status == ProjectStatus.ordered:
+        raise HTTPException(409, "проект уже заказан")
+
+
 async def attach(s: AsyncSession, project: Project, photo_ids: list[uuid.UUID], user: User) -> int:
     """Прикрепляет только СВОИ фото; чужие id молча не принимаем."""
     mine = set((await s.execute(select(Photo.id).where(Photo.id.in_(photo_ids), Photo.owner_id == user.id))).scalars())
@@ -155,7 +161,9 @@ async def get_project(project_id: uuid.UUID, user: User = Depends(current_user),
 @router.post("/projects/{project_id}/photos")
 async def add_photos(project_id: uuid.UUID, body: PhotosIn, user: User = Depends(current_user),
                      s: AsyncSession = Depends(get_session)):
-    p = await own_project(s, project_id, user)
+    # блокировка — чтобы фото не прикрепились к книге в тот момент, когда её заказывают
+    p = await locked_owned_project(s, project_id, user)
+    ensure_editable(p)
     added = await attach(s, p, body.photo_ids, user)
     await s.commit()
     return {"added": added}
@@ -319,6 +327,7 @@ async def patch_selection(project_id: uuid.UUID, body: SelectionPatch, user: Use
                           s: AsyncSession = Depends(get_session)):
     """Вернуть отсеянное фото (или убрать выбранное). Ручной выбор сборка больше не трогает."""
     p = await locked_owned_project(s, project_id, user)
+    ensure_editable(p)
     rows = {r.photo_id: r for r in (await s.execute(
         select(ProjectPhoto).where(ProjectPhoto.project_id == p.id)
         .execution_options(populate_existing=True)
