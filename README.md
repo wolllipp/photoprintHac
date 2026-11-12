@@ -20,7 +20,8 @@
 
 ```bash
 # 1. Сервер приложения (трек 2): база, миграции, каталог с ценами super.picpac.by
-cd services/api && cp .env.example .env
+cd services/api && cp .env.example .env               # стенд показа: DEMO_MODE=true (код 0000, /dev/*)
+uv run python -c "import secrets; print('JWT_SECRET=' + secrets.token_urlsafe(48))" >> .env   # свой секрет, без него сервер не стартует
 docker compose up -d                                   # PostgreSQL + pgvector на :5433
 uv sync && uv run alembic upgrade head && uv run python -m app.seed
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000  # http://localhost:8000/docs
@@ -41,7 +42,7 @@ python3 -m http.server 8080 --directory design/insight  # http://localhost:8080
 **Тестовые учётные записи и роли**
 | Где | Как войти |
 |---|---|
-| Приложение | гость без входа; при оплате — телефон `+375 29 123-45-67`, код из SMS `0000` (DEMO_MODE). Оплата не списывается |
+| Приложение | гость без входа; при оплате — свой номер телефона и код из SMS `0000` (только при `DEMO_MODE=true`; без него вход по SMS выключен). Разные номера — разные аккаунты. Оплата не списывается |
 | Дашборд и ассистент | переключатель роли в интерфейсе: «Руководитель» (`ceo`) и «Менеджер» (`manager`, без кадровых показателей); `admin` ассистент отклоняет |
 | Демо статуса заказа | `POST /dev/orders/{id}/advance` двигает заказ по этапам |
 

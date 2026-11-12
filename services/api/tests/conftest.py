@@ -12,6 +12,8 @@ TEST_URL = os.environ.get("TEST_DATABASE_URL",
 os.environ["DATABASE_URL"] = TEST_URL
 os.environ["BUILD_STAGE_DELAY"] = "0"
 os.environ["DEMO_MODE"] = "true"
+# секрет обязателен (app/config.py); у тестов — свой, не из .env
+os.environ["JWT_SECRET"] = "test-secret-only-for-pytest-0123456789abcdef"
 
 from app import db  # noqa: E402
 from app.config import settings  # noqa: E402

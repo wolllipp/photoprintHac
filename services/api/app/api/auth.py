@@ -49,14 +49,18 @@ async def guest(s: AsyncSession = Depends(get_session)):
 @router.post("/auth/otp/request")
 async def otp_request(body: PhoneIn):
     phone = norm_phone(body.phone)
-    return {"sent": True, "phone": phone, **({"demo_code_hint": "код из DEMO"} if settings.demo_mode else {})}
+    if not settings.demo_mode:
+        # отправки SMS ещё нет: честно говорим, а не делаем вид, что код ушёл
+        raise HTTPException(503, "вход по SMS пока не подключён")
+    return {"sent": True, "phone": phone, "demo_code_hint": "код из DEMO"}
 
 
 @router.post("/auth/otp/verify")
 async def otp_verify(body: VerifyIn, guest: User | None = Depends(optional_user),
                      s: AsyncSession = Depends(get_session)):
     phone = norm_phone(body.phone)
-    if body.code != settings.otp_demo_code:
+    # демо-код принимается только на стенде с DEMO_MODE=true; иначе кода, который подошёл бы, нет
+    if not settings.demo_mode or body.code != settings.otp_demo_code:
         raise HTTPException(400, "неверный код")
     user = (await s.execute(select(User).where(User.phone == phone))).scalar_one_or_none()
     if user is None:

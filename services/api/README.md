@@ -3,7 +3,8 @@
 FastAPI + PostgreSQL (pgvector). Контекст: `notes/14-backend-start.md`.
 
 ```bash
-cp .env.example .env
+cp .env.example .env                       # DEMO_MODE=true — стенд показа
+uv run python -c "import secrets; print('JWT_SECRET=' + secrets.token_urlsafe(48))" >> .env   # свой секрет, обязателен
 docker compose up -d                       # Postgres+pgvector на :5433
 docker exec api-db-1 psql -U picpac -c "create extension if not exists vector"
 uv run alembic upgrade head
@@ -24,7 +25,7 @@ uv run pytest
 ## Ручки (по экранам journey.html)
 | Экран | Ручки |
 |---|---|
-| Вход | `POST /auth/guest`, `POST /auth/otp/request`, `POST /auth/otp/verify` (демо-код `0000`), `GET /me` |
+| Вход | `POST /auth/guest`, `POST /auth/otp/request`, `POST /auth/otp/verify` (демо-код `0000` — только при `DEMO_MODE=true`), `GET /me` |
 | Главная | `GET /home` |
 | Загрузка | `POST /photos` (multipart), `GET /photos/{id}/file` |
 | Опишите книгу (Б) | `POST /projects/story` |
