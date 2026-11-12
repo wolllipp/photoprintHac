@@ -1137,3 +1137,17 @@ body.chat-page .top-actions { top: 12px; right: 18px; }
   .cg-presets { grid-template-columns: 1fr; } .cg-bar { padding-right: 70px; }
 }
 .ans p { margin: 0 0 10px; } .ans p:last-child { margin: 0; } .ans ul { margin: 0 0 10px; padding-left: 22px; } .ans code { padding: 1px 6px; border-radius: 6px; background: var(--sand); font-size: .9em; }
+
+/* Прогноз на 4 недели и свежесть данных (ТЗ 5.2) */
+.fc-alert { margin: 4px 0 12px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--coral-tint); font-size: var(--t-sm); line-height: 1.4; }
+.fc-wrap { overflow-x: auto; }
+.fc-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.fc-table th, .fc-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.fc-table th:first-child { text-align: left; }
+.fc-table thead th { font-weight: 500; color: var(--ink-3); }
+.fc-load { display: block; font-size: 12px; color: var(--ink-3); }
+.fc-bad, .fc-bad .fc-load { color: var(--coral-bright); font-weight: 600; }
+.fresh-list { list-style: none; margin: 8px 0 12px; padding: 0; display: grid; gap: 10px; }
+.fresh-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.fresh-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); }
+.fresh-dot.bad { background: var(--coral-bright); }

@@ -670,7 +670,9 @@ const sum = (arr, k) => arr.reduce((s, r) => s + r[k], 0);
 const rate = arr => { const s = sum(arr, "sheets"); return s ? sum(arr, "defects") / s : 0; };
 const ratio = (arr, a, b) => { const d = sum(arr, b); return d ? sum(arr, a) / d : 0; };
 const ricoh = r => r.line === DEMO.rules.ricoh;
-const scoped = () => S.line ? rowsAll().filter(r => r.line === S.line) : rowsAll();
+// фильтры «Пульса» (ТЗ 5.2): линия (подразделение производства) и продукт; период — S.period
+const scoped = () => rowsAll().filter(r => (!S.line || r.line === S.line) && (!S.product || r.product === S.product));
+const PRODUCTS = [...new Set(DEMO.production.map(r => r[DEMO.columns.indexOf("product")]))];
 const R = DEMO.rules;
 
 /* Состояние дела. У D-118 поля лежат прямо в S, у остальных такой же объект в S.others */
@@ -1179,10 +1181,12 @@ const WIDGETS = {
     const r = homeRange();
     return `<div class="sheet"><h2>Все показатели</h2><div class="ledger">${KPI.map(g => (g.hr && !isCeo()) ? `<div class="lg-col"><h2>${g.group}</h2><p class="note small">Кадровые показатели видит только руководитель.</p></div>` : `<div class="lg-col"><h2>${g.group}</h2>${g.items.map(k => { const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null; return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><span class="lg-value num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}</div>`; }).join("")}</div>`).join("")}</div></div>`;
   } },
+  forecast: { title: "Прогноз на 4 недели", html: () => forecastHtml() },
+  sources: { title: "Свежесть данных", html: () => sourcesFreshHtml() },
   ask: { title: "Спросить ассистента", html: () => `<div class="sheet"><h2>Спросить ассистента</h2><div class="chips">${DEMO.assistant.presets.slice(0, 3).map((p, i) => `<a class="chip" href="#/assistant" data-act="askPreset" data-arg="${i}">${esc(p)}</a>`).join("")}</div></div>` },
 };
 /* Размер плитки постоянный и не зависит от места. Сетка из трёх колонок: 4 = одна колонка, 8 = две, 12 = весь ряд */
-const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, kpi: { full: true, spans: [12], pref: 12 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 } };
+const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, kpi: { full: true, spans: [12], pref: 12 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 }, forecast: { full: true, spans: [12], pref: 12 }, sources: { spans: [4, 8], pref: 4 } };
 /* Каждая плитка встаёт в первое свободное место, куда помещается. Пустые ячейки запоминаем, чтобы показать их при настройке */
 function packLayout(ids) {
   const spans = {}, pos = {}, options = {}, rows = [], holes = [];
@@ -1208,8 +1212,65 @@ function packLayout(ids) {
   return { spans, pos, options, holes };
 }
 const packSpans = ids => packLayout(ids).spans;
-const DEFAULT_LAYOUT = ["hero", "bars", "quality", "calendar", "kpi", "goals", "decisions"];
-const LAYOUT_KEY = "picpac-insight-layout-v2";
+const DEFAULT_LAYOUT = ["hero", "bars", "quality", "calendar", "kpi", "forecast", "goals", "decisions", "sources"];
+// v3: в раскладку по умолчанию добавлены прогноз и свежесть данных — старая сохранённая раскладка их бы не показала
+const LAYOUT_KEY = "picpac-insight-layout-v3";
+
+/*
+ * Прогноз спроса и мощности на 4 недели (ТЗ 5.2). Спрос — тренд листов за последние 8 недель по каждой линии
+ * (учитывает фильтр по продукту). ДОПУЩЕНИЕ: мощность линии — максимум, который она уже выпускала за неделю
+ * (пик декабря 2025); дефицит — загрузка выше 95% мощности. В продукте мощность придёт из графика смен и паспорта линии.
+ */
+const FORECAST_WEEKS = 4, TREND_WEEKS = 8, RISK_LOAD = 0.95;
+function forecastRows() {
+  const L = lastWeek(), rows = rowsAll().filter(r => !S.product || r.product === S.product);
+  return DEMO.lines.filter(l => !S.line || l === S.line).map(line => {
+    const mine = rows.filter(r => r.line === line);
+    const weekly = w => sum(mine.filter(r => r.w === w), "sheets");
+    const xs = Array.from({ length: TREND_WEEKS }, (_, i) => L - TREND_WEEKS + 1 + i), ys = xs.map(weekly);
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const k = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / (xs.reduce((s, x) => s + (x - mx) ** 2, 0) || 1);
+    const weeks = Array.from({ length: FORECAST_WEEKS }, (_, i) => L + 1 + i);
+    const demand = weeks.map(w => Math.max(0, Math.round(my + k * (w - mx))));
+    const hist = [...new Set(mine.map(r => r.w))].map(weekly);
+    const capacity = Math.max(1, ...hist);
+    const deficit = weeks.find((w, i) => demand[i] > capacity * RISK_LOAD);
+    return { line, weeks, demand, capacity, deficit, trend: k };
+  });
+}
+function forecastHtml() {
+  const rows = forecastRows(), weeks = rows[0] ? rows[0].weeks : [];
+  const first = rows.filter(r => r.deficit != null).sort((a, b) => a.deficit - b.deficit)[0];
+  const head = first
+    ? `<p class="fc-alert"><b>Неделя дефицита: ${esc(weekRange(first.deficit))}</b> — линия ${esc(first.line)}: спрос ${fInt(first.demand[first.weeks.indexOf(first.deficit)])} листов при мощности ${fInt(first.capacity)} (загрузка выше ${Math.round(RISK_LOAD * 100)}%). Нужны дополнительные смены или перенос части заказов.</p>`
+    : `<p class="muted">Дефицита мощности в ближайшие ${FORECAST_WEEKS} недели не ожидаем.</p>`;
+  const cell = (r, i) => { const load = r.demand[i] / r.capacity, bad = load > RISK_LOAD; return `<td class="num${bad ? " fc-bad" : ""}">${fInt(r.demand[i])}<span class="fc-load">${Math.round(load * 100)}%</span></td>`; };
+  return `<div class="sheet"><div class="w-head"><h2>Прогноз спроса и мощности на ${FORECAST_WEEKS} недели${S.product ? ` · ${esc(S.product)}` : ""}</h2></div>${head}
+    <div class="fc-wrap"><table class="fc-table"><thead><tr><th scope="col">Линия</th>${weeks.map(w => `<th scope="col">${esc(weekLabel(w))}</th>`).join("")}<th scope="col">Мощность</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><th scope="row">${esc(r.line)}</th>${r.weeks.map((_, i) => cell(r, i)).join("")}<td class="num muted">${fInt(r.capacity)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note small">Листов в неделю. Спрос — тренд за ${TREND_WEEKS} недель; мощность — допущение: максимум, который линия уже выпускала за неделю. В продукте — из графика смен.</p></div>`;
+}
+
+/*
+ * Свежесть источников (ТЗ 5.2): за какую неделю последние данные и насколько они отстают от сегодня.
+ * Внешние системы (1С, CRM, Европочта) пока не подключены — честно пишем, что это демо-данные.
+ */
+function sourcesFreshHtml() {
+  const today = new Date(S.today + "T12:00:00Z");
+  const lastOf = arr => Math.max(...arr.map(r => (Array.isArray(r) ? r[0] : r.w)));
+  const src = [
+    ["Производство", lastOf(DEMO.production)],
+    ["Клиенты", lastOf(DEMO.clients)],
+    ["Кадры", lastOf(DEMO.hr)],
+  ];
+  const row = ([name, w]) => {
+    const end = weekStart(w); end.setUTCDate(end.getUTCDate() + 6);
+    const lag = Math.max(0, Math.round((today - end) / 86400000)), ok = lag <= 7;
+    return `<li class="fresh-row"><span class="fresh-dot${ok ? "" : " bad"}" aria-hidden="true"></span><span><b>${esc(name)}</b><span class="muted small"> · по ${esc(weekRange(w))}</span></span><span class="small${ok ? " muted" : " fc-bad"}">${ok ? (lag ? `${lag} ${plural(lag, "день", "дня", "дней")} назад` : "сегодня") : `отстаёт на ${lag} ${plural(lag, "день", "дня", "дней")}`}</span></li>`;
+  };
+  return `<div class="sheet"><h2>Свежесть данных</h2><ul class="fresh-list">${src.map(row).join("")}</ul>
+    <p class="note small">${DEMO.integrations.map(i => esc(i[1])).join(", ")} пока не подключены: данные демонстрационные (ДОПУЩЕНИЕ), обновление — раз в неделю.</p></div>`;
+}
 function loadLayout() {
   try { const v = JSON.parse(localStorage.getItem(LAYOUT_KEY)); if (Array.isArray(v) && v.includes("hero") && v.every(id => WIDGETS[id])) return v; } catch (e) { /* хранилище недоступно */ }
   return DEFAULT_LAYOUT.slice();
@@ -1229,7 +1290,7 @@ function vOverview() {
   const tools = id => S.edit ? `${sizeCtl(id)}<span class="w-grip" aria-hidden="true">${GRIP}</span>${id === "hero" ? "" : `<button class="w-hide" data-act="wHide" data-arg="${id}" aria-label="Скрыть: ${esc(WIDGETS[id].title)}" title="Скрыть"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>`}` : "";
   const bar = S.edit ? `<div class="edit-bar${enter ? " enter" : ""}"><p class="edit-text">Перетащите плитку на другую или на свободное место</p>
 ${hidden.length ? `<div class="edit-add">${hidden.map(id => `<button class="btn btn-outline btn-sm" data-act="wAdd" data-arg="${id}">+ ${esc(WIDGETS[id].title)}</button>`).join("")}</div>` : ""}<div class="edit-actions"><button class="btn btn-quiet btn-sm" data-act="layoutReset">Сбросить</button><button class="btn btn-done btn-sm" data-act="toggleEdit">Готово</button></div></div>` : "";
-  return `<div class="page-head home-head"><h1 tabindex="-1">Добрый день!</h1><div class="head-tools">${S.line ? `<button class="filter-chip" data-act="line" data-arg="${esc(S.line)}" aria-label="Снять фильтр: ${esc(S.line)}">${esc(S.line)} ×</button>` : ""}${S.edit ? "" : `<button class="btn btn-outline btn-sm" data-act="toggleEdit">Настроить</button>`}</div></div>
+  return `<div class="page-head home-head"><h1 tabindex="-1">Добрый день!</h1><div class="head-tools">${S.line ? `<button class="filter-chip" data-act="line" data-arg="${esc(S.line)}" aria-label="Снять фильтр: ${esc(S.line)}">${esc(S.line)} ×</button>` : ""}${S.product ? `<button class="filter-chip" data-act="product" data-arg="${esc(S.product)}" aria-label="Снять фильтр: ${esc(S.product)}">${esc(S.product)} ×</button>` : ""}${S.edit ? "" : `<button class="btn btn-outline btn-sm" data-act="toggleEdit">Настроить</button>`}</div></div>
   ${bar}<div class="widget-grid${S.edit ? " editing" : ""}${enter ? " edit-enter" : ""}" id="widgets">${LAYOUT.map(id => `<section class="widget" data-w="${id}" style="${place(pack.pos[id].r, pack.pos[id].c, spans[id])}" aria-label="${esc(WIDGETS[id].title)}${S.edit ? ". Стрелки перемещают плитку" : ""}"${S.edit ? ' tabindex="0"' : ""}>${tools(id)}<div class="w-body">${WIDGETS[id].html(spans[id])}</div></section>`).join("")}${S.edit ? pack.holes.map(h => `<div class="slot" data-r="${h.r}" data-c="${h.c}" data-s="${h.s}" style="${place(h.r, h.c, h.s)}">Свободное место</div>`).join("") : ""}</div>`;
 }
 /* ---------- Экран: отклонения ---------- */
@@ -1863,7 +1924,8 @@ function renderNav(cur) {
   const risky = mainDeviation().triggered && S.status !== "done";
   document.getElementById("nav").innerHTML = `<div class="nav-main">${allowed.filter(r => !r.sep).map(item).join("")}</div>
     <div class="nav-sec nav-integrations"><p class="nav-h">Интеграции</p>${DEMO.integrations.map(([g, t], i) => `<button class="nav-sub" data-act="integration" data-tip="${i}"><span class="int-ico" aria-hidden="true">${icon(g)}</span>${esc(t)}</button>`).join("")}<button class="nav-sub" data-act="integration" data-tip="add"><span class="int-add" aria-hidden="true">+</span>Добавить</button></div>
-    ${S.role === "admin" ? "" : `<div class="nav-sec nav-lines"><p class="nav-h">Линии</p>${DEMO.lines.map(l => `<button class="nav-sub" data-act="line" data-arg="${esc(l)}" aria-pressed="${S.line === l}"><span class="line-dot${l === DEMO.rules.ricoh && risky ? " bad" : ""}" aria-hidden="true"></span>${esc(l)}${l === DEMO.rules.ricoh && risky ? '<span class="sr">, есть отклонение</span>' : ""}</button>`).join("")}</div>`}
+    ${S.role === "admin" ? "" : `<div class="nav-sec nav-lines"><p class="nav-h">Линии</p>${DEMO.lines.map(l => `<button class="nav-sub" data-act="line" data-arg="${esc(l)}" aria-pressed="${S.line === l}"><span class="line-dot${l === DEMO.rules.ricoh && risky ? " bad" : ""}" aria-hidden="true"></span>${esc(l)}${l === DEMO.rules.ricoh && risky ? '<span class="sr">, есть отклонение</span>' : ""}</button>`).join("")}</div>
+    <div class="nav-sec nav-lines"><p class="nav-h">Продукты</p>${PRODUCTS.map(p => `<button class="nav-sub" data-act="product" data-arg="${esc(p)}" aria-pressed="${S.product === p}"><span class="line-dot" aria-hidden="true"></span>${esc(p)}</button>`).join("")}</div>`}
     <div class="nav-bottom">${allowed.filter(r => r.sep).map(item).join("")}</div>`;
   placeNavPill(cur);
 }
@@ -2004,6 +2066,7 @@ const ACT = {
   calDay: a => { S.calDay = a; },
   calMove: a => { S.calAnchor = addDays(S.calAnchor, +a); },
   line: a => { S.line = S.line === a ? null : a; if (parseHash().path !== "overview") { location.hash = "#/overview"; return "skip"; } },
+  product: a => { S.product = S.product === a ? null : a; if (parseHash().path !== "overview") { location.hash = "#/overview"; return "skip"; } },
   integration: () => { toast("Интеграция пока не подключена"); return "skip"; },
   setRole: a => { S.role = a; document.getElementById("role").value = a; const route = ROUTES.find(r => r.path === parseHash().path); if (route && !route.roles.includes(a)) location.hash = firstAllowed(); announce("Роль: " + roleName()); },
   askPreset: a => { S.pendingAsk = DEMO.assistant.presets[+a]; return "nav"; },
