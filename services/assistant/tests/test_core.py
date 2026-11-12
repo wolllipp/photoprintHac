@@ -141,3 +141,22 @@ def test_mcp_exposes_role_tools_and_gates_writes(monkeypatch):
     out = asyncio.run(srv.call_tool("propose_task", {"title": "x", "owner": "Технолог печати", "due": "2026-11-20"}))
     text = json.dumps([getattr(c, "text", str(c)) for c in (out[0] if isinstance(out, tuple) else out)], ensure_ascii=False)
     assert "pending_action_id" in text and "confirm_action" not in names
+
+
+def test_guards_against_fabricated_links_and_actions():
+    assert policy.fabricated_links("Ссылка: https://drive.google.com/file/d/x", "{}") == ["https://drive.google.com/file/d/x"]
+    assert policy.fabricated_links("см. http://a.b/c", "url http://a.b/c") == []
+    assert policy.claims_action_without_tool("Презентация обновлена", [])
+    assert not policy.claims_action_without_tool("Презентация обновлена", ["quarterly_deck"])
+
+
+def test_deck_per_kpi_and_recent_files():
+    n = artifacts.quarterly_deck(CEO, per_kpi=False).data["slides"]
+    m = artifacts.quarterly_deck(CEO, per_kpi=True).data["slides"]
+    assert m == n + len(artifacts._kpi_table("ceo"))
+    assert artifacts.recent_files(CEO).artifacts
+
+
+def test_number_check_catches_two_digit_invented():
+    assert policy.ungrounded_numbers("Слайдов: 24", '{"slides":18}') == ["24"]
+    assert policy.ungrounded_numbers("Слайдов: 18", '{"slides":18}') == []

@@ -74,14 +74,14 @@ def _norm(s: str) -> str:
 
 def ungrounded_numbers(answer: str, evidence: str) -> list[str]:
     """Числа из ответа, которых нет в результатах инструментов. Цифры считает код, модель их не придумывает.
-    Мелкие целые (1–3 знака без дроби) пропускаем: порядковые номера, «2 недели», [1]."""
+    Однозначные целые пропускаем: порядковые номера, «2 недели», [1]."""
     ev = _norm(evidence)
     ev_nums = {_norm(m) for m in _NUM.findall(evidence)}
     bad = []
     answer = re.sub(r"\b(0[1-9]|[12]\d|3[01])\.(0[1-9]|1[0-2])(\.\d{2,4})?\b|\b(19|20)\d\d\b", "", re.sub(r"\[\d+(,\s*\d+)*\]", "", answer))
     for m in _NUM.findall(answer):
         n = _norm(m)
-        if not n or ("." not in n and len(n) <= 2):
+        if not n or ("." not in n and len(n) <= 1):
             continue
         if n in ev_nums or n in ev:
             continue
@@ -93,3 +93,17 @@ def ungrounded_numbers(answer: str, evidence: str) -> list[str]:
             pass
         bad.append(m.strip())
     return bad[:5]
+
+
+_URL = re.compile(r"https?://[^\s)\]>]+")
+_CLAIM = re.compile(r"(обновлен|добавлен|создан|отправлен|сохранён|сохранен|изменен|загружен)\w*", re.I)
+
+
+def fabricated_links(answer: str, evidence: str) -> list[str]:
+    """Ссылки в ответе, которых не было в результатах инструментов. Ассистент не публикует файлы наружу."""
+    return [u for u in _URL.findall(answer) if u not in evidence]
+
+
+def claims_action_without_tool(answer: str, used_tools: list[str]) -> bool:
+    """Модель пишет «обновлено/отправлено», хотя в этом ответе не вызвала ни одного инструмента."""
+    return not used_tools and bool(_CLAIM.search(answer))

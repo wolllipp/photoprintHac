@@ -74,9 +74,10 @@ def _kpi_table(role):
 
 @tool("quarterly_deck", "artifacts", "Собираю презентацию",
       "Собрать презентацию pptx по показателям: сводка, динамика брака и выручки, причина отклонения, потери, предлагаемые решения. Источники указаны на слайдах.",
-      {"title": {"type": "string"}, "audience": {"type": "string", "description": "для кого: совет директоров, совещание, команда"}},
-      keywords=("презентац", "слайд", "квартал", "отчёт", "отчет", "deck", "pptx"))
-def quarterly_deck(ctx, title="Итоги периода", audience="совещание"):
+      {"title": {"type": "string"}, "audience": {"type": "string", "description": "для кого: совет директоров, совещание, команда"},
+       "per_kpi": {"type": "boolean", "description": "true — добавить отдельный слайд на каждый показатель (база, сейчас, изменение, отношение к норме)"}},
+      keywords=("презентац", "слайд", "квартал", "отчёт", "отчет", "deck", "pptx", "добавь в презентацию", "пункт на каждый"))
+def quarterly_deck(ctx, title="Итоги периода", audience="совещание", per_kpi=False):
     exp = analysis.explain_deviation(ctx, "defect").data
     p = Presentation(); p.slide_width, p.slide_height = Inches(13.33), Inches(7.5)
     black, yellow = RGBColor(0x1D, 0x1D, 0x1B), RGBColor(0xE8, 0xA9, 0x00)
@@ -116,6 +117,12 @@ def quarterly_deck(ctx, title="Итоги периода", audience="совещ�
         s = slide(cap, "mart_defects_weekly, mart_margin_weekly")
         s.shapes.add_picture(str(OUT / tool_res.artifacts[0]["name"]), Inches(1.2), Inches(1.5), width=Inches(10.9))
 
+    if per_kpi:  # по слайду на показатель: только числа и сравнение с базой, причины не выдумываем
+        for k, b, c in rows:
+            d = c - b
+            s = slide(k, "mart_margin_weekly, mart_defects_weekly")
+            bullets(s, [f"База (недели 7–14): {b}", f"Последние 2 недели: {c}",
+                        f"Изменение: {'+' if d >= 0 else ''}{round(d, 2)}" + (f" ({'+' if d >= 0 else ''}{round(100 * d / b, 1)}%)" if b else "")])
     top = exp["best_dimension_first"][0]
     s = slide("Главное отклонение: брак на Ricoh", "mart_defects_weekly, журнал простоев, накладные")
     bullets(s, [f"Брак вырос с {exp['overall_before_pct']}% до {exp['overall_now_pct']}%",
@@ -177,3 +184,12 @@ def workbook_xlsx(ctx, product="Фотокнига Premium"):
     name = new_name("model", "xlsx"); wb.save(OUT / name)
     return Result(data=dict(file=name, product=product, summary="модель с формулами готова"), sources=[SRC["finance"]],
                   artifacts=[file_artifact(name, "Модель маржи")])
+
+
+@tool("recent_files", "artifacts", "Нахожу готовые файлы",
+      "Показать недавно созданные файлы и графики (презентации, документы, таблицы), чтобы скачать их ещё раз. Ссылок наружу ассистент не создаёт.",
+      keywords=("скачать", "скачай", "ссылк", "файл", "где презентац", "дай ее", "дай её"))
+def recent_files(ctx):
+    files = sorted((f for f in OUT.iterdir() if f.suffix in (".pptx", ".docx", ".xlsx")), key=lambda f: -f.stat().st_mtime)[:3]
+    return Result(data=dict(files=[f.name for f in files], summary=f"файлов: {len(files)}"),
+                  artifacts=[file_artifact(f.name, f.name) for f in files])
