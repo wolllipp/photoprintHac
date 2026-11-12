@@ -7,7 +7,8 @@ export type Rect = { x: number; y: number; w: number; h: number };
 /** Где подпись относительно фото. */
 export type CaptionAt = 'top' | 'bottom' | 'left' | 'right';
 /** hidden — не показываем в ленте макетов: это та же «с подписью», только подпись в другом месте (выбирается в редакторе подписи). */
-export type LayoutDef = { id: string; name: string; slots: Rect[]; caption?: Rect; captionAt?: CaptionAt; bleed?: boolean; hidden?: boolean };
+/** span: 2 — макет на весь разворот (две страницы): доли считаются от ширины разворота, следующая страница «занята». */
+export type LayoutDef = { id: string; name: string; slots: Rect[]; caption?: Rect; captionAt?: CaptionAt; bleed?: boolean; hidden?: boolean; span?: 2 };
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 
@@ -26,10 +27,15 @@ export const LAYOUTS: LayoutDef[] = [
   { id: 'three-left', name: 'Крупное слева', slots: [R(0, 0, 0.6, 1), R(0.6, 0, 0.4, 0.5), R(0.6, 0.5, 0.4, 0.5)] },
   { id: 'three-cols', name: 'Три колонки', slots: [R(0, 0, 1 / 3, 1), R(1 / 3, 0, 1 / 3, 1), R(2 / 3, 0, 1 / 3, 1)] },
   { id: 'four', name: 'Четыре', slots: [R(0, 0, 0.5, 0.5), R(0.5, 0, 0.5, 0.5), R(0, 0.5, 0.5, 0.5), R(0.5, 0.5, 0.5, 0.5)] },
+  // сквозные: фото через шов — на Premium шва нет (фотобумага, раскрытие плоское), на Classic и Lite шов будет виден
+  { id: 'spread', name: 'На весь разворот', slots: [R(0, 0, 1, 1)], bleed: true, span: 2 },
+  { id: 'spread-15', name: 'Полтора листа', slots: [R(0, 0, 0.75, 1), R(0.75, 0, 0.25, 1)], bleed: true, span: 2 },
+  { id: 'spread-15-two', name: 'Полтора листа и два', slots: [R(0, 0, 0.75, 1), R(0.75, 0, 0.25, 0.5), R(0.75, 0.5, 0.25, 0.5)], bleed: true, span: 2 },
   { id: 'four-top', name: 'Крупное и три', slots: [R(0, 0, 1, 0.62), R(0, 0.62, 1 / 3, 0.38), R(1 / 3, 0.62, 1 / 3, 0.38), R(2 / 3, 0.62, 1 / 3, 0.38)] },
 ];
 
 export const layoutOf = (id: string) => LAYOUTS.find((l) => l.id === id) ?? LAYOUTS[0];
+export const isSpread = (id: string) => layoutOf(id).span === 2;
 
 const inside = (r: Rect, x: number, y: number) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 

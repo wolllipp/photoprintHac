@@ -11,14 +11,14 @@ import { router } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 import { BookOpenIcon, HouseSimpleIcon, PackageIcon } from 'phosphor-react-native';
 import { useRef, type ComponentType } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { NewSheet, type NewChoice } from '@/components/newSheet';
-import { fitPages } from '@/data/demo';
+import { BOOK, fitPages } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { colors, fonts } from '@/theme';
 
@@ -85,11 +85,30 @@ function TabButton({ focused, label, onPress, badge, Icon }: { focused: boolean;
   );
 }
 
-/** Выбрали фото в галерее — сразу собираем книгу: объём по числу снимков (в среднем 1–2 на страницу), Lite от 24 стр. */
-async function bookFromPhotos() {
+/** Самая маленькая книга — Lite на 24 страницы; на каждую страницу нужно хотя бы одно фото. */
+const MIN_PHOTOS = BOOK.lite.min;
+
+/**
+ * Книга из фото: выбрали в галерее — сразу собираем; объём по числу снимков (в среднем 1–2 на страницу).
+ * Фото меньше 24 — честно говорим: книга не может быть меньше 24 страниц. Можно добрать фото или напечатать эти как фотографии.
+ */
+async function bookFromPhotos(have: string[] = []) {
   const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
   if (res.canceled || !res.assets.length) return;
-  const n = res.assets.length;
+  const uris = [...have, ...res.assets.map((a) => a.uri).filter((u) => !have.includes(u))];
+  const n = uris.length;
+  if (n < MIN_PHOTOS) {
+    Alert.alert(
+      'Нужно больше фото',
+      `Самая маленькая книга — ${MIN_PHOTOS} страницы, на каждую нужно хотя бы одно фото. Выбрано ${n} — добавьте ещё ${MIN_PHOTOS - n}.`,
+      [
+        { text: 'Добавить фото', onPress: () => bookFromPhotos(uris).catch(() => {}) },
+        { text: 'Напечатать как фото', onPress: () => router.push({ pathname: '/print', params: { photos: JSON.stringify(uris) } }) },
+        { text: 'Отмена', style: 'cancel' },
+      ],
+    );
+    return;
+  }
   router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(fitPages('lite', Math.round(n / 1.6))) } });
 }
 

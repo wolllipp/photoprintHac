@@ -24,7 +24,7 @@ import { EditorGuide } from '@/components/editorGuide';
 import { VoiceGlow } from '@/components/voiceGlow';
 import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
-import { captionLayout, captionPlaces, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
+import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
 import { ThinkingLine } from '@/motion';
@@ -77,10 +77,13 @@ function fix(p: Page, notes: string[], seed: number): Page {
 }
 
 /** Сменить макет: лишние фото уходят, недостающие — добираем из того же дня; улучшения ИИ остаются у своих фото. */
-function withLayout(p: Page, layout: string): Page {
+function withLayout(p: Page, layout: string, keep = 0): Page {
   const n = slotsOf(layout);
-  const extra = POOL.filter((k) => !p.photos.includes(k));
-  return { ...p, layout, photos: [...p.photos.slice(0, n), ...extra].slice(0, n) };
+  // фото, на которое нажали, идёт первым: выбрали «одно крупное» — останется именно оно
+  const order = [p.photos[keep], ...p.photos.filter((_, i) => i !== keep)].filter((x): x is Pic => !!x);
+  const extra = POOL.filter((k) => !order.includes(k));
+  const fx = p.fx?.[keep] ? { 0: p.fx[keep] } : undefined;
+  return { ...p, layout, photos: [...order.slice(0, n), ...extra].slice(0, n), fx: keep ? fx : p.fx };
 }
 
 export default function Review() {
@@ -132,11 +135,11 @@ export default function Review() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tariff]);
 
-  const tapPage = (page: number, e: GestureResponderEvent) => {
+  const tapPage = (page: number, e: GestureResponderEvent, cw = pageW, ch = pageH) => {
     if (fixing) return;
     Haptics.selectionAsync().catch(() => {});
-    const x = Math.max(0.06, Math.min(0.94, e.nativeEvent.locationX / pageW));
-    const y = Math.max(0.06, Math.min(0.94, e.nativeEvent.locationY / pageH));
+    const x = Math.max(0.03, Math.min(0.97, e.nativeEvent.locationX / cw));
+    const y = Math.max(0.06, Math.min(0.94, e.nativeEvent.locationY / ch));
     const slot = slotAt(pages[page].layout, x, y);
     // нажали на подпись — сразу редактор подписи
     if (slot < 0) return setCaptionFor(page);
@@ -177,7 +180,7 @@ export default function Review() {
   const setLayout = (id: string) => {
     if (!menu) return;
     const page = menu.page;
-    editPage(page, withLayout(pages[page], id), `Макет: ${layoutOf(id).name.toLowerCase()}`);
+    editPage(page, withLayout(pages[page], id, menu.slot), `Макет: ${layoutOf(id).name.toLowerCase()}`);
     // макет с подписью — сразу просим текст и место подписи
     if (layoutOf(id).caption) setTimeout(() => setCaptionFor(page), 280);
   };
@@ -294,12 +297,18 @@ export default function Review() {
         </View>
 
         {pages.map((p, k) => {
+          // страница под сквозным фото предыдущей — уже нарисована вместе с ней
+          if (k > 0 && isSpread(pages[k - 1].layout)) return null;
+          const spread = isSpread(p.layout);
+          const cw = pageW;
+          const ch = spread ? pageW / 2 : pageH;
           const mine = pins.filter((x) => x.page === k);
           const fixedHere = mine.length > 0 && mine.every((x) => x.fixed);
           return (
             <View key={k} style={{ gap: 8 }}>
               <View style={s.pageLabel}>
-                <Text style={s.pageNum}>стр. {k + 1}</Text>
+                <Text style={s.pageNum}>{spread ? `стр. ${k + 1}–${k + 2} · на разворот` : `стр. ${k + 1}`}</Text>
+                {spread && tariff !== 'premium' ? <Text style={s.seamNote}>шов по центру · на Premium без шва</Text> : null}
                 {fixedHere ? (
                   <Animated.View entering={FadeIn.duration(250)} style={s.fixedTag}>
                     <CheckIcon size={11} color="#fff" weight="bold" />
@@ -308,11 +317,11 @@ export default function Review() {
                 ) : null}
               </View>
               <View>
-                <PageView page={p} w={pageW} h={pageH} dim={fixing && mine.some((x) => !x.fixed)} picked={menu?.page === k ? menu.slot : undefined} />
+                <PageView page={p} w={cw} h={ch} dim={fixing && mine.some((x) => !x.fixed)} picked={menu?.page === k ? menu.slot : undefined} seam={spread && tariff !== 'premium'} />
                 {/* слой касаний поверх всей страницы: координаты — от края страницы, а не от фото под пальцем */}
                 <Pressable
                   style={StyleSheet.absoluteFill}
-                  onPress={(e) => tapPage(k, e)}
+                  onPress={(e) => tapPage(k, e, cw, ch)}
                   accessibilityRole="button"
                   accessibilityLabel={`Страница ${k + 1}. Нажмите на фото, чтобы заменить его, поменять раскладку или оставить замечание`}
                 />
@@ -322,8 +331,8 @@ export default function Review() {
                     key={pin.id}
                     pin={pin}
                     n={pins.findIndex((x) => x.id === pin.id) + 1 || pins.length + 1}
-                    left={pin.x * pageW}
-                    top={pin.y * pageH}
+                    left={pin.x * cw}
+                    top={pin.y * ch}
                     active={draft?.id === pin.id}
                     onPress={() => setDraft(pin)}
                   />
@@ -390,6 +399,7 @@ export default function Review() {
           page={pages[menu.page]}
           pageN={menu.page + 1}
           slot={menu.slot}
+          canSpread={menu.page < pagesN - 1}
           bottom={insets.bottom}
           onReplace={() => replaceFromGallery().catch(() => {})}
           onRemove={removePhoto}
@@ -463,7 +473,7 @@ function fxOf(text: string): Fx | null {
  * Страница книги: белый лист, фото — по прямоугольникам макета; «во всю страницу» — без полей.
  * Выбранное фото обведено коралловым (слоем поверх — размер не меняется). Улучшенное ИИ — с меткой «ИИ».
  */
-function PageView({ page, w, h, dim, picked }: { page: Page; w: number; h: number; dim?: boolean; picked?: number }) {
+function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h: number; dim?: boolean; picked?: number; seam?: boolean }) {
   const def = layoutOf(page.layout);
   const pad = def.bleed ? 0 : 12;
   const gap = def.bleed ? 0 : 8;
@@ -497,6 +507,8 @@ function PageView({ page, w, h, dim, picked }: { page: Page; w: number; h: numbe
           </View>
         );
       })}
+      {/* сквозной разворот: на Classic и Lite по центру виден шов, на Premium — нет */}
+      {seam ? <View pointerEvents="none" style={[s.seam, { left: w / 2 - 6 }]} /> : null}
       {def.caption ? (
         <View style={[{ position: 'absolute', justifyContent: 'center' }, box(def.caption)]}>
           <Text
@@ -534,7 +546,7 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  * Нажали на фото — что с ним сделать: заменить своим из галереи, убрать, оставить замечание;
  * выбрать макет страницы из библиотеки. Улучшения ИИ (свет, горизонт, чёткость…) — в «Замечании для ИИ».
  */
-function PhotoMenu({ page, pageN, slot, bottom, onReplace, onRemove, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; onReplace: () => void; onRemove: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
+function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; onReplace: () => void; onRemove: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
   const n = slotsOf(page.layout);
   const k = page.photos[slot];
   return (
@@ -547,7 +559,7 @@ function PhotoMenu({ page, pageN, slot, bottom, onReplace, onRemove, onLayout, o
           {k ? <Image source={pic(k)} style={s.menuThumb} contentFit="cover" /> : null}
           <View style={{ flex: 1 }}>
             <Text style={s.sheetTitle}>Это фото</Text>
-            <Text style={s.sheetSub}>стр. {pageN} · фото {slot + 1} из {n}</Text>
+            <Text style={s.sheetSub}>{isSpread(page.layout) ? `стр. ${pageN}–${pageN + 1}` : `стр. ${pageN}`} · фото {slot + 1} из {n}</Text>
           </View>
         </View>
 
@@ -559,7 +571,7 @@ function PhotoMenu({ page, pageN, slot, bottom, onReplace, onRemove, onLayout, o
 
         <Text style={s.menuLabel}>Макет страницы</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.layouts}>
-          {LAYOUTS.filter((l) => !l.hidden).map((l) => {
+          {LAYOUTS.filter((l) => !l.hidden && (canSpread || l.span !== 2)).map((l) => {
             const cur = layoutOf(page.layout);
             const on = l.id === page.layout || (!!cur.hidden && !!l.caption && l.slots.length === cur.slots.length);
             return (
@@ -588,8 +600,8 @@ function MenuBtn({ icon, label, onPress, off }: { icon: ReactNode; label: string
 
 /** Схема макета маленькими прямоугольниками — по тем же долям, что и сама страница. */
 function LayoutIcon({ def, on }: { def: LayoutDef; on: boolean }) {
-  const W = 40;
-  const H = 46;
+  const W = def.span === 2 ? 54 : 40;
+  const H = def.span === 2 ? 30 : 46;
   const pad = def.bleed ? 0 : 3;
   const c = on ? '#fff' : colors.mut;
   return (
@@ -597,6 +609,7 @@ function LayoutIcon({ def, on }: { def: LayoutDef; on: boolean }) {
       {def.slots.map((r, i) => (
         <View key={i} style={{ position: 'absolute', left: pad + r.x * (W - pad * 2) + 1, top: pad + r.y * (H - pad * 2) + 1, width: r.w * (W - pad * 2) - 2, height: r.h * (H - pad * 2) - 2, borderRadius: 2, backgroundColor: c }} />
       ))}
+      {def.span === 2 ? <View style={{ position: 'absolute', left: W / 2 - 0.5, top: 0, bottom: 0, width: 1, backgroundColor: on ? colors.coralAction : colors.card }} /> : null}
       {def.caption ? <View style={{ position: 'absolute', left: pad + 4, right: pad + 4, top: pad + def.caption.y * (H - pad * 2) + 4, height: 3, borderRadius: 2, backgroundColor: c, opacity: 0.6 }} /> : null}
     </View>
   );
@@ -828,6 +841,8 @@ const s = StyleSheet.create({
   tipHelp: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   tipHelpText: { fontSize: 13, fontFamily: fonts.display, color: '#fff' },
   pageLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 14 },
+  seam: { position: 'absolute', top: 0, bottom: 0, width: 12, backgroundColor: 'rgba(0,0,0,0.10)' },
+  seamNote: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.peachInk },
   pageNum: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.mut, fontVariant: ['tabular-nums'] },
   fixedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 20, paddingHorizontal: 8, borderRadius: 10, backgroundColor: colors.tealInk },
   fixedText: { fontSize: 11.5, fontFamily: fonts.semibold, color: '#fff' },
