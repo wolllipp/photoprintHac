@@ -9,7 +9,7 @@ ollama pull qwen3:4b-instruct                 # проба на малой мо�
 cd services/assistant && uv sync
 uv run uvicorn app.server:app --port 8001
 python3 -m http.server 8080 --directory ../../design/insight   # открыть http://localhost:8080 → «Ассистент»
-uv run pytest                                 # 16 тестов, модель не нужна
+uv run pytest                                 # 17 тестов, модель не нужна
 ```
 Другая модель или сервер: `ASSISTANT_MODEL`, `ASSISTANT_LLM_URL` (см. `.env.example`), любой OpenAI-совместимый API. Если сервис не запущен, макет остаётся в сценарном режиме со старыми заготовленными ответами.
 
@@ -24,7 +24,7 @@ uv run pytest                                 # 16 тестов, модель н
 | `app/store.py` | данные: `data/demo.json` выгружен из `insight.js`, цифры совпадают с макетом |
 | `app/tools/*.py` | плагины: **новый инструмент = новый файл или функция с `@tool`**, ядро не меняется |
 
-## Инструменты (27)
+## Инструменты (27, доступны и по MCP)
 - **analysis:** `kpi_overview`, `explain_deviation`, `compare_periods`, `what_if`, `forecast_demand`, `spc_chart`, `check_effect`, `abc_xyz`, `unit_economics`, `run_python` (песочница)
 - **artifacts:** `make_chart`, `pareto_defects`, `quarterly_deck` (pptx), `report_docx` (записка, ответ по претензии), `workbook_xlsx` (модель с формулами)
 - **people:** `prepare_meeting`, `list_tasks`, `propose_task`, `ask_colleague`, `poll_group`, `meeting_protocol`, `check_replies`
@@ -44,6 +44,14 @@ uv run pytest                                 # 16 тестов, модель н
 
 ## Проверка интерфейса
 Макет прогнан в настоящем Chromium (Playwright) против живого сервиса: график загружается (933×487), pptx скачивается (133 КБ), карточка подтверждения работает, ошибок страницы нет. Найдены и исправлены нечитаемая плашка файла и ложное «ждёт подтверждения» в ответе на чтение.
+
+## MCP-сервер (`app/mcp_server.py`)
+Те же 27 инструментов доступны любому MCP-клиенту (Claude, CRM, другой агент):
+```bash
+ASSISTANT_MCP_ROLE=ceo uv run python -m app.mcp_server     # stdio; роль фиксируется при запуске
+```
+Права по роли и журнал те же. Запись и отправка сообщений через MCP не выполняются: инструмент возвращает `pending_action_id`, подтвердить может только человек в CRM (`POST /actions/{id}/confirm`). Тексты клиентов и коллег помечены недоверенными. Проверено настоящим MCP-клиентом по stdio: список инструментов, `what_if`, `propose_task`.
+В обратную сторону: если у CRM заказчика есть MCP-сервер или REST API, адаптер данных в `connectors.py` подключается к нему.
 
 ## Коннекторы (`app/connectors.py`)
 Инструменты работают с интерфейсами, подключение реальных систем = адаптер и переменная окружения:

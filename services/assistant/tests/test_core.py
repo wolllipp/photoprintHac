@@ -127,3 +127,17 @@ def test_telegram_adapter(monkeypatch):
     assert sent[0][0].endswith("/botTOKEN/sendMessage") and sent[0][1]["chat_id"] == 11
     assert not tg.send("Менеджер закупок", "x")["delivered"]  # chat_id не задан
     assert tg.replies() == [{"role": "Технолог печати", "text": "Калибровку сделали"}] and tg.offset == 9
+
+
+def test_mcp_exposes_role_tools_and_gates_writes(monkeypatch):
+    import asyncio
+    from app import mcp_server
+    monkeypatch.setattr(mcp_server, "ROLE", "manager")
+    srv = mcp_server.MCPServer("t")
+    monkeypatch.setattr(mcp_server, "mcp", srv)
+    mcp_server.build()
+    names = {t.name for t in asyncio.run(srv.list_tools())}
+    assert names == {t.name for t in tools_for("manager")} and "explain_deviation" in names
+    out = asyncio.run(srv.call_tool("propose_task", {"title": "x", "owner": "Технолог печати", "due": "2026-11-20"}))
+    text = json.dumps([getattr(c, "text", str(c)) for c in (out[0] if isinstance(out, tuple) else out)], ensure_ascii=False)
+    assert "pending_action_id" in text and "confirm_action" not in names
