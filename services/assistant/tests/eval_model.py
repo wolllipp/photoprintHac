@@ -29,7 +29,7 @@ for role, q, want, deny in CASES:
     ok += good and not leaked
     ans = next((e["text"] for e in ev if e["type"] == "answer"), "")
     evid = " ".join(json.dumps(e, ensure_ascii=False) for e in ev if e["type"] in ("tool_result",))
-    flagged = any(e["type"] == "notice" and "Проверьте" in e["text"] for e in ev)
+    flagged = any(e["type"] == "notice" and "Не все числа" in e["text"] for e in ev)
     cyr = sum("а" <= c.lower() <= "я" or c == "ё" for c in ans) / max(1, sum(c.isalpha() for c in ans))
     quality = dict(russian=cyr > 0.8, nonempty=len(ans) > 15, numbers_grounded=not flagged,
                    no_causal_claim=not (q.startswith("Почему вырос брак") and "из-за поставщика" in ans.lower()))

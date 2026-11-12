@@ -122,7 +122,7 @@ def review(answer: str, evidence: str, used: list[str], question: str = "") -> l
     if claims_action_without_tool(answer, used):
         out.append("в ответе сказано, что действие выполнено, но ни один инструмент не вызывался")
     if _WANTS_FILE.search(question) and not (_MAKERS & set(used)):
-        out.append("пользователь просил файл (презентацию или документ), а файл не создан: после получения данных вызови build_deck или build_docx и опиши в нём содержимое сам")
+        out.append("пользователь просил файл (презентацию или документ), а файл не создан: вызови build_deck или build_docx и опиши содержимое сам (по своим знаниям, если тема общая)")
     bad = ungrounded_numbers(answer, evidence) if evidence else []
     if bad:
         out.append("числа " + ", ".join(dict.fromkeys(bad)) + " не подтверждены данными")
