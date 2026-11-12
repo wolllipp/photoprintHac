@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { CaretDownIcon, ChatCircleTextIcon, CheckIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
+import { CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { checkOnServer, loadServerBook, savePage, serverBook } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
+import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { features } from '@/data/features';
 import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
@@ -39,7 +40,8 @@ import { colors, fonts } from '@/theme';
  * fx — что ИИ сделал с фото: номер места → улучшения (свет и цвет, кадр по лицам, чёткость).
  */
 type Fx = 'light' | 'crop' | 'sharp' | 'horizon' | 'warm' | 'bg' | 'restore' | 'bw';
-type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string };
+/** crop — кадр, который человек выставил вручную: фото → центр и увеличение (по фото, а не по месту — переживает смену макета). */
+type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; crop?: Record<string, Crop> };
 const slotsOf = (id: string) => layoutOf(id).slots.length;
 /** Самый простой макет на n фото — когда фото убрали. */
 const SIMPLE: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' };
@@ -224,7 +226,36 @@ export default function Review() {
     if (!menu) return;
     const p = pages[menu.page];
     const left = p.photos.filter((_, i) => i !== menu.slot);
-    editPage(menu.page, { layout: SIMPLE[Math.max(1, left.length)], photos: left }, 'Фото убрано');
+    // кадры оставшихся фото не теряются
+    editPage(menu.page, { layout: SIMPLE[Math.max(1, left.length)], photos: left, crop: p.crop }, 'Фото убрано');
+  };
+  // ручной кадр: какое фото сейчас двигают (страница и место на ней)
+  const [cropFor, setCropFor] = useState<{ page: number; slot: number } | null>(null);
+  const openCrop = () => {
+    if (!menu) return;
+    setCropFor({ page: menu.page, slot: menu.slot });
+    setMenu(null);
+  };
+  const saveCrop = (c: Crop | undefined) => {
+    if (!cropFor) return;
+    const p = pages[cropFor.page];
+    const k = p.photos[cropFor.slot];
+    setCropFor(null);
+    if (!k) return;
+    const crop = { ...p.crop };
+    if (c) crop[String(k)] = c;
+    else delete crop[String(k)];
+    editPage(cropFor.page, { ...p, crop: Object.keys(crop).length ? crop : undefined }, c ? 'Кадр сохранён' : 'Кадр как было');
+  };
+  // пропорции места на странице — рамка в окне кадрирования такая же
+  const cropAspect = (page: number, slot: number) => {
+    const p = pages[page];
+    const def = layoutOf(p.layout);
+    const r = def.slots[slot];
+    if (!r) return 1;
+    const spread = isSpread(p.layout);
+    const b = slotBox(def, r, pageW, spread ? pageW / 2 : pageH);
+    return b.width / b.height;
   };
   const setLayout = (id: string) => {
     if (!menu) return;
@@ -508,9 +539,20 @@ export default function Review() {
           bottom={insets.bottom}
           onReplace={() => replaceFromGallery().catch(() => {})}
           onRemove={removePhoto}
+          onCrop={openCrop}
           onLayout={setLayout}
           onComment={commentHere}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+
+      {cropFor && pages[cropFor.page]?.photos[cropFor.slot] ? (
+        <CropEditor
+          k={pages[cropFor.page].photos[cropFor.slot]}
+          aspect={cropAspect(cropFor.page, cropFor.slot)}
+          initial={pages[cropFor.page].crop?.[String(pages[cropFor.page].photos[cropFor.slot])]}
+          onDone={saveCrop}
+          onClose={() => setCropFor(null)}
         />
       ) : null}
 
@@ -578,21 +620,29 @@ function fxOf(text: string): Fx | null {
  * Страница книги: белый лист, фото — по прямоугольникам макета; «во всю страницу» — без полей.
  * Выбранное фото обведено коралловым (слоем поверх — размер не меняется). Улучшенное ИИ — с меткой «ИИ».
  */
-function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h: number; dim?: boolean; picked?: number; seam?: boolean }) {
-  const def = layoutOf(page.layout);
+/** Место фото на странице w×h в пикселях: поля страницы и зазоры между фото — как на печати. */
+function slotBox(def: LayoutDef, r: Rect, w: number, h: number) {
   const pad = def.bleed ? 0 : 12;
   const gap = def.bleed ? 0 : 8;
   const iw = w - pad * 2;
   const ih = h - pad * 2;
-  const box = (r: Rect) => ({ left: pad + r.x * iw + (r.x > 0 ? gap / 2 : 0), top: pad + r.y * ih + (r.y > 0 ? gap / 2 : 0), width: r.w * iw - (r.x > 0 ? gap / 2 : 0) - (r.x + r.w < 1 ? gap / 2 : 0), height: r.h * ih - (r.y > 0 ? gap / 2 : 0) - (r.y + r.h < 1 ? gap / 2 : 0) });
+  return { left: pad + r.x * iw + (r.x > 0 ? gap / 2 : 0), top: pad + r.y * ih + (r.y > 0 ? gap / 2 : 0), width: r.w * iw - (r.x > 0 ? gap / 2 : 0) - (r.x + r.w < 1 ? gap / 2 : 0), height: r.h * ih - (r.y > 0 ? gap / 2 : 0) - (r.y + r.h < 1 ? gap / 2 : 0) };
+}
+
+function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h: number; dim?: boolean; picked?: number; seam?: boolean }) {
+  const def = layoutOf(page.layout);
+  const box = (r: Rect) => slotBox(def, r, w, h);
   return (
     <View style={[s.page, { width: w, height: h }, def.bleed && { padding: 0, overflow: 'hidden' }, dim && { opacity: 0.55 }]}>
       {def.slots.map((r, i) => {
         const k = page.photos[i];
         const fx = page.fx?.[i] ?? [];
+        const b = box(r);
+        const crop = k ? page.crop?.[String(k)] : undefined;
         return (
-          <View key={`${i}-${String(k)}`} style={[{ position: 'absolute', borderRadius: def.bleed ? 0 : 4, overflow: 'hidden', backgroundColor: colors.card2 }, box(r)]}>
-            {k ? (
+          <View key={`${i}-${String(k)}`} style={[{ position: 'absolute', borderRadius: def.bleed ? 0 : 4, overflow: 'hidden', backgroundColor: colors.card2 }, b]}>
+            {/* кадр, выставленный вручную, важнее «кадра по лицам» от ИИ */}
+            {k && crop ? <CroppedImage k={k} crop={crop} w={b.width} h={b.height} /> : k ? (
               <Image
                 source={pic(k)}
                 style={[StyleSheet.absoluteFill, (fx.includes('crop') || fx.includes('horizon')) && { transform: [{ scale: fx.includes('crop') ? 1.22 : 1.08 }, { rotate: fx.includes('horizon') ? '-2deg' : '0deg' }] }]}
@@ -651,7 +701,7 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  * Нажали на фото — что с ним сделать: заменить своим из галереи, убрать, оставить замечание;
  * выбрать макет страницы из библиотеки. Улучшения ИИ (свет, горизонт, чёткость…) — в «Замечании для ИИ».
  */
-function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; onReplace: () => void; onRemove: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
+function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, onCrop, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
   const n = slotsOf(page.layout);
   const k = page.photos[slot];
   return (
@@ -670,6 +720,7 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, 
 
         <View style={s.menuRow}>
           <MenuBtn icon={<ImagesIcon size={22} color={colors.fg} weight="bold" />} label="Заменить из галереи" onPress={onReplace} />
+          <MenuBtn icon={<CropIcon size={22} color={k ? colors.fg : colors.mut2} weight="bold" />} label="Подвинуть и обрезать" onPress={onCrop} off={!k} />
           <MenuBtn icon={<MinusCircleIcon size={22} color={n === 1 ? colors.mut2 : colors.fg} weight="bold" />} label="Убрать фото" onPress={onRemove} off={n === 1} />
           <MenuBtn icon={<ChatCircleTextIcon size={22} color={colors.fg} weight="bold" />} label="ИИ: исправить или улучшить" onPress={onComment} />
         </View>

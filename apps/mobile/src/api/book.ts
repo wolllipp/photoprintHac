@@ -36,7 +36,8 @@ async function upload(uris: string[]) {
 }
 
 /** Книга, собранная на сервере: id проекта и страницы — какие фото (локальные адреса на телефоне) в каком макете. */
-export type ServerPage = { layout: string; photos: string[]; caption?: string; fx?: Record<number, string[]> };
+/** crop — ручной кадр фото (components/cropEditor.tsx): фото → центр cx, cy, увеличение z, пропорции a. */
+export type ServerPage = { layout: string; photos: string[]; caption?: string; fx?: Record<number, string[]>; crop?: Record<string, { cx: number; cy: number; z: number; a: number }> };
 export type ServerBook = { projectId: string; title: string; pages: ServerPage[] };
 
 /** Фото, выбранные в галерее, ждут экрана сборки (параметры навигации для длинного списка не годятся). */
@@ -100,7 +101,7 @@ export async function buildOnServer(input: { uris: string[]; title: string; page
   return book;
 }
 
-type PagesOut = { pages: { position: number; template: string | null; caption: string | null; fx: Record<string, string[]>; frames: { photo_id: string }[] }[] };
+type PagesOut = { pages: { position: number; template: string | null; caption: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -112,11 +113,18 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
     const photos = p.frames.map((f) => uriOfId.get(f.photo_id) ?? `srv:${f.photo_id}`);
     const fx: Record<number, string[]> = {};
     Object.entries(p.fx ?? {}).forEach(([k, v]) => (fx[Number(k)] = v));
+    // ручной кадр лежит в рамке страницы рядом с её местом (cx, cy, z, a)
+    const crop: NonNullable<ServerPage['crop']> = {};
+    p.frames.forEach((f, i) => {
+      const fr = f.frame;
+      if (fr && typeof fr.z === 'number' && typeof fr.cx === 'number') crop[photos[i]] = { cx: fr.cx, cy: fr.cy, z: fr.z, a: fr.a ?? 1 };
+    });
     return {
       layout: p.template ?? LAYOUT_BY_COUNT[Math.min(4, Math.max(1, photos.length))],
       photos,
       caption: p.caption ?? undefined,
       fx,
+      crop: Object.keys(crop).length ? crop : undefined,
     };
   });
   const book = { projectId, title, pages };
@@ -132,7 +140,8 @@ export async function savePage(projectId: string, position: number, page: Server
     template: page.layout,
     caption: page.caption ?? null,
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
-    frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: slots[i] })),
+    // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
+    frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),
   });
   const book = books.get(projectId);
   if (book) book.pages[position] = page;

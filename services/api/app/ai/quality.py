@@ -66,6 +66,9 @@ def effective_dpi(width: int, height: int, format: str | None, frame: dict | Non
     crop = crop or {"x": 0, "y": 0, "w": 1, "h": 1}
     pixel_w, pixel_h = width * crop["w"], height * crop["h"]
     frame = frame or {"w": 1, "h": 1}
+    # ручное увеличение в приложении (z в рамке, components/cropEditor.tsx): на печать идёт меньше пикселей
+    zoom = max(float(frame.get("z", 1) or 1), 1.0)
+    pixel_w, pixel_h = pixel_w / zoom, pixel_h / zoom
     physical_w, physical_h = dims[0] * (2 if book and spread else 1), dims[1]
     physical_w *= frame.get("w", 1)
     physical_h *= frame.get("h", 1)
