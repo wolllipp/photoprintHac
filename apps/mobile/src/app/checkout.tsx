@@ -33,12 +33,19 @@ export default function Checkout() {
   // книга в заказе — тариф можно сменить прямо здесь; цена и объём пересчитываются под тариф
   const book = cart[0] && cart[0].tariff !== 'print' && cart.length === 1 ? cart[0] : null;
   const [tariffOpen, setTariffOpen] = useState(false);
+  // сколько страниц было в книге, когда открыли оформление: тариф с бо́льшим минимумом добавит пустые страницы.
+  // Книгу здесь не пересобираем — пересборка стёрла бы ручные правки (план 1.11, 2.9); честно предупреждаем
+  const [basePages] = useState(() => book?.pages ?? 0);
+  const [baseTariff] = useState(() => book?.tariff);
+  const addedPages = book ? Math.max(0, book.pages - basePages) : 0;
   const changeTariff = (t: Tariff['id']) => {
     setTariffOpen(false);
     if (!book || book.tariff === t) return;
     const tr = tariffs.find((x) => x.id === t) ?? tariffs[0];
     const fmt = fitFormat(t, book.format);
-    orderNow({ projectId: book.projectId, title: book.title, tariff: t, tariffName: tr.name, format: fmt, pages: fitPages(t, book.pages), finish: book.finish, price: bookPrice(t, fmt, book.pages, book.finish), readyBy: tr.readyBy, cover: book.cover });
+    // объём — от исходной книги, а не от прошлого тарифа: вернули тариф — вернулся и объём
+    const pages = fitPages(t, basePages || book.pages);
+    orderNow({ projectId: book.projectId, title: book.title, tariff: t, tariffName: tr.name, format: fmt, pages, finish: book.finish, price: bookPrice(t, fmt, pages, book.finish), readyBy: tr.readyBy, cover: book.cover });
   };
   // промокод (ТЗ: на пути заказа); демо-код PICPAC10 — −10% к товарам
   const [promo, setPromo] = useState('');
@@ -287,6 +294,18 @@ export default function Checkout() {
                 {book.tariffName} · {book.format} · {book.pages} стр.
               </Text>
               <Text style={s.link}>Изменить</Text>
+            </Tap>
+          ) : null}
+          {book && addedPages > 0 ? (
+            <Tap
+              style={s.pagesWarn}
+              onPress={() => baseTariff && changeTariff(baseTariff as Tariff['id'])}
+              accessibilityRole="button"
+              accessibilityLabel={`В тарифе ${book.tariffName} добавится ${addedPages} пустых страниц. Вернуть прежний тариф`}>
+              <Text style={s.pagesWarnText}>
+                В {book.tariffName} минимум {book.pages} стр. — в книге будет {addedPages} {addedPages === 1 ? 'пустая страница' : addedPages < 5 ? 'пустые страницы' : 'пустых страниц'}
+              </Text>
+              <Text style={s.link}>Вернуть {tariffs.find((x) => x.id === baseTariff)?.name ?? 'как было'}</Text>
             </Tap>
           ) : null}
         </Animated.View>
@@ -673,6 +692,8 @@ const s = StyleSheet.create({
   goodsSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   tariffRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.card },
   tariffText: { flex: 1, fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
+  pagesWarn: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, borderWidth: 2, borderColor: colors.coralAction },
+  pagesWarnText: { flex: 1, fontSize: 13.5, lineHeight: 18, fontFamily: fonts.medium, color: colors.fg },
   goodsSum: { fontSize: 16, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 16 },
