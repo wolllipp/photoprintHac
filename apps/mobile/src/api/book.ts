@@ -23,9 +23,10 @@ const remember = (id: string, uri: string) => {
 /** Сколько фото в одном запросе: снимок с телефона — 3–10 МБ, по 2 за раз запрос успевает и по слабому Wi-Fi. */
 const BATCH = 2;
 
-/** Загрузить фото с телефона на сервер (пачками), вернуть их id. Уже загруженные не грузим. */
-async function upload(uris: string[]) {
+/** Загрузить фото с телефона на сервер (пачками), вернуть их id. Уже загруженные не грузим. onProgress — сколько из скольких. */
+async function upload(uris: string[], onProgress?: (done: number, total: number) => void) {
   const todo = uris.filter((u) => !idOfUri.has(u) && !u.startsWith('srv:'));
+  onProgress?.(0, todo.length);
   for (let i = 0; i < todo.length; i += BATCH) {
     const batch = todo.slice(i, i + BATCH);
     const form = new FormData();
@@ -38,6 +39,7 @@ async function upload(uris: string[]) {
     }
     const res = await api.upload<{ id: string }[]>('/photos', form);
     res.forEach((p, k) => remember(p.id, batch[k]));
+    onProgress?.(Math.min(i + BATCH, todo.length), todo.length);
   }
   return uris.map((u) => (u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)!));
 }
@@ -98,22 +100,25 @@ const BUILD_WAIT_MS = 90_000;
  * Не получилось — BuildError: экран показывает ошибку, а не чужую демо-книгу.
  */
 /** Сборка этих же фото уже идёт (экран в режиме разработки запускает эффект дважды) — не грузим фото второй раз. */
-let inflight: { input: object; promise: Promise<ServerBook>; steps: ((n: number) => void)[] } | null = null;
+let inflight: { input: object; promise: Promise<ServerBook>; steps: BuildStep[] } | null = null;
 
-export function buildOnServer(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
+/** Шаг экрана сборки; up — сколько фото уже загружено (на шаге 0). */
+export type BuildStep = (n: number, up?: { done: number; total: number }) => void;
+
+export function buildOnServer(input: { uris: string[]; title: string; pages: number }, onStep: BuildStep): Promise<ServerBook> {
   if (inflight && inflight.input === input) {
     inflight.steps.push(onStep);
     return inflight.promise;
   }
   const steps = [onStep];
-  const promise = buildOnce(input, (n) => steps.forEach((f) => f(n))).finally(() => {
+  const promise = buildOnce(input, (n, up) => steps.forEach((f) => f(n, up))).finally(() => {
     if (inflight?.promise === promise) inflight = null;
   });
   inflight = { input, promise, steps };
   return promise;
 }
 
-async function buildOnce(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
+async function buildOnce(input: { uris: string[]; title: string; pages: number }, onStep: BuildStep): Promise<ServerBook> {
   if (!(await online())) {
     console.warn('[сборка] сервер не ответил на /health:', API_URL);
     throw new BuildError('offline');
@@ -135,11 +140,11 @@ async function buildOnce(input: { uris: string[]; title: string; pages: number }
   }
 }
 
-async function build(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void, me: { jobId: string | null; stopped: boolean }): Promise<ServerBook> {
+async function build(input: { uris: string[]; title: string; pages: number }, onStep: BuildStep, me: { jobId: string | null; stopped: boolean }): Promise<ServerBook> {
 
   // 1. загрузка — пачками, чтобы не держать в памяти все снимки сразу
   onStep(0);
-  const photoIds = await upload(input.uris);
+  const photoIds = await upload(input.uris, (done, total) => onStep(0, { done, total }));
 
   // 2. проект на Lite 20×20 — у тарифа минимум 24 страницы, сборка его держит
   const products = await api.get<{ code: string; options: { id: string; format: string }[] }[]>('/catalog/products');

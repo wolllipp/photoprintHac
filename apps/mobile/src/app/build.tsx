@@ -85,6 +85,8 @@ export default function Build() {
   const { width } = useWindowDimensions();
   const params = useLocalSearchParams<Record<string, string>>();
   const [step, setStep] = useState(0);
+  // сколько фото уже ушло на сервер: снимки с телефона тяжёлые, загрузка — самая долгая часть
+  const [up, setUp] = useState<{ done: number; total: number } | null>(null);
   const [stageH, setStageH] = useState(0);
   const done = step >= STEPS.length;
   const title = params.title ?? 'Карелия, июль';
@@ -99,7 +101,11 @@ export default function Build() {
   useEffect(() => {
     if (!pending) return;
     let alive = true;
-    buildOnServer(pending, (n) => alive && setStep((x) => Math.max(x, Math.min(n, STEPS.length - 1))))
+    buildOnServer(pending, (n, u) => {
+      if (!alive) return;
+      if (u) setUp(u);
+      setStep((x) => Math.max(x, Math.min(n, STEPS.length - 1)));
+    })
       .then((book) => {
         if (!alive) return;
         // книга собрана — выбранные фото больше не ждут сборки
@@ -181,7 +187,7 @@ export default function Build() {
                 Готово · 24 страницы
               </Animated.Text>
             ) : (
-              <ThinkingLine key={step} text={STEPS[step].now} style={s.statusText} />
+              <ThinkingLine key={step} text={step === 0 && up && up.total > 0 && up.done < up.total ? `Загружаем фото: ${up.done} из ${up.total}` : STEPS[step].now} style={s.statusText} />
             )}
             <Text style={s.statusStep}>{Math.min(step + 1, STEPS.length)} из {STEPS.length}</Text>
           </View>
