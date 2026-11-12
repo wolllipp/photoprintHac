@@ -27,6 +27,8 @@ export type CartItem = {
   cover: Pic;
   /** сколько экземпляров */
   qty: number;
+  /** фотопечать: какие фото (адреса на телефоне) и сколько копий каждого */
+  prints?: { uri: string; qty: number }[];
 };
 
 /** Допуслуги к заказу: цена фиксированная, добавляется к итогу. */
@@ -60,6 +62,8 @@ export type PlacedOrder = {
   items?: CartItem[];
   /** этап: 0 принят · 1 проверен · 2 печать · 3 в пути · 4 готов */
   stage: number;
+  /** заказ создан на сервере — его id там (статус подтягиваем оттуда) */
+  serverId?: string;
   /** что сейчас происходит на этапе — одной строкой */
   live: string;
 };
@@ -129,7 +133,9 @@ type Store = {
   toggleExtra: (id: ExtraId) => void;
   clearCart: () => void;
   orders: PlacedOrder[];
-  placeOrder: (total: number, spentPoints?: number) => PlacedOrder | null;
+  placeOrder: (total: number, spentPoints?: number, server?: { id: string; number: number }) => PlacedOrder | null;
+  /** этап заказа обновился на сервере */
+  setOrderStage: (id: string, stage: number) => void;
   /** «Повторить»: состав заказа — сразу на оформление */
   repeatOrder: (id: string) => number;
   /** «Заказать»: эта позиция и есть заказ — без корзины, сразу на оформление */
@@ -138,6 +144,9 @@ type Store = {
    *  Предложения ИИ в кружках сюда не попадают, пока их не открыли. */
   started: Record<string, number>;
   startDraft: (id: string) => void;
+  /** книги, собранные на сервере: что показать в «Черновиках» (название, обложка, объём, формат, фото) */
+  serverDrafts: Record<string, { title: string; cover: Pic; pages: number; format: string; photos: number }>;
+  saveServerDraft: (id: string, d: { title: string; cover: Pic; pages: number; format: string; photos: number }) => void;
   /** черновики, которые человек убрал */
   hiddenDrafts: string[];
   hideDraft: (id: string) => void;
@@ -183,6 +192,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [gesturesSeen, setGesturesSeen] = useState(false);
   const [hiddenDrafts, setHiddenDrafts] = useState<string[]>([]);
   const [taste, setTaste] = useState<string[]>([]);
+  const [serverDrafts, setServerDrafts] = useState<Store['serverDrafts']>({});
   const [creating, setCreating] = useState(false);
   // демо: одну книгу человек начал неделю назад и бросил
   const [started, setStarted] = useState<Record<string, number>>(() => ({ concerts: Date.now() - 6 * 86_400_000 }));
@@ -213,6 +223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (v.reviewHint) setGesturesSeen(true);
         if (Array.isArray(v.hiddenDrafts)) setHiddenDrafts(v.hiddenDrafts);
         if (Array.isArray(v.taste)) setTaste(v.taste);
+        if (v.serverDrafts && typeof v.serverDrafts === 'object') setServerDrafts(v.serverDrafts);
         if (v.started && typeof v.started === 'object') setStarted(v.started);
       })
       .catch(() => {})
@@ -222,8 +233,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!loaded) return;
     // удалённые в ожидании отмены не сохраняем
     const keep = cart.filter((x) => !pending.includes(x.id));
-    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste, name, delivery })).catch(() => {});
-  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, name, delivery]);
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({ cart: keep, orders, points, extras, cards: cardList, cardId, phone, aiConsent, lastBook, reviewHint: gesturesSeen, hiddenDrafts, started, taste, name, delivery, serverDrafts })).catch(() => {});
+  }, [loaded, cart, pending, orders, points, extras, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, name, delivery, serverDrafts]);
 
   useEffect(() => {
     AsyncStorage.getItem(INTRO_KEY)
@@ -310,6 +321,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setExtras([]);
       },
       started,
+      serverDrafts,
+      saveServerDraft: (id, d) => setServerDrafts((x) => (JSON.stringify(x[id]) === JSON.stringify(d) ? x : { ...x, [id]: d })),
       taste,
       addTaste: (t) => setTaste((x) => (x.includes(t) ? x : [...x, t])),
       // открыли книгу снова — она опять черновик, даже если раньше её убрали или заказали
@@ -319,11 +332,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       hiddenDrafts,
       hideDraft: (id) => setHiddenDrafts((h) => (h.includes(id) ? h : [...h, id])),
-      placeOrder: (total, spentPoints = 0) => {
+      setOrderStage: (id, stage) => setOrders((o) => o.map((x) => (x.id === id && x.stage !== stage ? { ...x, stage } : x))),
+      placeOrder: (total, spentPoints = 0, server) => {
         const item = cart[0];
         if (!item) return null;
         const order: PlacedOrder = {
-          id: String(4792100 + orders.length),
+          id: server ? String(server.number) : String(4792100 + orders.length),
+          serverId: server?.id,
           title: cart.length > 1 ? `${item.title} и ещё ${cart.length - 1}` : item.title,
           tariffName: item.tariffName,
           total,
@@ -346,7 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return order;
       },
     }),
-    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating, name, delivery],
+    [cart, orders, points, tabBarHidden, showIntro, design, extras, pending, cardList, cardId, phone, aiConsent, lastBook, gesturesSeen, hiddenDrafts, started, taste, creating, name, delivery, serverDrafts],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -83,7 +83,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                     hashes, dhashes = {}, {}
                     # Хэширование выполняется вне транзакции, чтобы не блокировать отмену.
                     await asyncio.to_thread(ai.select_photos, photos, pages, hashes=hashes,
-                                            dhashes=dhashes)
+                                            dhashes=dhashes, min_keep=min_pages)
 
                 project, job = await _lock_project_job(s, job_id, project_id)
                 if job.status != "running":
@@ -106,6 +106,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                     included_ids = {pp.photo_id for pp in pps if pp.user_override and pp.selected}
                     decisions = ai.select_photos(
                         photos, pages, excluded_ids, included_ids, hashes=hashes, dhashes=dhashes,
+                        min_keep=min_pages,
                     )
                     decided = {d["photo_id"]: d for d in decisions}
                     for pp in pps:
@@ -132,7 +133,9 @@ async def run_build(job_id: uuid.UUID) -> None:
                     layouts = ai.layout(selected_photos, pages, min_pages, page_aspect,
                                         source=project.source.value, theme=project.theme,
                                         format=format, product=product_code)
-                    if len(layouts) < pages:
+                    # книга не бывает меньше минимума тарифа: раскладка его держит (лишние страницы — пустые,
+                    # их подсветит редактор); фото мало и минимума нет — книга сжимается до разложенного
+                    if len(layouts) != pages:
                         project.page_count = len(layouts)
                         prog["suggested_pages"] = len(layouts)
                     for pg in layouts:

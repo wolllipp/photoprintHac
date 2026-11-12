@@ -201,6 +201,64 @@ async def job_cancel(job_id: uuid.UUID, user: User = Depends(current_user), s: A
     return {"status": job.status}
 
 
+@router.get("/projects/{project_id}/pages")
+async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
+    """Собранные страницы по порядку: какое фото в какой рамке (доли страницы) и глава — для просмотра книги в приложении."""
+    p = await own_project(s, project_id, user)
+    rows = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id)
+                            .order_by(ProjectPage.position))).scalars().all()
+    return {"project_id": str(p.id), "page_count": p.page_count, "status": p.status.value,
+            "pages": [{"position": r.position, "chapter": r.layout.get("chapter"),
+                       "template": r.layout.get("template"), "caption": r.layout.get("caption"),
+                       "fx": r.layout.get("fx") or {},
+                       "frames": [{"photo_id": f["photo_id"], "frame": f["frame"]} for f in r.layout.get("frames", [])]}
+                      for r in rows]}
+
+
+class FrameIn(BaseModel):
+    photo_id: uuid.UUID
+    frame: dict[str, float]
+
+
+class PageIn(BaseModel):
+    template: str = Field(min_length=1, max_length=40)  # макет из библиотеки приложения: one, two-side, spread…
+    frames: list[FrameIn] = Field(default_factory=list, max_length=8)
+    caption: str | None = Field(None, max_length=300)
+    fx: dict[str, list[str]] = Field(default_factory=dict)  # номер рамки → улучшения ИИ
+
+
+@router.put("/projects/{project_id}/pages/{position}")
+async def save_page(project_id: uuid.UUID, position: int, body: PageIn, user: User = Depends(current_user),
+                    s: AsyncSession = Depends(get_session)):
+    """Правка страницы из приложения: макет, фото по рамкам, подпись, улучшения. Свои фото не из проекта — прикрепляем."""
+    p = await locked_owned_project(s, project_id, user)
+    if p.status == ProjectStatus.ordered:
+        raise HTTPException(409, "проект уже заказан")
+    if position < 0 or (p.page_count and position >= p.page_count):
+        raise HTTPException(422, "нет такой страницы")
+    ids = [f.photo_id for f in body.frames]
+    if ids:
+        await attach(s, p, ids, user)
+        await s.flush()
+        rows = {r.photo_id: r for r in (await s.execute(
+            select(ProjectPhoto).where(ProjectPhoto.project_id == p.id, ProjectPhoto.photo_id.in_(ids))
+        )).scalars()}
+        for pid in ids:  # фото, поставленное руками, — выбрано, и пересборка его не уберёт
+            rows[pid].selected, rows[pid].reject_reason, rows[pid].user_override = True, None, True
+    page = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id,
+                                                      ProjectPage.position == position))).scalar_one_or_none()
+    old = page.layout if page else {}
+    layout = {"position": position, "chapter": old.get("chapter"), "template": body.template,
+              "caption": body.caption, "fx": body.fx,
+              "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
+    if page is None:
+        s.add(ProjectPage(project_id=p.id, position=position, layout=layout))
+    else:
+        page.layout = layout
+    await s.commit()
+    return layout
+
+
 @router.get("/projects/{project_id}/selection")
 async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
     """Экран «Лучшие 38 из 214»: что взяли, что отсеяли и почему."""

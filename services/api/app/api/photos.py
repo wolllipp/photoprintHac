@@ -24,7 +24,8 @@ if pillow_heif:
 
 router = APIRouter(tags=["photos"])
 MAX_BYTES = 40 * 1024 * 1024
-ALLOWED = {"JPEG": "jpg", "PNG": "png", "HEIC": "heic", "HEIF": "heic", "WEBP": "webp"}
+# MPO — JPEG с дополнительными кадрами (глубина, HDR): так айфон часто сохраняет обычные фото; храним как jpg
+ALLOWED = {"JPEG": "jpg", "MPO": "jpg", "PNG": "png", "HEIC": "heic", "HEIF": "heic", "WEBP": "webp"}
 
 
 def _taken_at(img: Image.Image) -> datetime | None:

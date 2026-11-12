@@ -6,7 +6,6 @@
  * У «Черновиков» — число начатых книг. «Создать» — плюсом на главной, профиль — аватаром в шапке.
  */
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 import { BookOpenIcon, HouseSimpleIcon, PackageIcon } from 'phosphor-react-native';
@@ -19,9 +18,11 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, withTiming } from 'react-n
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { setPendingBook } from '@/api/book';
+import { dupText, pickPhotos } from '@/data/picked';
 import { NewSheet, type NewChoice } from '@/components/newSheet';
 import { Tap } from '@/components/ui';
-import { BOOK, fitPages } from '@/data/demo';
+import { BOOK, drafts, fitPages } from '@/data/demo';
 import { useStore } from '@/data/store';
 import { SHEET_TAIL, sheetIn, sheetOut } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -35,8 +36,8 @@ const ICONS: Record<string, { Icon: ComponentType<IconProps>; label: string }> =
 const BTN = 58;
 
 export function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
-  const { tabBarHidden, started, hiddenDrafts } = useStore();
-  const draftsCount = Object.keys(started).filter((id) => !hiddenDrafts.includes(id)).length;
+  const { tabBarHidden, started, hiddenDrafts, serverDrafts } = useStore();
+  const draftsCount = Object.keys(started).filter((id) => !hiddenDrafts.includes(id) && (drafts[id] || serverDrafts[id])).length;
   if (tabBarHidden) return null;
   return (
     <>
@@ -96,30 +97,35 @@ const MIN_PHOTOS = BOOK.lite.min;
  * Книга из фото: выбрали в галерее — сразу собираем; объём по числу снимков (в среднем 1–2 на страницу).
  * Фото меньше 24 — честно говорим: книга не может быть меньше 24 страниц. Можно добрать фото или напечатать эти как фотографии.
  */
-async function bookFromPhotos(have: string[] = [], onShort?: (uris: string[]) => void) {
-  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
-  if (res.canceled || !res.assets.length) return;
-  const uris = [...have, ...res.assets.map((a) => a.uri).filter((u) => !have.includes(u))];
+async function bookFromPhotos(have: string[] = [], onShort?: (uris: string[], dup: number) => void) {
+  // уже выбранные снимки повторно не добавляем, даже если их снова отметили в галерее
+  const picked = await pickPhotos(have);
+  if (!picked) return;
+  const uris = [...have, ...picked.fresh];
   const n = uris.length;
   if (n < MIN_PHOTOS) {
-    onShort?.(uris);
+    onShort?.(uris, picked.dup);
     return;
   }
-  router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(fitPages('lite', Math.round(n / 1.6))) } });
+  const pages = fitPages('lite', Math.round(n / 1.6));
+  // выбранные фото — экрану сборки: он загрузит их на сервер и соберёт книгу по-настоящему
+  setPendingBook({ uris, title: 'Новая книга', pages });
+  router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(pages) } });
 }
 
 /** Печать: сначала выбираем фото в галерее, потом — формат, бумага и копии. */
 async function printFromPhotos() {
-  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
-  if (res.canceled || !res.assets.length) return;
-  router.push({ pathname: '/print', params: { photos: JSON.stringify(res.assets.map((a) => a.uri)) } });
+  const picked = await pickPhotos([]);
+  if (!picked) return;
+  router.push({ pathname: '/print', params: { photos: JSON.stringify(picked.fresh) } });
 }
 
 /** Лист «Создать» — один на все вкладки: открывается и «+» в меню, и кружком на главной. */
 export function CreateHost() {
   const { creating, setCreating } = useStore();
   // фото для книги мало — своё окно в стиле приложения (а не системное)
-  const [short, setShort] = useState<string[] | null>(null);
+  const [short, setShortState] = useState<{ uris: string[]; dup: number } | null>(null);
+  const setShort = (uris: string[] | null, dup = 0) => setShortState(uris ? { uris, dup } : null);
   // галерею открываем, только когда лист закрылся полностью: iOS молча не покажет второе окно поверх закрывающегося
   const wantGallery = useRef<'book' | 'print' | null>(null);
   const openGallery = () => {
@@ -144,14 +150,15 @@ export function CreateHost() {
       <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} onDismissed={openGallery} />
       {short ? (
         <ShortSheet
-          uris={short}
+          uris={short.uris}
+          dup={short.dup}
           onAdd={() => {
-            const have = short;
+            const have = short.uris;
             setShort(null);
             bookFromPhotos(have, setShort).catch(() => {});
           }}
           onPrint={() => {
-            const have = short;
+            const have = short.uris;
             setShort(null);
             router.push({ pathname: '/print', params: { photos: JSON.stringify(have) } });
           }}
@@ -166,7 +173,7 @@ export function CreateHost() {
  * «Нужно больше фото» — в стиле приложения: лист снизу, полоса «10 из 24», выбранные фото,
  * главное действие — добрать фото; запасное — напечатать эти как фотографии.
  */
-function ShortSheet({ uris, onAdd, onPrint, onClose }: { uris: string[]; onAdd: () => void; onPrint: () => void; onClose: () => void }) {
+function ShortSheet({ uris, dup, onAdd, onPrint, onClose }: { uris: string[]; dup: number; onAdd: () => void; onPrint: () => void; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const n = uris.length;
   const need = MIN_PHOTOS - n;
@@ -180,6 +187,7 @@ function ShortSheet({ uris, onAdd, onPrint, onClose }: { uris: string[]; onAdd: 
         <View style={s.grab} />
         <Text style={s.title}>Нужно больше фото</Text>
         <Text style={s.text}>Самая маленькая книга — {MIN_PHOTOS} страницы, на каждую нужно хотя бы одно фото.</Text>
+        {dup ? <Text style={s.dup}>{dupText(dup)}</Text> : null}
 
         {/* сколько есть и сколько нужно */}
         <View style={{ gap: 8 }}>
@@ -229,6 +237,7 @@ const s = StyleSheet.create({
   grab: { alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: colors.card2 },
   title: { fontSize: 24, lineHeight: 30, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   text: { fontSize: 15, lineHeight: 21, fontFamily: fonts.medium, color: colors.mut, marginTop: -6 },
+  dup: { fontSize: 14, lineHeight: 19, fontFamily: fonts.semibold, color: colors.peachInk, backgroundColor: colors.peach, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden', marginTop: -4 },
   countRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   count: { fontSize: 22, fontFamily: fonts.display, color: colors.fg, fontVariant: ['tabular-nums'] },
   countOf: { fontSize: 14, fontFamily: fonts.medium, color: colors.mut },

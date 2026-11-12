@@ -13,9 +13,11 @@ import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View
 import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isServerProject, orderOnServer, orderPrintsOnServer } from '@/api/book';
 import { ChoiceTile } from '@/components/choice';
+import { TariffSheet } from '@/components/tariffSheet';
 import { Pik, Tap } from '@/components/ui';
-import { delivery, payments, pickupPoints, PIK_RATE, piksUsable } from '@/data/demo';
+import { bookPrice, delivery, fitFormat, fitPages, payments, pickupPoints, PIK_RATE, piksUsable, tariffs, type Tariff } from '@/data/demo';
 import { pic } from '@/data/photos';
 import { cartTotal, EXTRAS, rub, useStore } from '@/data/store';
 import { AnimatedNumber, ease, SHEET_TAIL, sheetIn } from '@/motion';
@@ -26,7 +28,17 @@ const SHEET_TOP = Platform.OS === 'ios' ? 10 : 24;
 
 export default function Checkout() {
   const insets = useSafeAreaInsets();
-  const { cart, placeOrder, points, extras, toggleExtra, cards, cardId, phone, setPhone } = useStore();
+  const { cart, placeOrder, points, extras, toggleExtra, cards, cardId, phone, setPhone, orderNow } = useStore();
+  // книга в заказе — тариф можно сменить прямо здесь; цена и объём пересчитываются под тариф
+  const book = cart[0] && cart[0].tariff !== 'print' && cart.length === 1 ? cart[0] : null;
+  const [tariffOpen, setTariffOpen] = useState(false);
+  const changeTariff = (t: Tariff['id']) => {
+    setTariffOpen(false);
+    if (!book || book.tariff === t) return;
+    const tr = tariffs.find((x) => x.id === t) ?? tariffs[0];
+    const fmt = fitFormat(t, book.format);
+    orderNow({ projectId: book.projectId, title: book.title, tariff: t, tariffName: tr.name, format: fmt, pages: fitPages(t, book.pages), finish: book.finish, price: bookPrice(t, fmt, book.pages, book.finish), readyBy: tr.readyBy, cover: book.cover });
+  };
   // промокод (ТЗ: на пути заказа); демо-код PICPAC10 — −10% к товарам
   const [promo, setPromo] = useState('');
   const [promoOk, setPromoOk] = useState<boolean | null>(null);
@@ -89,7 +101,7 @@ export default function Checkout() {
   };
   const pieces = cart.reduce((a, it) => a + it.qty, 0);
 
-  const onPay = () => {
+  const onPay = async () => {
     if (toDoor && !address) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       setNudgeAddr(true);
@@ -103,7 +115,43 @@ export default function Checkout() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    placeOrder(total, piksSpent);
+    // книга собрана на сервере — заказ тоже там; не вышло — оформляем как в демо, человек ничего не теряет
+    const item = cart[0];
+    let server: { id: string; number: number } | undefined;
+    if (item && isServerProject(item.projectId)) {
+      try {
+        server = await orderOnServer({
+          projectId: item.projectId,
+          tariff: item.tariff,
+          format: item.format,
+          deliveryId,
+          pickup: toDoor ? { title: 'Адрес доставки', address: addrLine } : { title: point.title, address: point.address },
+          payment: payId === 'erip' ? 'erip' : 'card',
+          points: piksSpent,
+          extras: [...extras],
+          promo: promoOk ? promo.trim() : undefined,
+        });
+      } catch {
+        server = undefined;
+      }
+    } else if (item && item.tariff === 'print' && item.prints?.length && item.prints.every((p) => p.uri.includes('/'))) {
+      // фотопечать из фото галереи — заказ на сервере (демо-снимки приложения на сервер не уходят)
+      try {
+        server = await orderPrintsOnServer({
+          prints: item.prints,
+          format: item.format,
+          deliveryId,
+          pickup: toDoor ? { title: 'Адрес доставки', address: addrLine } : { title: point.title, address: point.address },
+          payment: payId === 'erip' ? 'erip' : 'card',
+          points: piksSpent,
+          extras: [...extras],
+          promo: promoOk ? promo.trim() : undefined,
+        });
+      } catch {
+        server = undefined;
+      }
+    }
+    placeOrder(total, piksSpent, server);
     router.dismissAll();
     router.navigate('/orders');
   };
@@ -142,6 +190,15 @@ export default function Checkout() {
             </View>
             <Text style={s.goodsSum}>{rub(goods)}</Text>
           </Tap>
+          {/* тариф книги — последний шанс поменять перед оплатой */}
+          {book ? (
+            <Tap style={s.tariffRow} onPress={() => setTariffOpen(true)} accessibilityRole="button" accessibilityLabel={`Тариф ${book.tariffName}. Изменить`}>
+              <Text style={s.tariffText} numberOfLines={1}>
+                {book.tariffName} · {book.format} · {book.pages} стр.
+              </Text>
+              <Text style={s.link}>Изменить</Text>
+            </Tap>
+          ) : null}
         </Animated.View>
 
         <Animated.View entering={enter(2)} style={s.section}>
@@ -428,6 +485,7 @@ export default function Checkout() {
           </View>
         </PhoneSheet>
       </Modal>
+      {tariffOpen && book ? <TariffSheet value={book.tariff as Tariff['id']} format={book.format} pages={book.pages} onPick={changeTariff} onClose={() => setTariffOpen(false)} /> : null}
     </View>
   );
 }
@@ -501,6 +559,8 @@ const s = StyleSheet.create({
   cover: { width: 44, height: 52, borderRadius: 10, borderWidth: 2, borderColor: colors.card },
   goodsTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
   goodsSub: { fontSize: 13, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  tariffRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.card },
+  tariffText: { flex: 1, fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
   goodsSum: { fontSize: 16, fontFamily: fonts.display, letterSpacing: -0.3, color: colors.fg },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 16 },

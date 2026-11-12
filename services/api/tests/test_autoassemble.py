@@ -141,7 +141,7 @@ async def test_story_project_keeps_selected_product_option_before_build(client):
     assert project["option_id"] == option["id"]
 
 
-async def test_build_persists_compact_pages_with_real_crop_and_quality_results(client):
+async def test_build_keeps_tariff_minimum_with_real_crop_and_quality_results(client):
     token = (await client.post("/auth/guest")).json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
     products = (await client.get("/catalog/products")).json()
@@ -181,9 +181,12 @@ async def test_build_persists_compact_pages_with_real_crop_and_quality_results(c
 
     frames = [frame for page in pages for frame in page.layout["frames"]]
     assert status["status"] == "done"
-    assert project_row.page_count == 2
-    assert job.progress["suggested_pages"] == 2
-    assert len(pages) == 2 and all(page.layout["frames"] for page in pages)
+    # книга не бывает меньше минимума тарифа (Classic — 20 стр.): 3 фото — на первых страницах,
+    # остальные страницы пустые — их подсветит редактор
+    assert project_row.page_count == 20
+    assert job.progress["suggested_pages"] == 20
+    filled = [page for page in pages if page.layout["frames"]]
+    assert len(pages) == 20 and len(filled) == 3 and pages[:3] == filled
     assert len(frames) == 3
     assert all(isinstance(frame["crop"], dict) for frame in frames)
     assert len(job.progress["quality"]) == 3

@@ -43,6 +43,9 @@ class OrderItem(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"))
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     qty: Mapped[int] = mapped_column(Integer, default=1)
+    # фотопечать: какое фото и в каком формате (у книги — project_id)
+    photo_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("photos.id"))
+    option_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("product_options.id"))
 
 
 class OrderStage(Base):

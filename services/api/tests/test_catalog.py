@@ -1,10 +1,11 @@
 async def test_quote_matches_site_prices(client):
     r = await client.get("/catalog/quote", params={"pages": 24, "format": "20x20"})
     t = {x["code"]: x for x in r.json()["tariffs"]}
-    assert t["premium"]["price"] == "96.60"      # 70.35 за 5 разворотов + 7 × 3.75
-    assert t["classic"]["price"] == "81.10"      # 72.90 за 10 разворотов + 2 × 4.10 (допущение)
-    assert t["lite"]["price"] == "56.00"         # цена «от» за 24 стр.
-    assert t["lite"]["ready_date"] < t["classic"]["ready_date"] <= t["premium"]["ready_date"]
+    # super.picpac.by: цена за минимум страниц + шаг за каждые 2 страницы
+    assert t["premium"]["price"] == "149.50"     # 100,50 за 10 стр. + 7 × 7,00
+    assert t["classic"]["price"] == "87.00"      # 81,00 за 20 стр. + 2 × 3,00
+    assert t["lite"]["price"] == "70.00"         # 70,00 за 24 стр.
+    assert t["lite"]["ready_date"] <= t["classic"]["ready_date"] <= t["premium"]["ready_date"]
 
 
 async def test_quote_limits(client):

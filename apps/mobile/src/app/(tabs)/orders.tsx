@@ -7,13 +7,14 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { CaretDownIcon, CheckIcon, XIcon } from 'phosphor-react-native';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { orderStage } from '@/api/book';
 import { Tap } from '@/components/ui';
 import { pic } from '@/data/photos';
 import { rub, useStore, type PlacedOrder } from '@/data/store';
@@ -27,7 +28,20 @@ const place = (live: string) => live.split(' · ').pop()?.split(',')[0] ?? live;
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
-  const { orders, markSeen, repeatOrder } = useStore();
+  const { orders, markSeen, repeatOrder, setOrderStage } = useStore();
+  // заказы с сервера — этап подтягиваем оттуда каждый раз, когда открывают вкладку
+  useFocusEffect(
+    useCallback(() => {
+      orders
+        .filter((o) => o.serverId && o.stage < 4)
+        .forEach((o) => {
+          orderStage(o.serverId!)
+            .then((stage) => setOrderStage(o.id, stage))
+            .catch(() => {});
+        });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orders.length]),
+  );
   // какой заказ показываем на экране блокировки (превью)
   const [lock, setLock] = useState<PlacedOrder | null>(null);
   const [onLock, setOnLock] = useState<string | null>(null);
@@ -82,7 +96,7 @@ export default function Orders() {
                   ) : null}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Tap style={s.btn} onPress={() => router.push('/assistant')} accessibilityRole="button">
-                      <Text style={s.btnText} numberOfLines={1}>Есть проблема</Text>
+                      <Text style={s.btnText} numberOfLines={1}>Есть проблема?</Text>
                     </Tap>
                     {o.items?.length ? (
                       <Tap
@@ -335,7 +349,8 @@ const s = StyleSheet.create({
 
   card: { backgroundColor: colors.card, borderRadius: 24, padding: 14 },
   // раскрытая часть: стоит поверх, чтобы её высота мерилась целиком, а видимая — анимировалась
-  body: { position: 'absolute', left: 0, right: 0, top: 0, paddingTop: 14, gap: 14 },
+  // небольшой запас по краям: кольцо текущего этапа выходит за точку и иначе обрезается краем раскрывающегося блока
+  body: { position: 'absolute', left: 0, right: 0, top: 0, paddingTop: 14, paddingHorizontal: 4, paddingBottom: 4, gap: 14 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sec: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   secPill: { minWidth: 26, height: 26, paddingHorizontal: 8, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 6 },

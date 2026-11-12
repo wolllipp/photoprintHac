@@ -8,7 +8,6 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
 import { ImagesIcon, MinusIcon, PlusIcon, XIcon } from 'phosphor-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -19,15 +18,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
+import { dupText, pickPhotos } from '@/data/picked';
 import { rub, useStore } from '@/data/store';
 import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-// цены — с сайта (цифровая печать, от 0,49 р.); источник правды — справочник D14
+// цены — super.picpac.by/catalog/photo (глянец и мат по одной цене); источник правды — справочник на сервере
 const FORMATS = [
-  { id: '10×15', price: 0.49 },
-  { id: '15×21', price: 1.2 },
-  { id: '20×30', price: 2.9 },
+  { id: '10×15', price: 1.3 },
+  { id: '15×20', price: 1.6 },
+  { id: '20×30', price: 3.2 },
+  { id: '30×45', price: 20 },
 ];
 const PAPERS = [
   { id: 'Глянец', title: 'Глянцевая', sub: 'яркие цвета, насыщенный чёрный' },
@@ -72,13 +73,20 @@ export default function Print() {
     const t = setTimeout(() => setRemoved(null), 4000);
     return () => clearTimeout(t);
   }, [removed]);
+  // уже выбранные снимки повторно не добавляем; сколько пропустили — говорим внизу
+  const [notice, setNotice] = useState<string | null>(null);
   const addMore = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
-    if (res.canceled || !res.assets.length) return;
-    const fresh = res.assets.map((a) => a.uri).filter((u) => !SHOTS.includes(u));
-    setShots((x) => [...x, ...fresh]);
-    setQty((q) => ({ ...q, ...Object.fromEntries(fresh.map((u) => [u, 1])) }));
+    const picked = await pickPhotos(SHOTS);
+    if (!picked) return;
+    setShots((x) => [...x, ...picked.fresh]);
+    setQty((q) => ({ ...q, ...Object.fromEntries(picked.fresh.map((u) => [u, 1])) }));
+    if (picked.dup) setNotice(dupText(picked.dup));
   };
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
   const [format, setFormat] = useState(FORMATS[0]);
   const [fit, setFit] = useState<'crop' | 'fields'>('crop');
   const [paper, setPaper] = useState<(typeof PAPERS)[number]['id']>('Глянец');
@@ -110,8 +118,10 @@ export default function Print() {
       pages: count,
       finish: paper === 'Мат' ? 'Зерно' : 'Глянец',
       price: total,
-      readyBy: 'завтра',
+      readyBy: 'через 2 дня',
       cover: first,
+      // для заказа на сервере: какие фото и сколько копий (демо-снимки на сервер не уходят)
+      prints: SHOTS.filter((k) => (qty[k] ?? 0) > 0).map((k) => ({ uri: String(k), qty: qty[k] })),
     });
     router.push('/checkout');
   };
@@ -273,6 +283,11 @@ export default function Print() {
         </View>
       </ScrollView>
 
+      {notice && !removed ? (
+        <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: insets.bottom + 92 }]}>
+          <Text style={[s.toastText, { flex: 1 }]}>{notice}</Text>
+        </Animated.View>
+      ) : null}
       {removed ? (
         <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: insets.bottom + 92 }]}>
           <Text style={s.toastText}>Фото убрано</Text>

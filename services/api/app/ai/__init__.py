@@ -124,8 +124,13 @@ def select_photos(
     *,
     hashes: dict[uuid.UUID, bytes] | None = None,
     dhashes: dict[uuid.UUID, int] | None = None,
+    min_keep: int = 0,
 ) -> list[dict]:
-    """Оставляет SHA-идентичные и визуально похожие фото вне книги как запас."""
+    """Оставляет SHA-идентичные и визуально похожие фото вне книги как запас.
+
+    min_keep — минимум фото для книги (минимум страниц тарифа): если после отбора фото меньше, похожие кадры
+    возвращаются в книгу, лучшие первыми, — чтобы не было пустых страниц. Точные копии файла не возвращаются никогда.
+    """
     excluded_ids = excluded_ids or set()
     included_ids = included_ids or set()
     hashes = hashes if hashes is not None else {}
@@ -177,6 +182,15 @@ def select_photos(
     unique_ids = [p["photo_id"] for p in available if p["photo_id"] not in duplicates]
     target = min(len(unique_ids), max(len(included_ids), round(pages * 1.6)))
     keep = set(sorted(unique_ids, key=rank)[:target]) | (included_ids & set(content_hashes))
+    if min_keep and len(keep) < min_keep:
+        kept_hashes = {content_hashes[photo_id] for photo_id in keep if photo_id in content_hashes}
+        for photo_id in sorted(duplicates, key=rank):
+            if len(keep) >= min_keep:
+                break
+            if content_hashes[photo_id] in kept_hashes:
+                continue  # точная копия уже стоящего фото — не берём
+            keep.add(photo_id)
+            kept_hashes.add(content_hashes[photo_id])
     return [{"photo_id": p["photo_id"], "selected": p["photo_id"] in keep,
              "reject_reason": None if p["photo_id"] in excluded_ids or p["photo_id"] in keep else
              "similar" if p["photo_id"] in duplicates else "capacity"}

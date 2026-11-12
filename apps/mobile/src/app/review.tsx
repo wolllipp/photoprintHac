@@ -10,18 +10,20 @@
  * Что человек просил поменять — копится во «вкус» (notes/25, раздел 9) и учитывается в следующей книге.
  */
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ChatCircleTextIcon, CheckIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
+import { CaretDownIcon, ChatCircleTextIcon, CheckIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { loadServerBook, savePage, serverBook } from '@/api/book';
+import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
-import { VoiceGlow } from '@/components/voiceGlow';
+import { TariffSheet } from '@/components/tariffSheet';
 import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
@@ -90,7 +92,7 @@ export default function Review() {
   const params = useLocalSearchParams<Record<string, string>>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { orderNow, setLastBook, startDraft, gesturesSeen, setGesturesSeen, addTaste } = useStore();
+  const { orderNow, setLastBook, startDraft, gesturesSeen, setGesturesSeen, addTaste, saveServerDraft } = useStore();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const nextPin = useRef(1);
 
@@ -103,7 +105,39 @@ export default function Review() {
   const pagesN = fitPages(tariff, total);
   // правки поверх собранной ИИ книги: номер страницы → новая страница
   const [edits, setEdits] = useState<Record<number, Page>>({});
-  const pages = useMemo(() => makePages(pagesN).map((x, k) => edits[k] ?? x), [pagesN, edits]);
+  // книга с сервера — её страницы с сохранёнными правками (недостающие до объёма тарифа — пустые листы); иначе — демо-книга.
+  // Открыли книгу с сервера, которой нет в памяти (например, из «Черновиков» после перезапуска), — подгружаем.
+  const [loadedTick, setLoadedTick] = useState(0);
+  const fromServer = serverBook(params.projectId);
+  useEffect(() => {
+    if (!params.projectId || serverBook(params.projectId)) return;
+    loadServerBook(params.projectId, title)
+      .then(() => setLoadedTick((x) => x + 1))
+      .catch(() => {});
+  }, [params.projectId, title]);
+  const pages = useMemo(() => {
+    const base: Page[] = fromServer
+      ? Array.from({ length: pagesN }, (_, k) => (fromServer.pages[k] as Page | undefined) ?? { layout: 'one', photos: [] })
+      : makePages(pagesN);
+    return base.map((x, k) => edits[k] ?? x);
+    // loadedTick — книга догрузилась с сервера
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagesN, edits, fromServer, loadedTick]);
+
+  // каждая правка страницы (замена фото, макет, подпись, «Исправить») сохраняется на сервере — книга не теряется
+  const synced = useRef<Record<number, string>>({});
+  useEffect(() => {
+    const pid = params.projectId;
+    if (!pid || !serverBook(pid)) return;
+    Object.entries(edits).forEach(([k, page]) => {
+      const key = JSON.stringify(page);
+      if (synced.current[Number(k)] === key) return;
+      synced.current[Number(k)] = key;
+      savePage(pid, Number(k), page).catch(() => {
+        delete synced.current[Number(k)];
+      });
+    });
+  }, [edits, params.projectId]);
   const [pins, setPins] = useState<Pin[]>([]);
   // точка, к которой сейчас пишут замечание (новая или уже стоящая)
   const [draft, setDraft] = useState<Pin | null>(null);
@@ -134,6 +168,13 @@ export default function Review() {
     remember(at);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tariff]);
+  // книга с сервера — карточка для «Черновиков» (у демо-книг она уже есть в данных)
+  const firstPhoto = pages.find((p) => p.photos[0])?.photos[0];
+  useEffect(() => {
+    if (!params.projectId || !firstPhoto) return;
+    saveServerDraft(params.projectId, { title, cover: firstPhoto, pages: pagesN, format: fmt, photos: pages.reduce((a, p) => a + p.photos.length, 0) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.projectId, firstPhoto, pagesN, fmt, title]);
 
   const tapPage = (page: number, e: GestureResponderEvent, cw = pageW, ch = pageH) => {
     if (fixing) return;
@@ -166,10 +207,16 @@ export default function Review() {
     if (!menu) return;
     const { page, slot } = menu;
     setMenu(null);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-    if (res.canceled || !res.assets[0]) return;
+    // фото, которое уже есть в книге, повторно не ставим — говорим об этом
+    const inBook = pages.flatMap((pg) => pg.photos).filter((x): x is string => typeof x === 'string');
+    const picked = await pickPhotos(inBook, { multiple: false });
+    if (!picked) return;
+    if (!picked.fresh[0]) {
+      setNotice('Это фото уже есть в книге — выберите другое');
+      return;
+    }
     const p = pages[page];
-    editPage(page, { ...p, photos: p.photos.map((k, i) => (i === slot ? res.assets[0].uri : k)) }, 'Фото заменено');
+    editPage(page, { ...p, photos: p.photos.map((k, i) => (i === slot ? picked.fresh[0] : k)) }, 'Фото заменено');
   };
   const removePhoto = () => {
     if (!menu) return;
@@ -196,6 +243,13 @@ export default function Review() {
     setDraft({ id: nextPin.current++, page: menu.page, x: menu.x, y: menu.y, text: '', fixed: false });
     setMenu(null);
   };
+  const [notice, setNotice] = useState<string | null>(null);
+  const [tariffOpen, setTariffOpen] = useState(false);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(t);
+  }, [notice]);
   useEffect(() => {
     if (!undo) return;
     const t = setTimeout(() => setUndo(null), 4500);
@@ -373,16 +427,46 @@ export default function Review() {
           </>
         ) : (
           <>
-            <View style={{ flex: 1 }}>
+            {/* цена и тариф — нажатие открывает выбор Lite / Classic / Premium */}
+            <Tap style={{ flex: 1, minWidth: 0 }} onPress={() => setTariffOpen(true)} accessibilityRole="button" accessibilityLabel={`${t.name}, ${rub(price)}. Сменить тариф`}>
               <Text style={s.barPrice}>{rub(price)}</Text>
-              <Text style={s.barMeta} numberOfLines={1}>{t.name} · {fmt} · {pagesN} стр. · печать {PRINT_DAYS} дня</Text>
-            </View>
+              <View style={s.barTariffRow}>
+                <Text style={s.barTariff}>{t.name}</Text>
+                <CaretDownIcon size={12} color={colors.coralLink} weight="bold" />
+                <Text style={[s.barMeta, { flexShrink: 1 }]} numberOfLines={1}> · {fmt} · {pagesN} стр. · печать {PRINT_DAYS} дня</Text>
+              </View>
+            </Tap>
             <Tap style={s.order} onPress={order} accessibilityRole="button" accessibilityLabel={`Заказать, ${t.name}, ${rub(price)}`}>
               <Text style={s.orderText}>Заказать</Text>
             </Tap>
           </>
         )}
       </View>
+
+      {tariffOpen ? (
+        <TariffSheet
+          value={tariff}
+          format={format}
+          pages={total}
+          hasSpreads={pages.some((p) => isSpread(p.layout))}
+          onPick={(x) => {
+            setTariff(x);
+            setTariffOpen(false);
+          }}
+          onMore={() => {
+            setTariffOpen(false);
+            router.push({ pathname: '/book/[id]', params: { id, format: fmt, pages: String(pagesN) } });
+          }}
+          onClose={() => setTariffOpen(false)}
+        />
+      ) : null}
+
+      {/* подсказка без действия: например, фото уже есть в книге */}
+      {notice && !undo ? (
+        <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: insets.bottom + 92 }]}>
+          <Text style={[s.toastText, { flex: 1 }]}>{notice}</Text>
+        </Animated.View>
+      ) : null}
 
       {/* отмена последней прямой правки */}
       {undo ? (
@@ -684,6 +768,34 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
   );
 }
 
+const GLOW = ['#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FB923C'] as const;
+
+/**
+ * Поле ввода с голосовой подсветкой: пока слушаем — вокруг поля проступает разноцветная рамка и мягкое свечение,
+ * которое «дышит» с громкостью. Поле остаётся тем же — текст не прыгает и не перестраивается.
+ */
+function VoiceField({ listening, level, children }: { listening: boolean; level: SharedValue<number>; children: ReactNode }) {
+  const on = useSharedValue(0);
+  useEffect(() => {
+    on.set(withTiming(listening ? 1 : 0, { duration: listening ? 260 : 360, easing: Easing.bezier(0.33, 0, 0.2, 1) }));
+  }, [listening, on]);
+  // рамка сама чуть прозрачнее — основную краску даёт размытое свечение
+  const ring = useAnimatedStyle(() => ({ opacity: on.value * 0.75 }));
+  // «дышит» только яркостью — без масштаба, поэтому ничего за полем не шевелится
+  const halo = useAnimatedStyle(() => ({ opacity: on.value * (0.55 + level.value * 0.45) }));
+  return (
+    <View>
+      {/* размытое свечение вокруг: цветные тени с большим размытием — края рамки мягко расплываются */}
+      <Animated.View pointerEvents="none" style={[s.halo, halo]} />
+      {/* цветная рамка */}
+      <Animated.View pointerEvents="none" style={[s.ring, ring]}>
+        <LinearGradient colors={GLOW} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={[StyleSheet.absoluteFill, { borderRadius: 22 }]} />
+      </Animated.View>
+      <View style={s.field}>{children}</View>
+    </View>
+  );
+}
+
 /** Что не так в этом месте: поле, быстрые варианты и голос. */
 function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin; isNew: boolean; bottom: number; onSave: (t: string) => void; onDelete: () => void; onClose: () => void }) {
   const [text, setText] = useState(pin.text);
@@ -697,13 +809,12 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
     const t = setTimeout(() => input.current?.focus(), 40);
     return () => clearTimeout(t);
   }, [pin.text]);
-  // голос — как в «Собрать по описанию»: снизу поднимается разноцветный свет и «дышит» с речью,
-  // слова появляются по ходу; закончил говорить — свет гаснет, фраза остаётся в поле
+  // голос: вокруг поля проступает разноцветная подсветка и «дышит» с речью; слова появляются прямо в том же поле
+  // (поле не подменяется другим элементом — текст не прыгает); закончил говорить — подсветка гаснет
   const level = useSharedValue(0);
   const voice = () => {
     if (listening) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    input.current?.blur();
     setText('');
     setListening(true);
   };
@@ -742,28 +853,23 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
             <Text style={s.sheetTitle}>Что сделать здесь?</Text>
             <Text style={s.sheetSub}>стр. {pin.page + 1}</Text>
           </View>
-          <View style={s.field}>
-            {listening ? (
-              <View style={{ flex: 1, minHeight: 44, justifyContent: 'center' }} accessibilityLiveRegion="polite">
-                {text ? <Text style={s.input}>{text}</Text> : <ThinkingLine text="Слушаю…" style={s.input} />}
-              </View>
-            ) : (
+          <VoiceField listening={listening} level={level}>
               <TextInput
+                accessibilityLiveRegion="polite"
                 value={text}
                 onChangeText={setText}
                 onSubmitEditing={() => onSave(text)}
                 ref={input}
-                placeholder="Например: убери это фото"
+                placeholder={listening ? 'Слушаю…' : 'Например: убери это фото'}
                 placeholderTextColor={colors.mut2}
                 returnKeyType="done"
                 style={s.input}
                 accessibilityLabel="Замечание к этому месту"
               />
-            )}
             <Tap style={[s.mic, listening && s.micOn]} onPress={voice} accessibilityRole="button" accessibilityLabel={listening ? 'Слушаю' : 'Сказать голосом'}>
               <MicrophoneIcon size={18} color="#fff" weight="fill" />
             </Tap>
-          </View>
+          </VoiceField>
           <Text style={s.quickLabel}>Поправить</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="always">
             {QUICK.map((q) => (
@@ -792,7 +898,6 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
           </View>
         </Animated.View>
       </View>
-      <VoiceGlow active={listening} processing={false} level={level} />
     </>
   );
 }
@@ -857,6 +962,8 @@ const s = StyleSheet.create({
   pinNoteText: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.fg },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hair, backgroundColor: colors.bg },
   barPrice: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
+  barTariffRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1, overflow: 'hidden' },
+  barTariff: { fontSize: 12.5, fontFamily: fonts.bold, color: colors.coralLink },
   barMeta: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
   order: { height: 52, paddingHorizontal: 26, borderRadius: 26, backgroundColor: colors.coralAction, justifyContent: 'center' },
   orderText: { fontSize: 17, fontFamily: fonts.semibold, color: '#fff' },
@@ -903,6 +1010,16 @@ const s = StyleSheet.create({
   sheetTitle: { fontSize: 21, lineHeight: 26, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   sheetSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 6, paddingLeft: 14 },
+  ring: { position: 'absolute', left: -2, right: -2, top: -2, bottom: -2, borderRadius: 22 },
+  halo: {
+    position: 'absolute',
+    left: -2,
+    right: -2,
+    top: -2,
+    bottom: -2,
+    borderRadius: 22,
+    boxShadow: '-10px 0 18px rgba(52,211,153,0.55), 0 -6px 18px rgba(96,165,250,0.5), 0 0 22px rgba(167,139,250,0.6), 0 6px 18px rgba(244,114,182,0.5), 10px 0 18px rgba(251,146,60,0.55)',
+  },
   input: { flex: 1, minHeight: 44, fontSize: 16, fontFamily: fonts.medium, color: colors.fg },
   mic: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   micOn: { backgroundColor: colors.fg },

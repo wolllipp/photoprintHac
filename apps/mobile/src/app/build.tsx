@@ -11,6 +11,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { buildOnServer, takePendingBook } from '@/api/book';
 import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { type PhotoName, pic } from '@/data/photos';
@@ -79,18 +80,35 @@ export default function Build() {
   const done = step >= STEPS.length;
   const title = params.title ?? 'Карелия, июль';
 
+  // если фото выбраны в галерее — собираем на сервере: этапы приходят оттуда. Сервер недоступен — доигрываем демо.
+  const [pending] = useState(() => takePendingBook());
+  const [server, setServer] = useState<'off' | 'running' | 'done'>(pending ? 'running' : 'off');
+  const [projectId, setProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pending) return;
+    buildOnServer(pending, (n) => setStep((x) => Math.max(x, Math.min(n, STEPS.length - 1))))
+      .then((book) => {
+        setProjectId(book.projectId);
+        setServer('done');
+        setStep(STEPS.length);
+      })
+      .catch(() => setServer('off'));
+  }, [pending]);
+
   useEffect(() => {
     if (done) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      // книга собрана — сразу листаем её (параметры из диалога передаём дальше)
-      const t = setTimeout(() => router.replace({ pathname: '/review', params }), 1200);
+      // книга собрана — сразу листаем её (параметры из диалога передаём дальше; с сервера — ещё и id проекта)
+      const t = setTimeout(() => router.replace({ pathname: '/review', params: projectId ? { ...params, id: projectId, projectId } : params }), 1200);
       return () => clearTimeout(t);
     }
     if (step > 0) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    // пока собирает сервер — шаги двигает он, а не таймер
+    if (server === 'running') return;
     const t = setTimeout(() => setStep((x) => x + 1), STEP_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, done]);
+  }, [step, done, server]);
 
   const W = width - 32;
 

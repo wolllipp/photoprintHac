@@ -85,3 +85,28 @@ def test_dhash_groups_near_duplicates_and_keeps_the_sharpest(tmp_path):
     assert by_id[sharpest]["selected"] is True
     assert by_id[less_sharp]["selected"] is False
     assert by_id[less_sharp]["reject_reason"] == "similar"
+
+
+def test_min_keep_returns_similar_shots_but_never_exact_copies(tmp_path):
+    """Фото меньше минимума книги — похожие кадры возвращаются (чтобы не было пустых страниц), точные копии — нет."""
+    def picture(path, shift):
+        pixels = np.zeros((96, 96), dtype=np.uint8)
+        pixels[:, :48] = 255
+        pixels[shift:shift + 8, :] = 128  # чуть отличается — «похожий кадр»
+        buf = io.BytesIO()
+        Image.fromarray(pixels).save(buf, format="PNG")
+        path.write_bytes(buf.getvalue())
+
+    base, similar, copy = (uuid.UUID(int=n) for n in (21, 22, 23))
+    a, b, c = (tmp_path / f"{n}.png" for n in "abc")
+    picture(a, 10)
+    picture(b, 12)
+    c.write_bytes(a.read_bytes())
+
+    plain = {r["photo_id"]: r for r in select_photos([photo(base, a), photo(similar, b), photo(copy, c)], pages=10)}
+    assert sum(r["selected"] for r in plain.values()) == 1  # без минимума похожие и копия — в запасе
+
+    filled = {r["photo_id"]: r for r in select_photos([photo(base, a), photo(similar, b), photo(copy, c)], pages=10, min_keep=10)}
+    assert filled[similar]["selected"] is True
+    assert sum(r["selected"] for r in filled.values()) == 2  # точная копия файла так и не вернулась
+

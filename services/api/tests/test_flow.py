@@ -49,6 +49,11 @@ async def test_full_path_guest_to_tracked_order(client):
     assert st["status"] == "done"
     sel = (await client.get(f"/projects/{pid}/selection", headers=gh)).json()
     assert sel["total"] == 12 and 0 < sel["selected"] <= 12
+    # страницы для просмотра в приложении: по порядку, в каждой рамке — отобранное фото
+    pages = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()
+    assert pages["pages"] and [p["position"] for p in pages["pages"]] == sorted(p["position"] for p in pages["pages"])
+    placed = {f["photo_id"] for p in pages["pages"] for f in p["frames"]}
+    assert placed <= {p["photo_id"] for p in sel["photos"] if p["selected"]}
 
     # 4. вернуть отсеянное фото; повторная сборка этого выбора не трогает
     rejected = [p["photo_id"] for p in sel["photos"] if not p["selected"]]
@@ -71,22 +76,23 @@ async def test_full_path_guest_to_tracked_order(client):
     assert v["user"]["is_guest"] is False
     assert any(p["id"] == pid for p in (await client.get("/projects", headers=uh)).json())
 
-    # 7. пики и заказ: 1 пик = 0,10 руб., списать можно до 30% книги (81,10 → 243 пика = 24,30)
+    # 7. пики и заказ: книга меньше минимума Classic считается по минимуму — 20 стр. = 81,00;
+    #    1 пик = 0,10 руб., списать можно до 30% книги (81,00 → 243 пика = 24,30)
     await client.post("/dev/points", headers=uh, params={"amount": 350})
     r = await client.post("/orders", headers=uh, json={**body, "points_to_spend": 350})
     assert r.status_code == 200, r.text
     o = r.json()
     assert o["stage"] == "accepted" and o["number"] >= 4792101
-    assert o["breakdown"] == {"book": "72.90", "delivery": "5.90", "points_discount": "21.80", "points_spent": 218}
-    assert o["total"] == "57.00"
-    assert (await client.get("/me", headers=uh)).json()["points"] == 132  # остаток не сгорел
+    assert o["breakdown"] == {"book": "81.00", "delivery": "5.90", "points_discount": "24.30", "points_spent": 243}
+    assert o["total"] == "62.60"
+    assert (await client.get("/me", headers=uh)).json()["points"] == 107  # остаток не сгорел
 
-    # 8. отслеживание: этапы и «готово 2 из 4 разворотов»
+    # 8. отслеживание: этапы и «готово 2 из 10 разворотов» (20 стр. — минимум Classic)
     for _ in range(2):
         await client.post(f"/dev/orders/{o['id']}/advance", headers=uh)
     await client.post(f"/dev/orders/{o['id']}/advance", headers=uh, params={"done": 2})
     t = (await client.get(f"/orders/{o['id']}", headers=uh)).json()
-    assert t["stage"] == "printing" and t["progress"] == {"done": 2, "total": 4}
+    assert t["stage"] == "printing" and t["progress"] == {"done": 2, "total": 10}
     assert [x["stage"] for x in t["timeline"]][:3] == ["accepted", "layout_checked", "printing"]
 
     # 9. главная
@@ -521,3 +527,76 @@ async def test_queued_worker_started_after_order_cannot_change_project_or_pages(
         assert project.status.value == "ordered"
         assert job.status == "cancelled"
         assert [(page.position, page.layout) for page in pages_after] == pages_before
+
+
+async def test_upload_accepts_iphone_mpo(client):
+    """Айфон часто сохраняет фото как MPO (JPEG с кадрами глубины/HDR) — такие фото должны загружаться."""
+    from PIL import Image
+    first, second = Image.new("RGB", (64, 48), (200, 80, 40)), Image.new("RGB", (64, 48), (20, 80, 200))
+    buf = io.BytesIO()
+    first.save(buf, "MPO", save_all=True, append_images=[second])
+    assert Image.open(io.BytesIO(buf.getvalue())).format == "MPO"
+    token = (await client.post("/auth/guest")).json()["token"]
+    r = await client.post("/photos", headers={"Authorization": f"Bearer {token}"},
+                          files=[("files", ("iphone.jpeg", buf.getvalue(), "image/jpeg"))])
+    assert r.status_code == 200, r.text
+    assert r.json()[0]["width"] == 64
+
+
+async def test_order_with_extras_and_promo_matches_app_total(client):
+    """Сумма на сервере — как в приложении: книга + допуслуги − промокод (10% книги) + доставка − пики (до 30% товаров)."""
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    files = [("files", (f"{i}.png", png(i), "image/png")) for i in range(3)]
+    photos = (await client.post("/photos", headers=gh, files=files)).json()
+    pid = (await client.post("/projects", headers=gh, json={"title": "Промо", "photo_ids": [p["id"] for p in photos]})).json()["id"]
+    await client.post(f"/projects/{pid}/build", headers=gh)
+    v = (await client.post("/auth/otp/verify", headers=gh, json={"phone": "+375291110000", "code": "0000"})).json()
+    uh = auth(v["token"])
+    body = {"project_id": pid, "product": "classic", "format": "20x20", "delivery": "europost_pvz", "payment": "card"}
+    assert (await client.post("/orders", headers=uh, json={**body, "promo_code": "НЕТАКОГО"})).status_code == 422
+    assert (await client.post("/orders", headers=uh, json={**body, "extras": ["unknown"]})).status_code == 422
+    r = await client.post("/orders", headers=uh, json={**body, "extras": ["gift"], "promo_code": "picpac10"})
+    assert r.status_code == 200, r.text
+    o = r.json()
+    # Classic по минимуму 20 стр. = 81,00; подарочная упаковка 4,90; промокод −8,10; Европочта 5,90
+    assert o["breakdown"]["book"] == "81.00" and o["breakdown"]["extras"] == "4.90" and o["breakdown"]["promo_discount"] == "8.10"
+    assert o["total"] == "83.70"
+
+
+async def test_page_edit_is_saved_and_returned(client):
+    """Правка страницы из приложения сохраняется: макет, фото по рамкам (своё фото не из книги прикрепляется), подпись, улучшения."""
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    photos = (await client.post("/photos", headers=gh, files=[("files", (f"{i}.png", png(i), "image/png")) for i in range(3)])).json()
+    pid = (await client.post("/projects", headers=gh, json={"title": "Правки", "photo_ids": [photos[0]["id"], photos[1]["id"]]})).json()["id"]
+    await client.post(f"/projects/{pid}/build", headers=gh)
+    new = photos[2]["id"]  # «заменить из галереи»: фото, которого не было в книге
+    r = await client.put(f"/projects/{pid}/pages/0", headers=gh, json={
+        "template": "caption", "caption": "Лето у бабушки", "fx": {"0": ["light", "horizon"]},
+        "frames": [{"photo_id": new, "frame": {"x": 0, "y": 0, "w": 1, "h": 0.8}}]})
+    assert r.status_code == 200, r.text
+    first = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["pages"][0]
+    assert first["template"] == "caption" and first["caption"] == "Лето у бабушки" and first["fx"] == {"0": ["light", "horizon"]}
+    assert [f["photo_id"] for f in first["frames"]] == [new]
+    sel = {p["photo_id"]: p for p in (await client.get(f"/projects/{pid}/selection", headers=gh)).json()["photos"]}
+    assert sel[new]["selected"] is True and sel[new]["user_override"] is True
+    # чужое фото поставить нельзя
+    other = auth((await client.post("/auth/guest")).json()["token"])
+    foreign = (await client.post("/photos", headers=other, files=[("files", ("x.png", png(9), "image/png"))])).json()[0]["id"]
+    bad = await client.put(f"/projects/{pid}/pages/1", headers=gh, json={"template": "one", "frames": [{"photo_id": foreign, "frame": {"x": 0, "y": 0, "w": 1, "h": 1}}]})
+    assert bad.status_code == 404
+
+
+async def test_print_order_without_book(client):
+    """Фотопечать: заказ из своих фото — по цене за штуку формата × копии, без книги."""
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    photos = (await client.post("/photos", headers=gh, files=[("files", (f"{i}.png", png(i), "image/png")) for i in range(2)])).json()
+    uh = auth((await client.post("/auth/otp/verify", headers=gh, json={"phone": "+375291112233", "code": "0000"})).json()["token"])
+    body = {"product": "print_chemical", "format": "10x15", "delivery": "europost_pvz", "payment": "card",
+            "prints": [{"photo_id": photos[0]["id"], "qty": 3}, {"photo_id": photos[1]["id"], "qty": 1}]}
+    r = await client.post("/orders", headers=uh, json=body)
+    assert r.status_code == 200, r.text
+    o = r.json()
+    assert o["breakdown"]["prints"] == "5.20"  # 4 × 1,30 — цена с super.picpac.by
+    assert o["total"] == "11.10"               # + Европочта 5,90
+    assert (await client.post("/orders", headers=uh, json={**body, "prints": []})).status_code == 422
+

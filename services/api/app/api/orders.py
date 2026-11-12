@@ -10,7 +10,7 @@ from app.api.auth import points_balance
 from app.api.projects import locked_owned_project
 from app.config import settings
 from app.db import get_session
-from app.models import (DeliveryMethod, Order, OrderItem, OrderStage, PickupPoint, PointsLedger, Product,
+from app.models import (DeliveryMethod, Order, OrderItem, OrderStage, Photo, PickupPoint, PointsLedger, Product,
                         ProductOption, ProjectPhoto, ProjectStatus, Stage, User)
 from app.pricing import PricingError, book_price, delivery_cost, eta
 from app.security.auth import registered_user
@@ -26,14 +26,29 @@ class PickupIn(BaseModel):
     address: str
 
 
+# Допуслуги и промокоды — те же, что в приложении (apps/mobile/src/data/store.tsx EXTRAS, checkout.tsx).
+# ДОПУЩЕНИЕ: в продукте — справочник и акции из CRM заказчика.
+EXTRAS = {"gift": Decimal("4.90"), "express": Decimal("12.00")}
+PROMO = {"PICPAC10": Decimal("0.10")}  # доля скидки на книгу
+
+
+class PrintIn(BaseModel):
+    photo_id: uuid.UUID
+    qty: int = Field(1, ge=1, le=99)
+
+
 class OrderIn(BaseModel):
-    project_id: uuid.UUID
-    product: str  # lite | classic | premium
+    # книга — project_id и тариф; фотопечать — prints (какие фото и сколько копий), product print_digital | print_chemical
+    project_id: uuid.UUID | None = None
+    prints: list[PrintIn] = []
+    product: str  # lite | classic | premium | print_digital | print_chemical
     format: str = "20x20"
     delivery: str = "europost_pvz"
     pickup: PickupIn | None = None
     payment: str = Field("card", pattern="^(card|erip)$")
     points_to_spend: int = Field(0, ge=0)
+    extras: list[str] = []
+    promo_code: str | None = None
 
 
 def order_out(o: Order, stages: list[OrderStage], pages: int | None = None) -> dict:
@@ -50,35 +65,62 @@ def order_out(o: Order, stages: list[OrderStage], pages: int | None = None) -> d
 
 @router.post("/orders")
 async def create_order(body: OrderIn, user: User = Depends(registered_user), s: AsyncSession = Depends(get_session)):
-    project = await locked_owned_project(s, body.project_id, user)
-    if project.status != ProjectStatus.ready:
-        raise HTTPException(409, "сначала соберите книгу")
     row = (await s.execute(select(Product, ProductOption).join(ProductOption, ProductOption.product_id == Product.id)
                            .where(Product.code == body.product, ProductOption.format == body.format))).first()
     dm = (await s.execute(select(DeliveryMethod).where(DeliveryMethod.code == body.delivery))).scalar_one_or_none()
     if row is None or dm is None:
         raise HTTPException(404, "продукт, формат или доставка не найдены")
     product, opt = row
-    if product.kind != "photobook":
-        raise HTTPException(422, "заказ фотопечати пока не реализован")
-    try:
-        price = book_price(opt, project.page_count)
-    except PricingError as e:
-        raise HTTPException(422, str(e))
-    n_selected = (await s.execute(select(ProjectPhoto).where(ProjectPhoto.project_id == project.id,
-                                                             ProjectPhoto.selected.is_(True)))).scalars().all()
-    if not n_selected:
-        raise HTTPException(422, "в книге нет отобранных фото")
+    project = None
+    print_items: list[tuple[uuid.UUID, int]] = []
+    if product.kind == "photobook":
+        if body.project_id is None:
+            raise HTTPException(422, "для книги нужен project_id")
+        project = await locked_owned_project(s, body.project_id, user)
+        if project.status != ProjectStatus.ready:
+            raise HTTPException(409, "сначала соберите книгу")
+        try:
+            # меньше минимума тарифа книга не бывает: считаем по минимуму (недостающие страницы подсветит редактор)
+            pages = max(project.page_count, opt.min_pages or 0)
+            project.page_count = pages
+            price = book_price(opt, pages)
+        except PricingError as e:
+            raise HTTPException(422, str(e))
+        n_selected = (await s.execute(select(ProjectPhoto).where(ProjectPhoto.project_id == project.id,
+                                                                 ProjectPhoto.selected.is_(True)))).scalars().all()
+        if not n_selected:
+            raise HTTPException(422, "в книге нет отобранных фото")
+    else:
+        # фотопечать: только свои фото; цена — за штуку формата × копии
+        if not body.prints:
+            raise HTTPException(422, "для печати нужны фото")
+        ids = {p.photo_id for p in body.prints}
+        mine = set((await s.execute(select(Photo.id).where(Photo.id.in_(ids), Photo.owner_id == user.id))).scalars())
+        if mine != ids:
+            raise HTTPException(404, "часть фото не найдена")
+        print_items = [(p.photo_id, p.qty) for p in body.prints]
+        price = (opt.base_price * sum(q for _, q in print_items)).quantize(Decimal("0.01"))
 
-    ship = delivery_cost(dm, price)  # порог бесплатной доставки — по цене до списания пиков
-    gross = price + ship
+    unknown = [e for e in body.extras if e not in EXTRAS]
+    if unknown:
+        raise HTTPException(422, f"нет такой допуслуги: {', '.join(unknown)}")
+    extras = sum((EXTRAS[e] for e in set(body.extras)), Decimal("0.00"))
+    promo_share = Decimal("0")
+    if body.promo_code:
+        promo_share = PROMO.get(body.promo_code.strip().upper(), Decimal("-1"))
+        if promo_share < 0:
+            raise HTTPException(422, "промокод не подошёл")
+    promo = (price * promo_share).quantize(Decimal("0.01"))
+    goods = price + extras  # товары и допуслуги — как в приложении
+    ship = delivery_cost(dm, price)  # порог бесплатной доставки — по цене товаров до скидок
+    gross = goods - promo + ship
     balance = await points_balance(s, user.id)
     if body.points_to_spend > balance:
         raise HTTPException(422, f"не хватает пиков: есть {balance}")
     # пиками — не больше 30% стоимости товаров, доставку пиками не оплачивают;
     # списываем только столько пиков, сколько реально ушло в скидку
     value = Decimal(str(settings.point_value_rub))
-    max_points = int(price * Decimal(str(settings.points_max_share)) / value)
+    max_points = int(goods * Decimal(str(settings.points_max_share)) / value)
     spent = min(body.points_to_spend, max_points)
     discount = (Decimal(spent) * value).quantize(Decimal("0.01"))
     total = (gross - discount).quantize(Decimal("0.01"))
@@ -95,19 +137,26 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
                   promised_at=datetime.combine(ready, time(18, 0), tzinfo=timezone.utc))
     s.add(order)
     await s.flush()
-    s.add(OrderItem(order_id=order.id, project_id=project.id, product_id=product.id, price=price))
+    if project is not None:
+        s.add(OrderItem(order_id=order.id, project_id=project.id, product_id=product.id, option_id=opt.id, price=price))
+    for photo_id, qty in print_items:
+        s.add(OrderItem(order_id=order.id, photo_id=photo_id, product_id=product.id, option_id=opt.id, qty=qty,
+                        price=(opt.base_price * qty).quantize(Decimal("0.01"))))
     st = OrderStage(order_id=order.id, stage=Stage.accepted, line=opt.print_line)
     s.add(st)
     if spent:
         s.add(PointsLedger(user_id=user.id, delta=-spent, reason="order_payment", order_id=order.id))
-    project.status = ProjectStatus.ordered
-    project.product_id, project.option_id = product.id, opt.id
+    if project is not None:
+        project.status = ProjectStatus.ordered
+        project.product_id, project.option_id = product.id, opt.id
     await s.commit()
     await s.refresh(order)
     await s.refresh(st)
-    return {**order_out(order, [st], project.page_count),
-            "breakdown": {"book": str(price), "delivery": str(ship), "points_discount": str(discount),
-                          "points_spent": spent}}
+    return {**order_out(order, [st], project.page_count if project else None),
+            "breakdown": {("book" if project else "prints"): str(price), "delivery": str(ship), "points_discount": str(discount),
+                          "points_spent": spent,
+                          **({"extras": str(extras)} if extras else {}),
+                          **({"promo_discount": str(promo)} if promo else {})}}
 
 
 @router.get("/orders")

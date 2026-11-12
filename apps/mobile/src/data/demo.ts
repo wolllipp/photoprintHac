@@ -227,6 +227,6 @@ export const welcome = {
 
 /** Плитки-действия главной. Цена «от» — из справочника (D14). */
 export const tiles = {
-  printFrom: 'от 0,49 р.',
+  printFrom: 'от 1,30 р.',
   inviteBonus: '+100 пиков за друга',
 };

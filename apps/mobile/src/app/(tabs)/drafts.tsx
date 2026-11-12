@@ -46,14 +46,16 @@ const TARIFF = tariffs[1];
 
 export default function Drafts() {
   const insets = useSafeAreaInsets();
-  const { lastBook, started, hiddenDrafts, hideDraft, setLastBook, orderNow } = useStore();
+  const { lastBook, started, hiddenDrafts, hideDraft, setLastBook, orderNow, serverDrafts } = useStore();
 
   // только то, что человек сам начал; свежие — сверху. Идеи ИИ живут в кружках на главной, сюда не попадают
   const items: Item[] = Object.entries(started)
-    .filter(([id]) => !hiddenDrafts.includes(id) && drafts[id])
+    .filter(([id]) => !hiddenDrafts.includes(id) && (drafts[id] || serverDrafts[id]))
     .sort((a, b) => b[1] - a[1])
     .map(([id, at], i) => {
-      const d = drafts[id];
+      // демо-книга — из данных; книга с сервера — из её карточки (открывается по id проекта и подгружается с сервера)
+      const d = drafts[id] ?? serverDrafts[id];
+      const server = !drafts[id];
       // на этой книге человек остановился — открываем на той же странице
       const fromPreview = lastBook && (lastBook.params.id ?? 'karelia') === id ? lastBook : null;
       return {
@@ -65,7 +67,11 @@ export default function Drafts() {
         format: fromPreview ? fromPreview.params.format ?? d.format : d.format,
         photos: d.photos,
         savedAt: at,
-        open: () => router.push({ pathname: '/review', params: fromPreview ? fromPreview.params : { id } }),
+        open: () =>
+          router.push({
+            pathname: '/review',
+            params: fromPreview ? fromPreview.params : server ? { id, projectId: id, title: d.title, pages: String(d.pages), format: d.format } : { id },
+          }),
       };
     });
 
