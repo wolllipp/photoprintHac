@@ -4,9 +4,10 @@ import { Unbounded_600SemiBold, Unbounded_700Bold, Unbounded_800ExtraBold } from
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { loadCatalog } from '@/api/catalog';
 import { StoreProvider } from '@/data/store';
 import { colors } from '@/theme';
 
@@ -16,11 +17,22 @@ export default function RootLayout() {
   // Batica и Onehart: положить .ttf/.otf в assets/fonts и добавить сюда, затем сменить fonts.display/accent в theme.ts
   const [loaded, error] = useFonts({ Pacifico_400Regular, Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, Unbounded_600SemiBold, Unbounded_700Bold, Unbounded_800ExtraBold });
 
+  // цены и сроки — из каталога сервера; ждём его не дольше 1,5 с, дальше — сохранённые или с сайта
+  const [catalog, setCatalog] = useState(false);
   useEffect(() => {
-    if (loaded || error) SplashScreen.hideAsync();
-  }, [loaded, error]);
+    const done = () => setCatalog(true);
+    const timer = setTimeout(done, 1500);
+    loadCatalog().finally(() => {
+      clearTimeout(timer);
+      done();
+    });
+  }, []);
 
-  if (!loaded && !error) return null;
+  useEffect(() => {
+    if ((loaded || error) && catalog) SplashScreen.hideAsync();
+  }, [loaded, error, catalog]);
+
+  if ((!loaded && !error) || !catalog) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

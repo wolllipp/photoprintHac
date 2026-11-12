@@ -80,10 +80,11 @@ export const tariffs: Tariff[] = [
 
 export type Draft = { title: string; pages: number; format: string; photos: number; cover: PhotoName };
 /**
- * Цена книги: тариф × формат × страницы × ламинация. Цены, диапазоны и шаг — с super.picpac.by:
+ * Цена книги: тариф × формат × страницы. Источник — каталог сервера (GET /catalog/products, api/catalog.ts);
+ * значения ниже — те же цены с super.picpac.by на случай, если сервер ещё не ответил:
  * Lite 24–160 стр., от 70,00 за 24, +2,00 за 2 стр.; Classic 20–60, от 81,00 за 20, +3,00 за 2 стр.;
  * Premium 10–60, от 100,50 за 10, +7,00 за 2 стр. Печать книги — 3 дня с оплаты.
- * ДОПУЩЕНИЕ: надбавки за формат и зернистую ламинацию на сайте не указаны — условные; источник правды — справочник D14.
+ * Надбавок за формат и ламинацию на сайте нет — и у нас нет, чтобы цена в приложении совпадала с заказом.
  */
 export const FORMATS_BY_TARIFF: Record<Tariff['id'], string[]> = {
   lite: ['20×20', '26×26', '21×30'],
@@ -96,18 +97,60 @@ export const BOOK: Record<Tariff['id'], { price: number; min: number; max: numbe
   classic: { price: 81, min: 20, max: 60, step: 3 },
   premium: { price: 100.5, min: 10, max: 60, step: 7 },
 };
-/** Дней на печать книги — с момента оплаты. */
-export const PRINT_DAYS = 3;
+/** Цена у конкретного формата, если каталог сервера отдал её отдельно. */
+export const BOOK_BY_FORMAT: Partial<Record<Tariff['id'], Record<string, { price: number; step: number }>>> = {};
+/** Дней на печать книги — с момента оплаты (из каталога). */
+export let PRINT_DAYS = 3;
+/** Фотопечать: цена за 1 шт. (из каталога) и дней на печать. */
+export const PRINT_FORMATS = [
+  { id: '10×15', price: 1.3 },
+  { id: '15×20', price: 1.6 },
+  { id: '20×30', price: 3.2 },
+  { id: '30×45', price: 20 },
+];
+export let PRINTS_DAYS = 2;
 /** Число страниц в пределах тарифа, чётное. */
 export function fitPages(tariff: Tariff['id'], pages: number) {
   const b = BOOK[tariff];
   return Math.min(b.max, Math.max(b.min, Math.ceil(pages / 2) * 2));
 }
-const FORMAT_K: Record<string, number> = { '20×20': 1, '21×30': 1.25, '25×25': 1.2, '26×26': 1.2, '30×20': 1.3, '30×30': 1.55 };
-export function bookPrice(tariff: Tariff['id'], format: string, pages: number, finish: 'Глянец' | 'Зерно') {
+/** finish (ламинация) на цену не влияет: на сайте одна цена. */
+export function bookPrice(tariff: Tariff['id'], format: string, pages: number, finish?: 'Глянец' | 'Зерно') {
   const b = BOOK[tariff];
-  const raw = (b.price + (b.step * (fitPages(tariff, pages) - b.min)) / 2) * (FORMAT_K[format] ?? 1) + (finish === 'Зерно' ? 3 : 0);
-  return Math.round(raw * 100) / 100;
+  const f = BOOK_BY_FORMAT[tariff]?.[format] ?? b;
+  return Math.round((f.price + (f.step * (fitPages(tariff, pages) - b.min)) / 2) * 100) / 100;
+}
+
+/** Каталог сервера → цены, диапазоны, форматы, сроки и доставка приложения (вызывает api/catalog.ts). */
+export type CatalogProduct = { code: string; options: { format: string; min_pages: number | null; max_pages: number | null; base_price: string; step_price: string | null; production_days: number }[] };
+export type CatalogDelivery = { code: string; price: string; free_from: string | null };
+const DELIVERY_CODE: Record<string, string> = { evropochta: 'europost_pvz', courier: 'europost_courier_minsk', belpochta: 'belpost', ems: 'ems' };
+export function applyCatalog(products: CatalogProduct[], methods: CatalogDelivery[]) {
+  const ui = (f: string) => f.replace('x', '×');
+  for (const t of tariffs) {
+    const p = products.find((x) => x.code === t.id);
+    if (!p?.options.length) continue;
+    const base = p.options.find((o) => o.format === '20x20') ?? p.options[0];
+    BOOK[t.id] = { price: Number(base.base_price), min: base.min_pages ?? BOOK[t.id].min, max: base.max_pages ?? BOOK[t.id].max, step: Number(base.step_price ?? 0) };
+    FORMATS_BY_TARIFF[t.id] = p.options.map((o) => ui(o.format));
+    BOOK_BY_FORMAT[t.id] = Object.fromEntries(p.options.map((o) => [ui(o.format), { price: Number(o.base_price), step: Number(o.step_price ?? 0) }]));
+    PRINT_DAYS = base.production_days;
+    t.price = bookPrice(t.id, '20×20', 24);
+  }
+  const prints = products.find((x) => x.code === 'print_chemical');
+  if (prints) {
+    for (const f of PRINT_FORMATS) {
+      const o = prints.options.find((x) => ui(x.format) === f.id);
+      if (o) f.price = Number(o.base_price);
+    }
+    PRINTS_DAYS = prints.options[0]?.production_days ?? PRINTS_DAYS;
+  }
+  for (const d of delivery) {
+    const m = methods.find((x) => x.code === DELIVERY_CODE[d.id]);
+    if (!m) continue;
+    d.price = Number(m.price);
+    d.freeFrom = m.free_from ? Number(m.free_from) : undefined;
+  }
 }
 /** Какой формат взять, если у тарифа выбранного нет. */
 export const fitFormat = (tariff: Tariff['id'], format: string) => (FORMATS_BY_TARIFF[tariff].includes(format) ? format : '20×20');
@@ -231,6 +274,8 @@ export const welcome = {
 
 /** Плитки-действия главной. Цена «от» — из справочника (D14). */
 export const tiles = {
-  printFrom: 'от 1,30 р.',
+  get printFrom() {
+    return `от ${Math.min(...PRINT_FORMATS.map((f) => f.price)).toFixed(2).replace('.', ',')} р.`;
+  },
   inviteBonus: '+100 пиков за друга',
 };

@@ -16,6 +16,7 @@ import Animated, { FadeInDown, FadeOut, LinearTransition, ZoomOut } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TitleBar } from '@/components/nav';
+import { PRINT_FORMATS, PRINTS_DAYS } from '@/data/demo';
 import { Tap } from '@/components/ui';
 import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
 import { dupText, pickPhotos } from '@/data/picked';
@@ -23,13 +24,8 @@ import { rub, useStore } from '@/data/store';
 import { AnimatedNumber } from '@/motion';
 import { colors, fonts } from '@/theme';
 
-// цены — super.picpac.by/catalog/photo (глянец и мат по одной цене); источник правды — справочник на сервере
-const FORMATS = [
-  { id: '10×15', price: 1.3 },
-  { id: '15×20', price: 1.6 },
-  { id: '20×30', price: 3.2 },
-  { id: '30×45', price: 20 },
-];
+// цены — из каталога сервера (super.picpac.by/catalog/photo: глянец и мат по одной цене), см. api/catalog.ts
+const FORMATS = PRINT_FORMATS;
 const PAPERS = [
   { id: 'Глянец', title: 'Глянцевая', sub: 'яркие цвета, насыщенный чёрный' },
   { id: 'Мат', title: 'Матовая', sub: 'без бликов и отпечатков пальцев' },
@@ -118,7 +114,7 @@ export default function Print() {
       pages: count,
       finish: paper === 'Мат' ? 'Зерно' : 'Глянец',
       price: total,
-      readyBy: 'через 2 дня',
+      readyBy: `через ${PRINTS_DAYS} ${PRINTS_DAYS === 1 ? 'день' : PRINTS_DAYS < 5 ? 'дня' : 'дней'}`,
       cover: first,
       // для заказа на сервере: какие фото и сколько копий (демо-снимки на сервер не уходят)
       prints: SHOTS.filter((k) => (qty[k] ?? 0) > 0).map((k) => ({ uri: String(k), qty: qty[k] })),
