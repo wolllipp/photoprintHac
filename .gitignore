@@ -19,3 +19,6 @@ services/api/storage/
 *.mp4
 *.MOV
 *.mov
+
+# самоподписанные сертификаты демо (tools/https_demo.py)
+tools/.cert/
