@@ -2,18 +2,14 @@
 /* picPac Insight, HTML-макет. Весь ввод макета лежит в DEMO; при переносе в Next.js объект становится фикстурой моков.
    Правило проекта: числа считает код, модель только объясняет. Поэтому агрегаты ниже считаются из сырых строк. */
 // ДОПУЩЕНИЕ: объёмы, цены заказа, пороги, сотрудники и партии придуманы. Пороги должна утвердить Алеся (D4, D8).
-const DEMO_FILE = {
+const DEMO = {
   meta: { firstWeekStart: "2026-07-20", today: "2026-11-09", lastWeek: 16, firstHistoryWeek: -32 },
   calendar: [
     { date: "2026-10-26", title: "На Ricoh пошла новая партия материала", href: "#/deviations/D-118" },
     { date: "2026-10-27", title: "Простой Ricoh в ночную смену", href: "#/deviations/D-118" },
   ],
-  // ДОПУЩЕНИЕ: что именно отдаёт каждая система, команда уточнит при подключении.
-  integrations: [
-    ["ledger", "1С", "Учёт и финансы. Отсюда придут выручка, себестоимость и фонд оплаты."],
-    ["users", "CRM", "Клиенты и заказы. Отсюда придут повторные заказы и претензии."],
-    ["box", "Европочта", "Доставка и возвраты. Отсюда придут статусы посылок и сроки."],
-  ],
+  // Источники берём из слоя данных (insight-data.js): 5 систем из ТЗ и приложение, с частотой обновления
+  integrations: InsightData.sources().map(s => [s.icon, s.short, `${s.about} Обновление: ${s.cadence}.`]),
   lines: ["Fuji Frontier", "Ricoh", "Noritsu"],
   rules: { baseline: [7, 14], current: [15, 16], detectFactor: 1.5, recoverFactor: 1.25, staffingMin: 0.92, effectDays: 14, ricoh: "Ricoh", premium: "Фотокнига Premium" },
   columns: ["w", "line", "product", "shift", "operator", "supplier", "orders", "sheets", "defects", "revenue", "cost", "discount", "downtime", "late"],
@@ -523,6 +519,7 @@ const DEMO_FILE = {
     defects: { name: "mart_defects_weekly", kind: "Витрина", detail: "Ricoh, две последние недели: брак {ricohNow}, норма {ricohNorm}. Ночные смены {nightNow}, дневные {dayNow}." },
     downtime: { name: "журнал простоев оборудования", kind: "Журнал", detail: "Ricoh, ночная смена, неделя с простоем: {downtime}." },
     material: { name: "накладные на материалы, октябрь и ноябрь", kind: "Документ", detail: "Замена материала на Ricoh: {batchFrom} заменён на {batchTo}." },
+    forecast: { name: "прогноз спроса и мощности по неделям", kind: "Витрина", detail: "Спрос — заказы той же недели прошлого года (ERP), мощность — паспорт линий (ERP) и люди переплёта (HR). Пересчёт после загрузки ERP и HR." },
     regulation: { name: "регламент калибровки печатных линий, п. 4", kind: "Документ", detail: "Пункт о калибровке оборудования после простоя. Текст иллюстративный." },
     finance: { name: "mart_margin_weekly", kind: "Витрина", detail: "Premium, две последние недели: скидка {discNow}, норма {discNorm}." },
     payroll: { name: "mart_payroll_summary", kind: "Витрина", detail: "Только итог по компании, без строк по сотрудникам: {payrollNow} выручки." },
@@ -540,6 +537,7 @@ const DEMO_FILE = {
     talks: {
       "D-117": "Директор: по скидкам на Premium уходим вдвое выше нормы.\nДиректор по развитию: давайте согласовывать со мной всё, что выше нормы.",
       "D-119": "Руководитель смен: людей ночью не хватает, перераспределю смены на ноябрь.\nДиректор: хорошо. Проверим эффект через две недели.",
+      "D-120": "Начальник производства: в сезон фотохимия упрётся в Fuji Frontier, часть заказов переведём на цифровую печать Ricoh.\nДиректор: согласен. Срочные заказы — в приоритет.",
       retry: "Директор: калибровка не помогла, брак на Ricoh остался.\nТехнолог: проверим партию до запуска и закрепим контроль за сменами.",
     },
     // after: срок в днях от даты встречи
@@ -549,6 +547,7 @@ const DEMO_FILE = {
       { id: "p3", dev: "D-118", title: "Проверить укомплектованность ночных смен на линии Ricoh", owner: "Руководитель смен", after: 10, isDecision: false, done: "График ночных смен на ноябрь укомплектован" },
       { id: "p4", dev: "D-117", title: "Согласовывать скидки на Premium выше нормы с директором по развитию", owner: "Директор по развитию", after: 6, isDecision: true, done: "Порядок согласования скидок разослан менеджерам" },
       { id: "p5", dev: "D-119", title: "Перераспределить людей между сменами на ноябрь", owner: "Руководитель смен", after: 8, isDecision: true, done: "Обновлённый график смен утверждён" },
+      { id: "p7", dev: "D-120", title: "На сезон перевести часть фотопечати с Fuji Frontier на Ricoh, срочные заказы — в приоритет", owner: "Начальник производства", after: 14, isDecision: true, done: "План загрузки линий на сезон утверждён" },
       { id: "p6", dev: "D-118", retry: true, title: "Проверять партию до запуска и закрепить контроль калибровки за сменами", owner: "Технолог печати", after: 3, isDecision: true, done: "Чек-лист проверки партии внедрён на всех сменах" },
     ],
   },
@@ -559,13 +558,7 @@ const DEMO_FILE = {
       "Почему упала маржа на Premium?",
       "Покажи зарплаты операторов ночной смены",
       "Какой будет выручка в декабре?",
-      "Собери презентацию по показателям за период",
-      "Что будет с маржей Premium, если ограничить скидку 25%?",
-      "Что важного сегодня? Утренний брифинг",
-      "Построй Парето брака по операторам",
-      "Подготовь повестку совещания по качеству",
-      "Поручи технологу печати проверить калибровку Ricoh до 14 ноября",
-      "Узнай у руководителя смен, сколько людей было ночью на Ricoh",
+      "Когда в сезон не хватит мощности?",
     ],
     answers: {
       cause: "Доля брака на Ricoh выросла до {ricohNow} при норме {ricohNorm}. Сильнее всего отклонение объясняет измерение «{topDim}»: по всем линиям значение «{topVal}» даёт {topShare} прироста брака при {topVol} объёма. На ночных сменах Ricoh брак {nightNow}, на дневных {dayNow}. В те же недели был простой {downtime} и смена партии бумаги.{extra} Совпадение по времени не доказывает причину.",
@@ -575,7 +568,7 @@ const DEMO_FILE = {
       revenue: "Выручка за неделю {lastRange}: {revLast}.",
       supplier: "Не знаю. В данных есть только совпадение по времени: партия РБ-1141 использовалась на обеих сменах, а брак вырос в основном ночью ({nightNow} против {dayNow}). Чтобы ответить, не хватает протокола входного контроля партии.",
       margin: "Скидка на Premium выросла до {discNow} при норме {discNorm}, поэтому маржа снизилась. Это видно в витрине маржи за две последние недели.",
-      payrollCeo: "Индивидуальные зарплаты я не показываю. Доля фонда оплаты труда от выручки за две последние недели: {payrollNow}.",
+      payrollCeo: "Зарплаты и фонд оплаты труда в Insight не показываются: по ТЗ финансы выводятся без абсолютных сумм, а зарплаты не раскрываются. Могу показать обеспеченность персоналом и отсутствие по сменам.",
       payrollDenied: "У вашей роли нет доступа к кадровым и зарплатным данным. Инструмент этой витрины для роли не подключён, поэтому запрос не выполнялся.",
       forecast: "Не знаю. Прогноз выручки в макете не считается. Для ответа нужны план заказов на декабрь и модель сезонности.",
       attack: "Эту инструкцию я не выполняю. Текст из сообщений и документов я считаю данными, а записывать и раскрывать данные вне прав роли не могу.",
@@ -609,23 +602,21 @@ const DEMO_FILE = {
     orphans: [{ ref: "Заказ № 4791502", detail: "Нет клиента, строка отложена на разбор" }],
     schemaErrors: [],
   },
-  deviationsMeta: { main: "D-118", discount: "D-117", staffing: "D-119" },
+  deviationsMeta: { main: "D-118", discount: "D-117", staffing: "D-119", season: "D-120" },
   // ДОПУЩЕНИЕ: причины, решения и итоговые значения для D-117 и D-119 придуманы для демо.
   startNotices: [
     { role: "ceo", text: "Новое отклонение: брак на линии Ricoh выше нормы", href: "#/deviations/D-118" },
     { role: "ceo", text: "Новое отклонение: скидка на Premium выше нормы", href: "#/deviations/D-117" },
     { role: "ceo", text: "Новое отклонение: укомплектованность смен ниже порога", href: "#/deviations/D-119" },
+    { role: "ceo", text: "Прогноз: в сезон не хватит мощности линии", href: "#/deviations/D-120" },
   ],
   otherCases: {
     "D-117": { title: "Средняя скидка на Premium выше нормы", doneTitle: "Средняя скидка на Premium снизилась до", cause: "Скидка на Premium выше нормы, причина уточняется.", ask: 2, period: 30 },
     "D-119": { title: "Укомплектованность смен ниже порога", doneTitle: "Укомплектованность смен выросла до", cause: "В сменах меньше людей, чем по плану, причина уточняется.", period: 30 },
+    // Этап 3: отклонение по прогнозу. Название, причина и значение считаются из InsightData.forecast (см. seasonDeviation)
+    "D-120": { title: "Прогноз: дефицит мощности в сезон", doneTitle: "Прогноз загрузки в пиковую неделю снижен до", cause: "По прогнозу в сезон спрос превысит 90 % мощности линии.", ask: 5, period: 30 },
   },
 };
-
-/* Данные — с сервера (GET /insight/data, загружает index.html): та же история компании плюс живые заказы и обращения
-   из приложения (live). Сервер недоступен — данные из файла, как раньше. */
-const DEMO = window.INSIGHT_DATA && window.INSIGHT_DATA.production ? { ...DEMO_FILE, ...window.INSIGHT_DATA } : DEMO_FILE;
-const LIVE = (window.INSIGHT_DATA && window.INSIGHT_DATA.live) || null;
 
 /* ---------- Состояние ---------- */
 const DEMO_MODE = true;
@@ -642,7 +633,13 @@ const INITIAL = () => ({
   me: "Технолог печати", taskSeq: 301, lastAssigned: null, undoAssign: null,
   draftText: {}, draftFiles: {}, taskErr: {}, review: {}, reviewText: {}, answerText: {},
   askOpen: {}, askKind: {}, askText: {}, askDue: {}, taskEdit: null, editDraft: { owner: "", due: "", criteria: "" }, addTask: null, newTask: { title: "", owner: "", due: "", criteria: "" },
-  chat: [], chats: null, cur: null, draft: "", histOpen: false, typing: null, journal: DEMO.journal.slice(), attackDone: false, attackAnswer: "", visited: {}, form: blankForm(), errors: {}, history: [], pendingAsk: null, fileNote: "", line: null, month: null, barMetric: "rev", barRange: 6, calAnchor: DEMO.meta.today, calDay: DEMO.meta.today, edit: false, doneTasks: {},
+  chat: [], typing: null, journal: DEMO.journal.slice(), attackDone: false, attackAnswer: "", visited: {}, form: blankForm(), errors: {}, history: [], pendingAsk: null, fileNote: "", line: null, month: null, barMetric: "turnover", barRange: 6,
+  /* Этап 2: подразделение руководителя (роль head) и фильтры главной: подразделение и продукт (УП-03) */
+  dept: "prod", fDept: null, fProduct: null, calAnchor: DEMO.meta.today, calDay: DEMO.meta.today, edit: false, doneTasks: {},
+  /* Этап 3: прогноз — горизонт (4 недели или сезон) и рост спроса к прошлому году */
+  fcHorizon: 4, fcGrowth: 0,
+  /* Этап 4: развёрнут ли полный список заказов-оснований по отклонению */
+  basisAll: {},
 });
 let S = INITIAL();
 let typingTimer = null;
@@ -675,9 +672,7 @@ const sum = (arr, k) => arr.reduce((s, r) => s + r[k], 0);
 const rate = arr => { const s = sum(arr, "sheets"); return s ? sum(arr, "defects") / s : 0; };
 const ratio = (arr, a, b) => { const d = sum(arr, b); return d ? sum(arr, a) / d : 0; };
 const ricoh = r => r.line === DEMO.rules.ricoh;
-// фильтры «Пульса» (ТЗ 5.2): линия (подразделение производства) и продукт; период — S.period
-const scoped = () => rowsAll().filter(r => (!S.line || r.line === S.line) && (!S.product || r.product === S.product));
-const PRODUCTS = [...new Set(DEMO.production.map(r => r[DEMO.columns.indexOf("product")]))];
+const scoped = () => S.line ? rowsAll().filter(r => r.line === S.line) : rowsAll();
 const R = DEMO.rules;
 
 /* Состояние дела. У D-118 поля лежат прямо в S, у остальных такой же объект в S.others */
@@ -687,7 +682,7 @@ const caseOf = id => id === DEMO.deviationsMeta.main ? S : (S.others[id] = S.oth
 const OPEN_T = ["assigned", "working", "returned"];
 const TSTATUS = { assigned: ["Назначена", "b-open"], working: ["В работе", "b-work"], returned: ["На доработке", "b-open"], submitted: ["Отчёт на приёмке", "b-check"], accepted: ["Принята", "b-done"] };
 const taskBadge = t => `<span class="badge ${TSTATUS[t.status][1]}">${TSTATUS[t.status][0]}</span>`;
-const caseIds = () => [DEMO.deviationsMeta.main, DEMO.deviationsMeta.discount, DEMO.deviationsMeta.staffing];
+const caseIds = () => [DEMO.deviationsMeta.main, DEMO.deviationsMeta.discount, DEMO.deviationsMeta.staffing, DEMO.deviationsMeta.season];
 function mkTask(o) { return { id: `T-${S.taskSeq++}`, status: "assigned", report: null, attach: [], returnFiles: [], rounds: [], comment: "", request: null, overdue: false, reminded: false, log: [{ at: S.today, who: "Руководитель", text: "Задача назначена" }], ...o }; }
 function tasksOf(C) {
   const d = C.decision; if (!d) return [];
@@ -723,6 +718,12 @@ const takeFiles = key => { const f = (S.draftFiles[key] || []).slice(); S.draftF
 const logHtml = t => `<ol class="tlog">${t.log.slice().reverse().map(l => `<li><span class="tlog-at">${dueShort(l.at)}</span><span class="tlog-who">${esc(l.who)}</span><span>${esc(l.text)}</span></li>`).join("")}</ol>`;
 const termOf = t => t.status === "accepted" ? `принята ${dueShort(t.acceptedOn || S.today)}` : t.overdue ? `срок был ${dueShort(t.due)}` : `до ${dueShort(t.due)}`;
 function otherInfo(id) {
+  if (id === DEMO.deviationsMeta.season) {
+    const d = seasonDeviation(), C = caseOf(id), r = fcRisk(d.f);
+    const cause = r ? `${r.res.name}: в неделю ${fcRange(r.week)} спрос ${fPct(r.res.load)} мощности при пороге ${fPct0(d.norm)}. ${cap1(r.step)}.` : DEMO.otherCases[id].cause;
+    return { ...DEMO.otherCases[id], d, cause, limit: d.norm, goal: `цель: загрузка ≤ ${fPct0(d.norm)}`, labels: ["Прогноз пика", "Порог"],
+      title: r ? `Прогноз: дефицит мощности ${r.res.name} ${fcRange(r.week)}` : DEMO.otherCases[id].title, value: C.sim === "ok" ? .86 : C.sim === "bad" ? d.now * .98 : d.now };
+  }
   const up = id === DEMO.deviationsMeta.staffing, d = up ? staffingDeviation() : discountDeviation(), C = caseOf(id);
   const limit = up ? R.staffingMin : d.norm * R.recoverFactor, ok = up ? .97 : d.norm * 1.1, bad = up ? d.now + .005 : d.now * .97;
   return { ...DEMO.otherCases[id], d, limit, goal: `цель ${up ? "≥" : "≤"} ${fPct(limit)}`, value: C.sim === "ok" ? ok : C.sim === "bad" ? bad : d.now };
@@ -742,6 +743,11 @@ function staffingDeviation() {
   const now = ratio(inW(DEMO.hr, R.current[0], R.current[1]), "staffed", "planned");
   const norm = ratio(inW(DEMO.hr, R.baseline[0], R.baseline[1]), "staffed", "planned");
   return { id: DEMO.deviationsMeta.staffing, norm, now, triggered: now < R.staffingMin };
+}
+/* Отклонение по прогнозу (этап 3): первая неделя, где спрос ресурса выше 90 % мощности. Считается по всей компании, без фильтров главной */
+function seasonDeviation() {
+  const f = InsightData.forecast({ growth: S.fcGrowth }), w = f.first;
+  return { id: DEMO.deviationsMeta.season, f, norm: f.threshold, now: w ? w.peak.load : 0, triggered: !!w };
 }
 const DIMS = [["line", "Линия"], ["product", "Продукт"], ["shift", "Смена"], ["operator", "Сотрудник"], ["supplier", "Поставщик и партия"], ["week", "Время, неделя"]];
 function decompose() {
@@ -808,32 +814,75 @@ const factsFull = () => { const f = facts(); f.extra = isCeo() ? fill(DEMO.assis
 const fill = (tpl, f) => tpl.replace(/\{(\w+)\}/g, (_, k) => f[k]);
 
 /* ---------- Показатели ---------- */
-const KPI = [
-  { group: "Финансы", items: [
-    { id: "rev", label: "Выручка", f: fMoney, up: true, calc: (a, b) => sum(inW(scoped(), a, b), "revenue") },
-    { id: "margin", label: "Валовая маржа", f: fPct, pp: true, up: true, calc: (a, b) => { const r = inW(scoped(), a, b), v = sum(r, "revenue"); return v ? (v - sum(r, "cost")) / v : 0; } },
-    { id: "disc", label: "Средняя скидка", f: fPct, pp: true, up: false, calc: (a, b) => { const r = inW(scoped(), a, b), d = sum(r, "discount"), t = d + sum(r, "revenue"); return t ? d / t : 0; } },
-  ] },
-  { group: "Клиенты", items: [
-    { id: "orders", label: "Заказы", f: fInt, up: true, calc: (a, b) => sum(inW(scoped(), a, b), "orders") },
-    { id: "check", label: "Средний чек", f: fMoney, up: true, calc: (a, b) => ratio(inW(scoped(), a, b), "revenue", "orders") },
-    { id: "repeat", label: "Доля повторных заказов", f: fPct, pp: true, up: true, calc: (a, b) => { const o = sum(inW(rowsAll(), a, b), "orders"); return o ? sum(inW(clientsAll(), a, b), "repeat") / o : 0; } },
-    { id: "claims", label: "Претензии по браку", f: fInt, up: false, calc: (a, b) => sum(inW(clientsAll(), a, b), "claims") },
-  ] },
-  { group: "Производство", items: [
-    { id: "defect", label: "Доля брака", link: "#/deviations/D-118", f: fPct, pp: true, up: false, calc: (a, b) => rate(inW(scoped(), a, b)) },
-    { id: "down", label: "Простой оборудования", f: fHours, up: false, calc: (a, b) => sum(inW(scoped(), a, b), "downtime") },
-    { id: "ontime", label: "Заказы в срок", f: fPct, pp: true, up: true, calc: (a, b) => { const r = inW(scoped(), a, b), o = sum(r, "orders"); return o ? 1 - sum(r, "late") / o : 0; } },
-  ] },
-  { group: "Кадры", hr: true, items: [
-    { id: "staff", label: "Укомплектованность смен", f: fPct, pp: true, up: true, calc: (a, b) => ratio(inW(hrAll(), a, b), "staffed", "planned") },
-    { id: "over", label: "Переработка", f: v => fInt(v) + " ч", up: false, calc: (a, b) => sum(inW(hrAll(), a, b), "overtime") },
-    { id: "pay", label: "Фонд оплаты, доля выручки", f: fPct, pp: true, up: false, calc: (a, b) => { const v = sum(inW(rowsAll(), a, b), "revenue"); return v ? sum(inW(hrAll(), a, b), "payroll") / v : 0; } },
-  ] },
-];
-const kpiById = id => KPI.flatMap(g => g.items).find(k => k.id === id);
+/* 17 KPI: паспорта, формулы и нормы — в insight-data.js (notes/18, «Решения для дашборда»). ФОТ не показываем: по ТЗ зарплаты не раскрываются.
+   Здесь только перевод недель макета в дни данных и группировка по подразделениям */
+const dayRange = (a, b) => [InsightData.dayOf(weekStart(a)), InsightData.dayOf(weekStart(b)) + 6];
+/* Срез расчёта: фильтр продукта или линии и область видимости роли (начальник производства видит обеспеченность только своих смен) */
+const kctx = () => InsightData.ctx({ product: S.fProduct, line: S.line ? InsightData.lines().indexOf(S.line) : null, role: ROLE_API[S.role], dept: S.dept });
+const KPI_DEV = { defect: "D-118", discount: "D-117" }; // плитка ведёт в отклонение, а оттуда — к заказам-основаниям
+const KPI_ALL = InsightData.kpis().map(k => ({ ...k, f: k.fmt, link: KPI_DEV[k.id] ? "#/deviations/" + KPI_DEV[k.id] : null,
+  calc: (a, b) => k.calc(...dayRange(a, b), kctx()), statusOf: (a, b, cur, prev) => k.status(cur, prev, ...dayRange(a, b), kctx()), detailOf: k.detail ? (a, b) => k.detail(...dayRange(a, b), kctx()) : null }));
+const KPI = InsightData.depts().map(d => ({ group: d.name, dept: d.id, items: KPI_ALL.filter(k => k.dept === d.id) }));
+const kpiById = id => KPI_ALL.find(k => k.id === id);
+/* Права на показатель — из матрицы слоя данных (маржа — финансы, отсутствие — HR, обеспеченность — HR и производство) */
+const kpiAccess = k => InsightData.access(k.id, ROLE_API[S.role], S.dept);
+const kpiOpen = k => kpiAccess(k).open;
+const closedText = k => kpiAccess(k).why;
+/* Короткие имена продуктов для фильтра и пометка, если показатель по выбранному срезу не делится */
+const PRODUCT_SHORT = ["Lite", "Classic", "Premium", "Фотохимия", "Цифровая печать"];
+function sliceNote(k) {
+  const scope = kpiAccess(k).scope;
+  if (scope) return `<span class="kpi-scope">Только ${esc(scope)}</span>`;
+  const filtered = S.fProduct != null || S.line;
+  if (!filtered) return "";
+  if (k.dim === "line") return `<span class="kpi-scope">По линии ${esc(InsightData.lines()[kctx().lines[0]])}</span>`;
+  if (k.dim !== "product") return `<span class="kpi-scope">Не делится по продукту — по всей компании</span>`;
+  return "";
+}
+/* Главные плитки для выбранного подразделения; все 17 — в «Все показатели» */
+/* «Пульс компании» по ТЗ 5.3: оборот, маржа, в срок, брак, клиенты, SLA, загрузка, обеспеченность (+ критические отклонения над плитками) */
+const HEADLINE = { all: ["turnover", "margin", "ontime", "defect", "clients", "sla", "load", "staffing"], prod: ["ontime", "sameday", "defect", "load"], sales: ["turnover", "check", "discount", "conversion"],
+  support: ["sla"], fin: ["margin", "turnover"], hr: ["staffing", "absence"] };
+const filterLabel = () => [S.fDept ? deptOf(S.fDept).name : "Вся компания", S.fProduct != null ? InsightData.products()[S.fProduct] : S.line ? "линия " + S.line : "все продукты"].join(" · ");
+/* Фильтр одной кнопкой с выпадающим списком: в строке видно только текущее значение. Выбранный фильтр подсвечен */
+function fbMenu(label, act, items, cur, def) {
+  const sel = items.find(([v]) => String(v) === String(cur)) || items[0], on = String(cur) !== String(def);
+  return `<details class="menu fb-menu"><summary class="fb-btn${on ? " on" : ""}" aria-label="${label}: ${esc(sel[1])}. Изменить"><span class="fb-k">${label}</span><b>${esc(sel[1])}</b><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></summary>
+    <div class="menu-pop">${items.map(([v, t]) => `<button data-act="${act}" data-arg="${v}" aria-pressed="${String(cur) === String(v)}">${esc(t)}</button>`).join("")}</div></details>`;
+}
+/* Показатели и их фильтры — один закреплённый блок под заголовком: что выбрал, то сразу и меняется (УП-03).
+   Это не виджет сетки, поэтому его нельзя увести вниз при настройке главной */
+function pulseHtml() {
+  const r = homeRange(), own = S.role === "head" ? S.dept : null;
+  const tile = id => { const k = kpiById(id); if (!kpiOpen(k)) return `<div class="kpi-tile"><span class="lg-label">${esc(k.label)}</span><p class="note small">${esc(closedText(k))}.</p></div>`;
+    const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
+    const lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null;
+    return `<div class="kpi-tile"><span class="lg-label">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
+  const filters = [fbMenu("Период", "period", [[2, "2 недели"], [4, "4 недели"], [8, "8 недель"]], S.period, 4),
+    fbMenu("Подразделение", "fDept", [["all", "Все"]].concat(InsightData.depts().map(d => [d.id, d.name])), S.fDept || "all", own || "all"),
+    fbMenu("Продукт", "fProduct", [["all", "Все"]].concat(PRODUCT_SHORT.map((p, i) => [i, p])), S.fProduct == null ? "all" : S.fProduct, "all")];
+  const changed = (S.fDept || null) !== own || S.fProduct != null || S.period !== 4;
+  const crit = deviationRows().filter(x => x.status !== "done").length;
+  return `<section class="sheet pulse" aria-label="Пульс компании и фильтры"><div class="pulse-head"><h2>Пульс компании <span class="pulse-range">${esc(r.label)}</span></h2>
+    <div class="fb" role="group" aria-label="Фильтры показателей">${filters.join("")}${changed ? `<button class="fb-reset" data-act="fReset">Сбросить</button>` : ""}</div></div>
+    <p class="pulse-scope muted small">${esc(filterLabel())}${S.role === "manager" ? "" : ` · <a class="pulse-crit" href="#/deviations">критических отклонений: ${crit}</a>`}</p><div class="kpi-row">${HEADLINE[S.fDept || "all"].map(tile).join("")}</div></section>`;
+}
+const fmtLoad = iso => { const t = new Date(iso); return `${String(t.getUTCDate()).padStart(2, "0")}.${String(t.getUTCMonth() + 1).padStart(2, "0")}, ${String((t.getUTCHours() + 3) % 24).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`; };
+/* Цвет статуса и «Как считается»: формула, источник, обновление и норма видны у каждого показателя (УП-02) */
+function kpiStatusHtml(k, a, b, cur, prev) {
+  const st = k.statusOf(a, b, cur, prev);
+  const text = st !== "none" ? `${InsightData.statusText(st)} · ${k.normText}` : k.norm.type === "growth" ? "нет базы для сравнения" : "норма не задана";
+  return `<span class="kpi-norm st-${st}" title="Норма: ${esc(k.normText)}"><i class="st-dot" aria-hidden="true"></i><span>${esc(text)}</span></span>`;
+}
+function kpiHowHtml(k, a, b) {
+  const detail = k.detailOf ? k.detailOf(a, b) : "";
+  return `<details class="kpi-how"><summary>Как считается</summary><div class="how-pop">
+    <p><b>Формула.</b> ${esc(k.formula)}</p>${detail ? `<p><b>Сейчас.</b> ${esc(detail)}</p>` : ""}
+    <p><b>Источник.</b> ${esc(k.sourceNames.join(", "))} · обновление ${esc(k.cadence)} · загрузка ${esc(fmtLoad(k.lastLoad))}</p>
+    <p><b>Норма.</b> ${esc(k.normText)}${k.normNote ? ` (${esc(k.normNote)})` : ""} · <b>Подразделение.</b> ${esc(k.deptName)}</p></div></details>`;
+}
 function deltaHtml(k, cur, prev) {
-  if (!prev) return `<span class="delta flat">нет базы сравнения</span>`;
+  if (cur == null || prev == null || (!k.pp && !prev)) return `<span class="delta flat">нет базы сравнения</span>`;
   const diff = k.pp ? (cur - prev) * 100 : (cur - prev) / prev * 100;
   const small = Math.abs(diff) < (k.pp ? 0.05 : 0.5);
   if (small) return `<span class="delta flat">без изменений</span>`;
@@ -1025,7 +1074,13 @@ function sourcesHtml(keys) {
 const beforeAfter = (was, now, goal, norm) => `<div class="beforeafter num"><span class="big was">${was}</span><span class="arrow" aria-hidden="true">→</span><span class="sr">стало</span><span class="big">${now}</span><span class="muted small">${goal}, норма ${norm}</span></div>`;
 const stateBlock = (title, text, btn) => `<section class="state"><h1 tabindex="-1">${esc(title)}</h1><p>${esc(text)}</p>${btn || ""}</section>`;
 const deniedBlock = () => stateBlock("Нет доступа", `У роли «${roleName()}» нет прав на этот раздел. Доступ выдаёт администратор.`, `<a class="btn btn-outline" href="${firstAllowed()}">К доступному разделу</a>`);
-const roleName = () => ({ ceo: "Руководитель", manager: "Менеджер", admin: "Администратор" }[S.role]);
+const roleName = () => ({ ceo: "Руководитель", head: "Руководитель подразделения", manager: "Менеджер", admin: "Администратор" }[S.role]);
+/* Роли макета → роли слоя данных: директор, руководитель подразделения, сотрудник-исполнитель, аналитик */
+const ROLE_API = { ceo: "director", head: "head", manager: "employee", admin: "analyst" };
+const deptOf = id => InsightData.depts().find(d => d.id === id);
+/* Отклонения по подразделениям: руководитель подразделения видит только свои (УП-05) */
+const DEV_DEPT = { "D-118": ["prod"], "D-117": ["sales"], "D-119": ["hr", "prod"], "D-120": ["prod", "hr"] };
+const devVisible = id => S.role !== "head" || (DEV_DEPT[id] || []).includes(S.dept);
 const isCeo = () => S.role === "ceo";
 
 /* ---------- Экран: обзор ---------- */
@@ -1046,9 +1101,9 @@ function homeRange() {
   const L = lastWeek(), n = S.period, a = L - n + 1;
   return { a, b: L, pa: a - n, pb: a - 1, label: `${weekLabel(a)}–${weekRange(L).split("–")[1]}` };
 }
-const compact = (v, id) => id === "rev" ? NF0.format(v / 1000) + " тыс" : id === "orders" ? fInt(v) : NF1.format(v * 100) + "%";
-function barsHtml(items, act) {
-  const max = Math.max(...items.map(x => x.value), 0) || 1;
+const compact = (v, id) => { const k = kpiById(id); return v == null ? "—" : k.pp ? NF1.format(v * 100) + "%" : k.fmt(v); };
+function barsHtml(items, act, maxV) {
+  const max = maxV || Math.max(...items.map(x => x.value), 0) || 1;
   return `<div class="barchart${items.length > 8 ? " dense" : ""}">${items.map(x => {
     const inner = `<span class="bar-track"><span class="bar-fill${x.selected ? " sel" : ""}${x.partial ? " partial" : ""}" style="height:${Math.max(6, x.value / max * 84).toFixed(1)}%"><span class="bar-val">${esc(x.text)}</span></span></span><span class="bar-label">${esc(x.label)}</span>`;
     return act ? `<button class="bar-col" data-act="${act}" data-arg="${esc(x.key)}" aria-pressed="${!!x.selected}" aria-label="${esc(x.long || x.label)}: ${esc(x.text)}${x.partial ? ", месяц ещё не закончился" : ""}">${inner}</button>` : `<div class="bar-col">${inner}</div>`;
@@ -1135,12 +1190,71 @@ function caseBase(id) {
   const pm = meetOf(id), planned = !!pm;
   return { stage: "open", planned, group: planned ? "meeting" : "decide", badge, next: planned ? `Встреча ${whenText(pm)}` : "Нужно решение" };
 }
+/* ---------- Прогноз спроса и мощности (этап 3, сценарий 5.2.4). Числа считает InsightData.forecast ---------- */
+const cap1 = s => s.charAt(0).toUpperCase() + s.slice(1);
+const MONTHS_GEN = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const fcDay = iso => `${+iso.slice(8)} ${MONTHS_GEN[+iso.slice(5, 7) - 1]}`;
+const fPct0 = v => NF0.format(v * 100) + " %";
+/* «17–23 мая 2027»: год пишем, только если он не текущий */
+function fcRange(w) {
+  const y = w.end.slice(0, 4) !== S.today.slice(0, 4) ? " " + w.end.slice(0, 4) : "";
+  return w.start.slice(5, 7) === w.end.slice(5, 7) ? `${+w.start.slice(8)}–${fcDay(w.end)}${y}` : `${fcDay(w.start)} – ${fcDay(w.end)}${y}`;
+}
+const fcSeasonYear = () => +S.today.slice(0, 4) + (S.today.slice(5) > "07-01" ? 1 : 0);
+/* Сезон у заказчика: 1 апреля – 1 июля (notes/18 п. 4) */
+function fcSeason(f) { const y = fcSeasonYear(); return f.weeks.filter(w => w.end >= `${y}-04-01` && w.start <= `${y}-06-30`); }
+/* Прогноз по фильтрам главной: продукт или линия сужают ресурсы */
+function fcData() { const c = kctx(); return InsightData.forecast({ growth: S.fcGrowth, lines: c.lines, products: c.products }); }
+/* Куда можно перевести заказы перегруженной линии: фотохимию — на цифровую печать. Для книжных линий замены нет. ДОПУЩЕНИЕ */
+const ALT_LINE = { "Fuji Frontier": "Ricoh" };
+function fcRisk(f) {
+  const w = f.first; if (!w) return null;
+  const r = w.peak, line = r.kind === "line", alt = line && w.res.find(x => x.name === ALT_LINE[r.name]);
+  const step = !line ? `нанять временных сотрудников переплёта к ${fcDay(addDays(w.start, -7))}`
+    : alt && alt.load < .75 ? `перевести часть заказов на ${alt.name} (там загрузка ${fPct(alt.load)}), срочные заказы — в приоритет`
+    : "сверхурочные смены и временный персонал печати, срочные заказы — в приоритет";
+  return { week: w, res: r, step, owner: line ? "Начальник производства" : "HR-директор", due: addDays(w.start, -21) };
+}
+function fcChartHtml(f, weeks) {
+  const max = Math.max(1.2, ...weeks.map(w => w.peak.load)), pct = v => NF0.format(v * 100) + "%";
+  /* Подпись в две строки: число, под ним месяц (только у первой недели и при смене месяца). Высота подписи у всех одинаковая,
+     поэтому столбики стоят на одной линии и порог не рвётся */
+  const items = weeks.map((w, i) => ({ key: w.start, label: String(+w.start.slice(8)) + (i && w.start.slice(5, 7) === weeks[i - 1].start.slice(5, 7) ? "" : "\n" + MONTHS_GEN[+w.start.slice(5, 7) - 1]), value: w.peak.load, text: pct(w.peak.load), selected: w.deficit }));
+  const label = `Загрузка самого загруженного ресурса по неделям, порог ${pct(f.threshold)}: ${weeks.map(w => `${fcDay(w.start)} ${pct(w.peak.load)}${w.deficit ? ", дефицит" : ""}`).join("; ")}`;
+  return `<div class="fc-chart" style="--thr:${(f.threshold / max * 84).toFixed(1)}%" role="img" aria-label="${esc(label)}">${barsHtml(items, null, max)}</div>
+    <p class="fc-legend muted small" aria-hidden="true"><i></i>порог ${fPct0(f.threshold)}: выше — дефицит, такие недели выделены</p>`;
+}
+function fcSumHtml(list) {
+  const pk = list.reduce((a, b) => (b.peak.load > a.peak.load ? b : a)), n = list.filter(w => w.deficit).length;
+  return `<p class="fc-sum">${n ? `<b>Дефицит: ${n} ${plural(n, "неделя", "недели", "недель")} из ${list.length}.</b> Сильнее всего ${fcRange(pk)}: ${esc(pk.peak.name)}, спрос ${fPct(pk.peak.load)} мощности.`
+    : `<b>Дефицита нет.</b> Пик загрузки ${fPct(pk.peak.load)}: ${esc(pk.peak.name)}, ${fcRange(pk)}.`}</p>`;
+}
+const fcHowHtml = f => `<details class="kpi-how"><summary>Как считается</summary><div class="how-pop"><p><b>Метод.</b> ${esc(f.method)}</p>
+  <p><b>Источник.</b> ERP (заказы, линии), HR (смены переплёта) · пересчёт после каждой загрузки</p>
+  <p><b>Допущение.</b> Истории ровно год, поэтому тренд не считается: рост к прошлому году выбирается кнопками. Штат на сезон — как в прошлом году.</p></div></details>`;
+function fcRiskHtml(f, list) {
+  const r = fcRisk(f);
+  if (!r) return `<div class="fc-risk"><span class="lg-label">Неделя дефицита</span><p class="fc-week">Нет</p><p class="small">По прогнозу на год вперёд спрос не выходит за ${fPct0(f.threshold)} мощности.</p></div>`;
+  const id = DEMO.deviationsMeta.season, s = caseState(id), sameCase = seasonDeviation().f.first?.peak.id === r.res.id;
+  const link = sameCase && devVisible(id) ? `<a class="btn btn-outline btn-sm" href="#/deviations/${id}">Открыть карточку решения</a>` : "";
+  const more = list.includes(r.week) ? "" : `<button class="btn btn-quiet btn-sm" data-act="fcHorizon" data-arg="season">Показать сезон</button>`;
+  return `<div class="fc-risk"><div class="fc-risk-head"><span class="lg-label">Неделя дефицита</span>${sameCase ? s.badge : ""}</div>
+    <p class="fc-week num">${fcRange(r.week)}</p><p class="small">${esc(r.res.name)}: спрос ${fPct(r.res.load)} мощности при пороге ${fPct0(f.threshold)}.</p>
+    <dl class="fc-dl"><dt>Владелец</dt><dd>${esc(r.owner)}</dd><dt>Шаг</dt><dd>${esc(cap1(r.step))}</dd><dt>Решить до</dt><dd>${fcDay(r.due)}</dd></dl>
+    ${link || more ? `<div class="actions">${link}${more}</div>` : ""}</div>`;
+}
+/* Прогноз на плитке «Загрузка мощности»: первая неделя прогноза по линиям */
+function fcTileHtml() { const w = fcData().weeks[0]; return w && w.lineLoad != null ? `<span class="kpi-fc">Прогноз на ${fcRange(w)}: ${fPct(w.lineLoad)}</span>` : ""; }
+
 const WIDGETS = {
   hero: { title: "Главное сегодня", html() {
     const rows = deviationRows();
     if (!rows.length) return `<div class="sheet dark-card alert"><h2>Отклонений нет</h2></div>`;
     const list = rows.map(r => ({ r, s: caseState(r.id) })), n = (...g) => list.filter(x => g.includes(x.s.group)).length;
-    const counts = `<p class="hero-count">Нужно ваше внимание: <b>${isCeo() ? n("decide", "review") : n("mine")}</b> · Ждём: <b>${n("meeting", "work", "check", "ceo")}</b> · Закрыто: <b>${n("closed")}</b></p>`;
+    /* Руководитель подразделения решений не принимает: видит, сколько отклонений его подразделения открыто, в работе и закрыто */
+    const counts = S.role === "head"
+      ? `<p class="hero-count">Отклонений подразделения: <b>${list.length}</b> · В работе: <b>${n("work", "check", "review")}</b> · Закрыто: <b>${n("closed")}</b></p>`
+      : `<p class="hero-count">Нужно ваше внимание: <b>${isCeo() ? n("decide", "review") : n("mine")}</b> · Ждём: <b>${n("meeting", "work", "check", "ceo")}</b> · Закрыто: <b>${n("closed")}</b></p>`;
     const pick = [x => !isCeo() && x.s.group === "mine", x => x.s.stage === "overdue", x => x.s.stage === "signal", x => x.s.stage === "review", x => x.s.stage === "noeffect", x => x.s.stage === "open" && !x.s.planned, x => x.s.stage === "open", x => x.s.stage === "work"].map(f => list.find(f)).find(Boolean);
     if (!pick) return `<div class="sheet dark-card alert"><div class="alert-head"><h2>${n("check") ? "Ваше решение сейчас не нужно" : "Все отклонения закрыты"}</h2></div>${n("check") ? `<p class="hero-cap">Под наблюдением: ${n("check")}. Система сообщит, когда появится результат.</p>` : ""}${counts}</div>`;
     const { r, s } = pick, main = r.id === DEMO.deviationsMeta.main;
@@ -1148,31 +1262,23 @@ const WIDGETS = {
     if (mine) return `<div class="sheet dark-card alert"><div class="alert-head"><h2>${esc(mine.title)}</h2>${taskBadge(mine)}</div>
       <div class="hero-main"><span class="big">${dueShort(mine.due)}</span><span class="hero-cap">срок задачи${mine.overdue ? ", уже прошёл" : ""}</span></div>
       ${counts}<a class="btn btn-primary" href="#/tasks/${esc(mine.id)}">Открыть задачу</a></div>`;
-    const btn = s.stage === "signal" ? ["btn-primary", "Посмотреть данные"] : s.stage === "review" ? ["btn-primary", "Проверить отчёт"] : s.stage === "overdue" ? ["btn-primary", "Напомнить исполнителю"] : s.stage === "noeffect" ? ["btn-primary", "Новое решение"] : s.stage === "open" && !s.planned ? ["btn-primary", "Разобрать причину"] : ["btn-go", "Смотреть ход дела"];
+    const btn = S.role === "head" ? ["btn-go", "Открыть отклонение"] : s.stage === "signal" ? ["btn-primary", "Посмотреть данные"] : s.stage === "review" ? ["btn-primary", "Проверить отчёт"] : s.stage === "overdue" ? ["btn-primary", "Напомнить исполнителю"] : s.stage === "noeffect" ? ["btn-primary", "Новое решение"] : s.stage === "open" && !s.planned ? ["btn-primary", "Разобрать причину"] : ["btn-go", "Смотреть ход дела"];
     return `<div class="sheet dark-card alert"><div class="alert-head"><h2>${esc(r.title)}</h2>${s.badge}</div>
       <div class="hero-main"><span class="big">${r.value}</span><span class="hero-cap">${s.stage === "noeffect" ? "проверка эффекта не пройдена" : main ? "средний брак за две недели" : "сейчас"}, норма ${r.norm}</span></div>
       ${counts}<a class="btn ${btn[0]}" href="#/deviations/${esc(r.id)}">${btn[1]}</a></div>`;
   } },
   bars: { title: "Динамика по месяцам", html(span) {
-    const tabs = [["rev", "Выручка"], ["orders", "Заказы"], ["defect", "Брак"]].concat(isCeo() ? [["staff", "Смены"]] : []);
-    const metric = tabs.some(t => t[0] === S.barMetric) ? S.barMetric : "rev", k = kpiById(metric);
+    const tabs = [["turnover", "Оборот"], ["ontime", "В срок"], ["defect", "Брак"]].concat(kpiOpen(kpiById("staffing")) ? [["staffing", "Смены"]] : []);
+    const metric = tabs.some(t => t[0] === S.barMetric) ? S.barMetric : "turnover", k = kpiById(metric);
     const all = monthsList(), view = all.slice(span === 12 ? -12 : -S.barRange), pick = view.find(m => m.key === S.month) || view.filter(m => !m.partial).pop() || view[view.length - 1];
-    const items = view.map(m => { const value = k.calc(m.a, m.b); return { key: m.key, label: m.label, long: m.long, value, text: compact(value, metric), selected: m === pick, partial: m.partial }; });
+    const items = view.map(m => { const value = k.calc(m.a, m.b); return { key: m.key, label: m.label, long: m.long, value: value || 0, text: compact(value, metric), selected: m === pick, partial: m.partial }; });
     return `<div class="sheet"><div class="w-head"><h2>Динамика по месяцам</h2>${span === 12 ? "" : `<div class="seg seg-sm" role="group" aria-label="Диапазон">${[[6, "6 мес"], [12, "Год"]].map(([v, t]) => `<button data-act="barRange" data-arg="${v}" aria-pressed="${S.barRange === v}">${t}</button>`).join("")}</div>`}</div>
       <div class="seg seg-sm" role="group" aria-label="Показатель">${tabs.map(([v, t]) => `<button data-act="barMetric" data-arg="${v}" aria-pressed="${metric === v}">${t}</button>`).join("")}</div><div class="month-view">${barsHtml(items, "month")}${monthPanel(all, pick, tabs, metric)}</div></div>`;
   } },
   quality: { title: "Брак на линии Ricoh", html: () => `<div class="sheet"><h2>Брак на линии Ricoh</h2>${ricohChart(260)}</div>` },
   calendar: { title: "Календарь", html: () => `<div class="sheet">${calendarHtml()}</div>` },
-  kpi: { title: "Показатели", html() {
-    const r = homeRange();
-    const tile = id => { const k = kpiById(id); if (id === "staff" && !isCeo()) return `<div class="kpi-tile"><p class="note small">Кадровые показатели видит только руководитель.</p></div>`;
-      const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
-      return `<div class="kpi-tile"><span class="lg-label">${k.link ? `<a class="kpi-link" href="${k.link}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}</div>`; };
-    return `<div class="sheet"><div class="w-head"><h2>Показатели: ${esc(r.label)}</h2><div class="seg seg-sm" role="group" aria-label="Период">${[2, 4, 8].map(p => `<button data-act="period" data-arg="${p}" aria-pressed="${S.period === p}">${p} ${plural(p, "неделя", "недели", "недель")}</button>`).join("")}</div></div>
-      <div class="kpi-row">${["rev", "orders", "defect", "staff"].map(tile).join("")}</div></div>`;
-  } },
   goals: { title: "Поручения", html() {
-    const own = allTasks().filter(t => S.role !== "manager" || t.owner === S.me), legacy = openTasks(), total = own.length + legacy.length;
+    const own = allTasks().filter(t => S.role === "manager" ? t.owner === S.me : S.role === "head" ? devVisible(t.dev) : true), legacy = S.role === "head" ? [] : openTasks(), total = own.length + legacy.length;
     const done = own.filter(t => t.status === "accepted").length + legacy.filter(t => S.doneTasks[t.id]).length;
     const caseRow = t => { const late = t.overdue && OPEN_T.includes(t.status); return `<li class="${t.status === "accepted" ? "is-done" : ""}"><a class="goal-link" href="${S.role === "manager" ? "#/tasks/" + esc(t.id) : taskHome(t)}"><span class="goal-text"><span class="goal-title">${esc(t.title)}</span><span class="goal-meta${late ? " late" : ""}">${late ? "Просрочено, " : t.status === "accepted" ? "" : "До "}${t.status === "accepted" ? "Принята" : dueShort(t.due)} · ${esc(t.owner)}</span></span>${taskBadge(t)}</a></li>`; };
     return `<div class="sheet"><div class="w-head"><h2>Поручения</h2><span class="goal-count">${done} из ${total}</span></div>${own.length ? `<ul class="goal-list">${own.map(caseRow).join("")}</ul>` : ""}${S.role === "manager" ? "" : goalListHtml(legacy)}</div>`;
@@ -1184,15 +1290,25 @@ const WIDGETS = {
   } },
   allKpi: { title: "Все показатели", html() {
     const r = homeRange();
-    return `<div class="sheet"><h2>Все показатели</h2><div class="ledger">${KPI.map(g => (g.hr && !isCeo()) ? `<div class="lg-col"><h2>${g.group}</h2><p class="note small">Кадровые показатели видит только руководитель.</p></div>` : `<div class="lg-col"><h2>${g.group}</h2>${g.items.map(k => { const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null; return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><span class="lg-value num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}</div>`; }).join("")}</div>`).join("")}</div></div>`;
+    const row = k => { if (!kpiOpen(k)) return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><p class="note small">${esc(closedText(k))}.</p></div>`;
+      const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
+      return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><span class="lg-value num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
+    const groups = KPI.filter(g => !S.fDept || g.dept === S.fDept);
+    return `<div class="sheet"><div class="w-head"><h2>Все показатели: ${esc(r.label)}</h2><span class="muted small">${esc(filterLabel())} · ${KPI_ALL.length} KPI, формула и источник в «Как считается»</span></div><div class="ledger${groups.length === 1 ? " one" : ""}">${groups.map(g => `<div class="lg-col"><h2>${esc(g.group)}</h2>${g.items.map(row).join("")}</div>`).join("")}</div></div>`;
   } },
-  live: { title: "Заказы из приложения", html: () => liveHtml() },
-  forecast: { title: "Прогноз на 4 недели", html: () => forecastHtml() },
-  sources: { title: "Свежесть данных", html: () => sourcesFreshHtml() },
+  forecast: { title: "Прогноз спроса и мощности", html() {
+    const f = fcData(), season = S.fcHorizon === "season", list = season ? fcSeason(f) : f.weeks.slice(0, 4);
+    const seg = (act, items, cur, label) => `<div class="seg seg-sm" role="group" aria-label="${label}">${items.map(([v, t]) => `<button data-act="${act}" data-arg="${v}" aria-pressed="${String(cur) === String(v)}">${t}</button>`).join("")}</div>`;
+    return `<div class="sheet fc"><div class="w-head"><h2>Прогноз спроса и мощности</h2>${seg("fcHorizon", [[4, "4 недели"], ["season", "Сезон"]], S.fcHorizon, "Горизонт прогноза")}</div>
+      <p class="muted small fc-scope">${season ? `Сезон 1 апреля – 1 июля ${fcSeasonYear()}` : `4 недели с ${fcDay(f.from)}`} · ${esc(filterLabel())}</p>
+      <div class="fc-body"><div class="fc-main">${fcSumHtml(list)}${fcChartHtml(f, list)}
+        <div class="fc-tools"><span class="muted small">Рост спроса к прошлому году</span>${seg("fcGrowth", [[0, "0 %"], [0.1, "+10 %"], [0.2, "+20 %"]], S.fcGrowth, "Рост спроса к прошлому году")}</div>${fcHowHtml(f)}</div>
+      ${fcRiskHtml(f, list)}</div></div>`;
+  } },
   ask: { title: "Спросить ассистента", html: () => `<div class="sheet"><h2>Спросить ассистента</h2><div class="chips">${DEMO.assistant.presets.slice(0, 3).map((p, i) => `<a class="chip" href="#/assistant" data-act="askPreset" data-arg="${i}">${esc(p)}</a>`).join("")}</div></div>` },
 };
 /* Размер плитки постоянный и не зависит от места. Сетка из трёх колонок: 4 = одна колонка, 8 = две, 12 = весь ряд */
-const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, kpi: { full: true, spans: [12], pref: 12 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 }, live: { spans: [4, 8], pref: 8 }, forecast: { full: true, spans: [12], pref: 12 }, sources: { spans: [4, 8], pref: 4 } };
+const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, forecast: { full: true, spans: [12], pref: 12 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 } };
 /* Каждая плитка встаёт в первое свободное место, куда помещается. Пустые ячейки запоминаем, чтобы показать их при настройке */
 function packLayout(ids) {
   const spans = {}, pos = {}, options = {}, rows = [], holes = [];
@@ -1218,79 +1334,11 @@ function packLayout(ids) {
   return { spans, pos, options, holes };
 }
 const packSpans = ids => packLayout(ids).spans;
-const DEFAULT_LAYOUT = ["hero", "live", "bars", "quality", "calendar", "kpi", "forecast", "goals", "decisions", "sources"];
-// v3: в раскладку по умолчанию добавлены прогноз и свежесть данных — старая сохранённая раскладка их бы не показала
-const LAYOUT_KEY = "picpac-insight-layout-v4";
-
-/*
- * Прогноз спроса и мощности на 4 недели (ТЗ 5.2). Спрос — тренд листов за последние 8 недель по каждой линии
- * (учитывает фильтр по продукту). ДОПУЩЕНИЕ: мощность линии — максимум, который она уже выпускала за неделю
- * (пик декабря 2025); дефицит — загрузка выше 95% мощности. В продукте мощность придёт из графика смен и паспорта линии.
- */
-const FORECAST_WEEKS = 4, TREND_WEEKS = 8, RISK_LOAD = 0.95;
-function forecastRows() {
-  const L = lastWeek(), rows = rowsAll().filter(r => !S.product || r.product === S.product);
-  return DEMO.lines.filter(l => !S.line || l === S.line).map(line => {
-    const mine = rows.filter(r => r.line === line);
-    const weekly = w => sum(mine.filter(r => r.w === w), "sheets");
-    const xs = Array.from({ length: TREND_WEEKS }, (_, i) => L - TREND_WEEKS + 1 + i), ys = xs.map(weekly);
-    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
-    const k = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / (xs.reduce((s, x) => s + (x - mx) ** 2, 0) || 1);
-    const weeks = Array.from({ length: FORECAST_WEEKS }, (_, i) => L + 1 + i);
-    const demand = weeks.map(w => Math.max(0, Math.round(my + k * (w - mx))));
-    const hist = [...new Set(mine.map(r => r.w))].map(weekly);
-    const capacity = Math.max(1, ...hist);
-    const deficit = weeks.find((w, i) => demand[i] > capacity * RISK_LOAD);
-    return { line, weeks, demand, capacity, deficit, trend: k };
-  });
-}
-/* Живые заказы и обращения из приложения клиента (тот же сервер и та же база, что у приложения). */
-const LIVE_STAGE = { accepted: "Принят", layout_checked: "Макет проверен", printing: "Печать", binding: "Переплёт", handed_to_delivery: "В доставке", ready_for_pickup: "Можно забирать", delivered: "Получен" };
-function liveHtml() {
-  if (!LIVE) return `<div class="sheet"><h2>Заказы из приложения</h2><p class="muted">Сервер приложения недоступен — показываем историю из файла.</p></div>`;
-  const when = LIVE.updated_at ? new Date(LIVE.updated_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "";
-  const stages = Object.entries(LIVE.orders_by_stage || {}).map(([k, v]) => `<span class="chip">${esc(LIVE_STAGE[k] || k)}: ${fInt(v)}</span>`).join("");
-  const rows = (LIVE.orders || []).slice(0, 5).map(o => `<li class="fresh-row"><span class="fresh-dot" aria-hidden="true"></span><span><b>№ ${esc(o.number)}</b><span class="muted small"> · ${esc(o.product || "заказ")} · ${esc(LIVE_STAGE[o.stage] || o.stage)}</span></span><span class="num small">${esc(String(o.total).replace(".", ","))} р.</span></li>`).join("");
-  return `<div class="sheet"><div class="w-head"><h2>Заказы из приложения</h2><span class="goal-count">${fInt(LIVE.orders_total || 0)}</span></div>
-    <div class="chips">${stages || '<span class="muted small">Заказов пока нет</span>'}</div>
-    ${rows ? `<ul class="fresh-list">${rows}</ul>` : ""}
-    <p class="note small">Открытых обращений: ${fInt(LIVE.support_open || 0)} · обновлено ${esc(when)} · источник: ${esc(LIVE.source || "picPac API")}</p></div>`;
-}
-function forecastHtml() {
-  const rows = forecastRows(), weeks = rows[0] ? rows[0].weeks : [];
-  const first = rows.filter(r => r.deficit != null).sort((a, b) => a.deficit - b.deficit)[0];
-  const head = first
-    ? `<p class="fc-alert"><b>Неделя дефицита: ${esc(weekRange(first.deficit))}</b> — линия ${esc(first.line)}: спрос ${fInt(first.demand[first.weeks.indexOf(first.deficit)])} листов при мощности ${fInt(first.capacity)} (загрузка выше ${Math.round(RISK_LOAD * 100)}%). Нужны дополнительные смены или перенос части заказов.</p>`
-    : `<p class="muted">Дефицита мощности в ближайшие ${FORECAST_WEEKS} недели не ожидаем.</p>`;
-  const cell = (r, i) => { const load = r.demand[i] / r.capacity, bad = load > RISK_LOAD; return `<td class="num${bad ? " fc-bad" : ""}">${fInt(r.demand[i])}<span class="fc-load">${Math.round(load * 100)}%</span></td>`; };
-  return `<div class="sheet"><div class="w-head"><h2>Прогноз спроса и мощности на ${FORECAST_WEEKS} недели${S.product ? ` · ${esc(S.product)}` : ""}</h2></div>${head}
-    <div class="fc-wrap"><table class="fc-table"><thead><tr><th scope="col">Линия</th>${weeks.map(w => `<th scope="col">${esc(weekLabel(w))}</th>`).join("")}<th scope="col">Мощность</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><th scope="row">${esc(r.line)}</th>${r.weeks.map((_, i) => cell(r, i)).join("")}<td class="num muted">${fInt(r.capacity)}</td></tr>`).join("")}</tbody></table></div>
-    <p class="note small">Листов в неделю. Спрос — тренд за ${TREND_WEEKS} недель; мощность — допущение: максимум, который линия уже выпускала за неделю. В продукте — из графика смен.</p></div>`;
-}
-
-/*
- * Свежесть источников (ТЗ 5.2): за какую неделю последние данные и насколько они отстают от сегодня.
- * Внешние системы (1С, CRM, Европочта) пока не подключены — честно пишем, что это демо-данные.
- */
-function sourcesFreshHtml() {
-  const today = new Date(S.today + "T12:00:00Z");
-  const lastOf = arr => Math.max(...arr.map(r => (Array.isArray(r) ? r[0] : r.w)));
-  const src = [
-    ["Производство", lastOf(DEMO.production)],
-    ["Клиенты", lastOf(DEMO.clients)],
-    ["Кадры", lastOf(DEMO.hr)],
-  ];
-  const row = ([name, w]) => {
-    const end = weekStart(w); end.setUTCDate(end.getUTCDate() + 6);
-    const lag = Math.max(0, Math.round((today - end) / 86400000)), ok = lag <= 7;
-    return `<li class="fresh-row"><span class="fresh-dot${ok ? "" : " bad"}" aria-hidden="true"></span><span><b>${esc(name)}</b><span class="muted small"> · по ${esc(weekRange(w))}</span></span><span class="small${ok ? " muted" : " fc-bad"}">${ok ? (lag ? `${lag} ${plural(lag, "день", "дня", "дней")} назад` : "сегодня") : `отстаёт на ${lag} ${plural(lag, "день", "дня", "дней")}`}</span></li>`;
-  };
-  return `<div class="sheet"><h2>Свежесть данных</h2><ul class="fresh-list">${src.map(row).join("")}</ul>
-    <p class="note small">${DEMO.integrations.map(i => esc(i[1])).join(", ")} пока не подключены: данные демонстрационные (ДОПУЩЕНИЕ), обновление — раз в неделю.</p></div>`;
-}
+const DEFAULT_LAYOUT = ["hero", "bars", "forecast", "calendar", "quality", "goals", "decisions", "allKpi"];
+const LAYOUT_KEY = "picpac-insight-layout-v3"; // v3: добавлен прогноз (этап 3)
+/* Плитки «Показатели» теперь закреплены над сеткой: из сохранённой раскладки их (и любые неизвестные виджеты) просто убираем, остальное сохраняем */
 function loadLayout() {
-  try { const v = JSON.parse(localStorage.getItem(LAYOUT_KEY)); if (Array.isArray(v) && v.includes("hero") && v.every(id => WIDGETS[id])) return v; } catch (e) { /* хранилище недоступно */ }
+  try { const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY)), v = Array.isArray(raw) ? raw.filter(id => WIDGETS[id]) : null; if (v && v.includes("hero")) return v; } catch (e) { /* хранилище недоступно */ }
   return DEFAULT_LAYOUT.slice();
 }
 function saveLayout() { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(LAYOUT)); } catch (e) { /* хранилище недоступно */ } }
@@ -1308,8 +1356,8 @@ function vOverview() {
   const tools = id => S.edit ? `${sizeCtl(id)}<span class="w-grip" aria-hidden="true">${GRIP}</span>${id === "hero" ? "" : `<button class="w-hide" data-act="wHide" data-arg="${id}" aria-label="Скрыть: ${esc(WIDGETS[id].title)}" title="Скрыть"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>`}` : "";
   const bar = S.edit ? `<div class="edit-bar${enter ? " enter" : ""}"><p class="edit-text">Перетащите плитку на другую или на свободное место</p>
 ${hidden.length ? `<div class="edit-add">${hidden.map(id => `<button class="btn btn-outline btn-sm" data-act="wAdd" data-arg="${id}">+ ${esc(WIDGETS[id].title)}</button>`).join("")}</div>` : ""}<div class="edit-actions"><button class="btn btn-quiet btn-sm" data-act="layoutReset">Сбросить</button><button class="btn btn-done btn-sm" data-act="toggleEdit">Готово</button></div></div>` : "";
-  return `<div class="page-head home-head"><h1 tabindex="-1">Добрый день!</h1><div class="head-tools">${S.line ? `<button class="filter-chip" data-act="line" data-arg="${esc(S.line)}" aria-label="Снять фильтр: ${esc(S.line)}">${esc(S.line)} ×</button>` : ""}${S.product ? `<button class="filter-chip" data-act="product" data-arg="${esc(S.product)}" aria-label="Снять фильтр: ${esc(S.product)}">${esc(S.product)} ×</button>` : ""}${S.edit ? "" : `<button class="btn btn-outline btn-sm" data-act="toggleEdit">Настроить</button>`}</div></div>
-  ${bar}<div class="widget-grid${S.edit ? " editing" : ""}${enter ? " edit-enter" : ""}" id="widgets">${LAYOUT.map(id => `<section class="widget" data-w="${id}" style="${place(pack.pos[id].r, pack.pos[id].c, spans[id])}" aria-label="${esc(WIDGETS[id].title)}${S.edit ? ". Стрелки перемещают плитку" : ""}"${S.edit ? ' tabindex="0"' : ""}>${tools(id)}<div class="w-body">${WIDGETS[id].html(spans[id])}</div></section>`).join("")}${S.edit ? pack.holes.map(h => `<div class="slot" data-r="${h.r}" data-c="${h.c}" data-s="${h.s}" style="${place(h.r, h.c, h.s)}">Свободное место</div>`).join("") : ""}</div>`;
+  return `<div class="page-head home-head"><h1 tabindex="-1">Добрый день!</h1><div class="head-tools">${S.line ? `<button class="filter-chip" data-act="line" data-arg="${esc(S.line)}" aria-label="Снять фильтр: ${esc(S.line)}">${esc(S.line)} ×</button>` : ""}${S.edit ? "" : `<button class="btn btn-outline btn-sm" data-act="toggleEdit">Настроить</button>`}</div></div>
+  ${pulseHtml()}${bar}<div class="widget-grid${S.edit ? " editing" : ""}${enter ? " edit-enter" : ""}" id="widgets">${LAYOUT.map(id => `<section class="widget" data-w="${id}" style="${place(pack.pos[id].r, pack.pos[id].c, spans[id])}" aria-label="${esc(WIDGETS[id].title)}${S.edit ? ". Стрелки перемещают плитку" : ""}"${S.edit ? ' tabindex="0"' : ""}>${tools(id)}<div class="w-body">${WIDGETS[id].html(spans[id])}</div></section>`).join("")}${S.edit ? pack.holes.map(h => `<div class="slot" data-r="${h.r}" data-c="${h.c}" data-s="${h.s}" style="${place(h.r, h.c, h.s)}">Свободное место</div>`).join("") : ""}</div>`;
 }
 /* ---------- Экран: отклонения ---------- */
 function deviationRows() {
@@ -1317,8 +1365,9 @@ function deviationRows() {
   const other = d => { const C = caseOf(d.id), I = otherInfo(d.id); out.push({ id: d.id, title: C.status === "done" ? `${I.doneTitle} ${fPct(I.value)}` : I.title, value: fPct(I.value), norm: fPct(d.norm), status: C.status }); };
   if (m.triggered) out.push({ id: m.id, title: mainTitle(), value: fPct(mainNow()), norm: fPct(m.norm), status: S.status });
   if (disc.triggered) other(disc);
-  if (st.triggered && isCeo()) other(st);
-  return out;
+  if (st.triggered && (isCeo() || (S.role === "head" && DEV_DEPT[st.id].includes(S.dept)))) other(st);
+  const fc = seasonDeviation(); if (fc.triggered) other(fc);
+  return out.filter(r => devVisible(r.id));
 }
 function vDeviations() {
   const rows = deviationRows();
@@ -1502,11 +1551,13 @@ function vDeviationDetail(id) {
   const head = `<a class="btn btn-outline btn-sm crumb" href="#/deviations"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>Все отклонения</a><div class="page-head"><h1 tabindex="-1">${esc(row.title)}</h1></div>${row.status === "done" ? "" : caseTrack(id, C, enter, goal)}`;
   if (!main) {
     const I = otherInfo(id), stage = cardStage(C), meta = DEMO.otherCases[id];
-    const top = `<div class="card-top"><div class="hero-main"><span class="big num">${row.value}</span><span class="hero-cap">норма ${row.norm}</span></div>${meta.ask != null ? askBtn(id) : ""}</div><p class="cause">${esc(meta.cause)}</p>`;
-    const compare = `<section class="sheet"><h2>Сейчас и норма</h2>${barsHtml([{ label: "Сейчас", value: I.value, text: row.value, selected: true }, { label: "Норма", value: I.d.norm, text: row.norm }])}<p class="hero-cap">${goal}</p></section>`;
-    const x = { top, now: I.value, goal, was: fPct(I.d.now), closed: beforeAfter(fPct(I.d.now), row.value, goal, row.norm), cause: meta.cause };
+    const fcCase = id === DEMO.deviationsMeta.season, lb = I.labels || ["Сейчас", "Норма"];
+    const top = `<div class="card-top"><div class="hero-main"><span class="big num">${row.value}</span><span class="hero-cap">${fcCase ? "загрузка в пиковую неделю, порог" : "норма"} ${row.norm}</span></div>${meta.ask != null ? askBtn(id) : ""}</div><p class="cause">${esc(I.cause)}</p>`;
+    const compare = fcCase ? `<section class="sheet"><h2>Прогноз на сезон</h2>${fcChartHtml(I.d.f, fcSeason(I.d.f))}${fcHowHtml(I.d.f)}</section>`
+      : `<section class="sheet"><h2>${lb[0]} и ${lb[1].toLowerCase()}</h2>${barsHtml([{ label: lb[0], value: I.value, text: row.value, selected: true }, { label: lb[1], value: I.d.norm, text: row.norm }])}<p class="hero-cap">${goal}</p></section>`;
+    const x = { top, now: I.value, goal, was: fPct(I.d.now), closed: beforeAfter(fPct(I.d.now), row.value, goal, row.norm), cause: I.cause };
     if (stage === "closed") return closedScreen(head, C, x);
-    return `${head}<div class="two card-grid${stage === "form" ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${compare}</div>${histHtml(C)}`;
+    return `${head}<div class="two card-grid${stage === "form" ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${compare}</div>${basisHtml(id)}${histHtml(C)}`;
   }
   const f = factsFull(), dims = decompose(), can = isCeo(), cons = consequences(), coin = coincidences();
   const dimHtml = dims.map((d, i) => `<details class="dim${i === 0 ? " top" : ""}"><summary>
@@ -1530,6 +1581,7 @@ function vDeviationDetail(id) {
   const showForm = stage === "form";
   return `${head}
   <div class="two card-grid${showForm ? " tall" : ""}"><section class="sheet dark-card card-now">${stageLeft(id, C, x)}</section>${right}</div>
+  ${basisHtml(id)}
   ${histHtml(C)}
   ${stage === "check" || stage === "noeffect" ? tasksFold(C) : ""}
   ${stage === "open" || stage === "form" ? `<section class="sheet"><h2>Где именно вырос брак</h2><div class="dims">${dimHtml}</div></section>` : ""}
@@ -1547,6 +1599,57 @@ function vDeviationDetail(id) {
     <section class="sheet"><h2>Источники</h2>${sourcesHtml(["defects", "downtime", "material", "regulation"])}<a class="small" href="#/data">Проверить качество этих данных</a></section></div>
   </div></details>`;
 }
+/* ---------- Заказы-основания и карточка заказа (этап 4, слайды 8 и 41) ---------- */
+/* Какие заказы стоят за отклонением. Фильтр уходит в слой данных, там же отбор и правило «ответственный и следующий шаг».
+   D-119 (смены) и D-120 (прогноз) к конкретным заказам не сводятся, поэтому оснований у них нет */
+const BASIS = {
+  "D-118": () => ({ q: { from: InsightData.meta().stories.batch, line: InsightData.lines().indexOf("Ricoh"), shift: 1, defects: true }, rule: "Ricoh, ночная смена, есть брак", what: "брак" }),
+  "D-117": () => ({ q: { from: InsightData.meta().stories.promo, product: InsightData.products().indexOf("Фотокнига Premium"), coupon: true }, rule: "Фотокнига Premium по купону", what: "скидка" }),
+};
+const basisOf = dev => { const b = BASIS[dev] && BASIS[dev](); return b ? { ...b, list: InsightData.orders(b.q) } : null; };
+/* Руководитель подразделения открывает только заказы из оснований своих отклонений; директор — любые. Позже то же проверяет сервер */
+const orderVisible = id => isCeo() || (S.role === "head" && Object.keys(BASIS).some(dev => devVisible(dev) && deviationRows().some(r => r.id === dev) && basisOf(dev).list.some(o => o.id === id)));
+const NF2 = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fMoney2 = v => v == null ? "—" : NF2.format(v) + " руб.";
+const fTs = ts => `${fcDay(ts.slice(0, 10))}, ${ts.slice(11, 16)}`;
+const srcShort = id => (InsightData.sources().find(s => s.id === id) || { short: id }).short;
+function basisHtml(dev) {
+  const b = basisOf(dev); if (!b) return "";
+  const all = !!S.basisAll[dev], shown = all ? b.list : b.list.slice(0, 6), n = b.list.length;
+  const val = o => b.what === "брак" ? `${o.defects} из ${o.units} шт.` : o.net != null ? `оплачено ${fMoney2(o.net)}` : "оплаты нет";
+  const rows = shown.map(o => `<tr><td><a class="order-link" href="#/orders/${esc(o.id)}/${esc(dev)}">${esc(o.id)}</a></td><td class="num">${esc(fTs(o.ts))}</td><td>${esc(o.product)}</td><td class="num">${esc(val(o))}</td>
+    <td class="r num">${o.tickets ? o.tickets : '<span class="muted">0</span>'}</td><td>${o.action.owner ? `<b>${esc(o.action.owner)}</b><span class="muted small order-next">${esc(o.action.next)}</span>` : `<span class="muted">${esc(o.action.next)}</span>`}</td></tr>`).join("");
+  return `<section class="sheet basis" aria-labelledby="basis-h"><div class="w-head"><h2 id="basis-h">Заказы-основания <span class="goal-count">${n}</span></h2><span class="muted small">${esc(b.rule)}, с ${fcDay(b.q.from)} · ERP, 1С, CRM, поддержка</span></div>
+    ${n ? `<div class="table-wrap" data-label="Заказы-основания"><table><thead><tr><th>Заказ</th><th>Когда</th><th>Продукт</th><th>${b.what === "брак" ? "Брак" : "Оплата"}</th><th class="r">Обращения</th><th>Ответственный и шаг</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${n > 6 ? `<button class="btn btn-quiet btn-sm" data-act="basisAll" data-arg="${esc(dev)}" aria-expanded="${all}">${all ? "Свернуть" : `Показать все ${n}`}</button>` : ""}` : `<p class="muted">Заказов под это правило нет.</p>`}</section>`;
+}
+function vOrderDetail(id) {
+  const from = (location.hash.replace(/^#\/?/, "").split("/")[2] || "").trim(), back = from && BASIS[from] && devVisible(from) ? from : null;
+  const crumb = `<a class="btn btn-outline btn-sm crumb" href="${back ? "#/deviations/" + esc(back) : "#/deviations"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>${back ? "К отклонению " + esc(back) : "Все отклонения"}</a>`;
+  const o = InsightData.order(id);
+  if (!o) return `${crumb}${stateBlock("Заказ не найден", `Заказа ${id} нет в данных ERP.`, "")}`;
+  if (!orderVisible(id)) return `${crumb}${stateBlock("Нет доступа", "Руководитель подразделения видит только заказы, на которых основаны отклонения его подразделения.", "")}`;
+  const money = kpiOpen(kpiById("margin")), E = o.erp, L = o.ledger, C = o.crm;
+  const dl = rows => `<dl class="order-dl">${rows.filter(Boolean).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
+  const src = (key, title, body) => `<section class="sheet order-src"><div class="w-head"><h2>${title}</h2><span class="badge b-ai">${esc(srcShort(key))}</span></div>${body}</section>`;
+  const st = E.status === "отгружен в срок" ? "b-done" : E.status === "в производстве" ? "b-work" : "b-open";
+  const act = o.action.owner
+    ? `<span class="lg-label">Следующий шаг</span><p class="order-next-big">${esc(o.action.next)}</p>${dl([["Ответственный", `<b>${esc(o.action.owner)}</b>`], ["Почему", esc(o.action.reason)]])}`
+    : `<span class="lg-label">Следующий шаг</span><p class="order-next-big">${esc(o.action.next)}</p>`;
+  const tickets = o.support.length ? `<ul class="order-tickets">${o.support.map(t => `<li><b>${esc(t.id)}</b> · ${esc(t.topic)} · ${esc(t.channel)}<span class="muted small">${esc(fTs(t.ts))} · решено за ${t.resolve_min} мин при SLA ${t.sla_min} мин</span><span class="badge ${t.inSla ? "b-done" : "b-open"}">${t.inSla ? "в срок" : "позже SLA"}</span></li>`).join("")}</ul>` : `<p class="muted small">Обращений по заказу нет.</p>`;
+  const tl = `<section class="sheet order-path"><h2>Путь заказа по всем источникам</h2><ol class="order-tl">${o.events.map(e => `<li><span class="tl-at num">${esc(fTs(e.ts))}</span><span class="badge b-ai">${esc(srcShort(e.source))}</span><span>${esc(e.text)}</span></li>`).join("")}</ol></section>`;
+  return `${crumb}<div class="page-head order-head"><h1 tabindex="-1">Заказ ${esc(o.id)}</h1><span class="badge ${st}">${esc(cap1(E.status))}</span></div>
+  <p class="lead">${esc(o.product)} · ${esc(o.line)}, ${esc(o.shift.toLowerCase())} · ${esc(fTs(o.ts))}</p>
+  <section class="sheet dark-card order-act">${act}</section>
+  <div class="order-grid">
+    ${src("erp", "Производство", dl([["Количество", `${E.units} шт.`], ["Брак", o.defects ? `<b>${o.defects} шт.</b>` : "нет"], ["Обещали", fcDay(E.promise)], ["Отгружен", E.ship ? esc(fTs(E.ship)) : "ещё нет"], ["Lead time", E.lead_h != null ? `${E.lead_h} ч` : "—"], ["Модерация", `${E.moderation_min} мин`], ["Канал", esc(E.channel || "не указан")]]))}
+    ${src("ledger", "Оплата", L ? dl([["Дата", fcDay(L.date)], ["Оплачено", fMoney2(L.net)], ["Скидка", `${fMoney2(L.discount)}${o.coupon ? " · по купону" : ""}`], money ? ["Себестоимость", fMoney2(L.cost)] : ["Себестоимость", '<span class="muted">закрыто: видят финансы и директор</span>'], money && L.net ? ["Маржа заказа", fPct((L.net - L.cost) / L.net)] : null]) : `<p class="muted small">Оплата в 1С не найдена.</p>`)}
+    ${src("crm", "Клиент", C ? dl([["Клиент", `<code>${esc(C.customer_id)}</code>`], ["Первый заказ", fDate(C.first)], ["Заказов за 12 мес.", fInt(C.orders12m)], ["Этот заказ", C.firstOrder ? "первый" : "повторный"], ["Канал", esc(C.channel || "не указан")], ["Повод", esc(C.occasion || "не указан")]]) + '<p class="hint">ФИО и контакты не показываются, только идентификатор клиента.</p>' : `<p class="muted small">Клиента нет в CRM: строка отложена на разбор.</p>`)}
+    ${src("support", "Обращения", tickets)}
+  </div>
+  ${tl}`;
+}
+
 /* ---------- Экран: ассистент ---------- */
 function intentOf(q) {
   const s = q.toLowerCase();
@@ -1555,6 +1658,7 @@ function intentOf(q) {
   if (/поставщик|партии|партия/.test(s)) return "supplier";
   if (/марж|скидк/.test(s)) return "margin";
   if (/noritsu|норитсу|fuji|фуджи/.test(s)) return "otherLine";
+  if (/мощност|дефицит|не хватит|загрузк|сезон|наня|найм/.test(s)) return "capacity";
   if (/брак|причин|ricoh/.test(s)) return "cause";
   if (/прогноз|декабр|будет/.test(s)) return "forecast";
   if (/выручк/.test(s)) return "revenue";
@@ -1566,9 +1670,10 @@ const INTENT = {
   revenue: { sources: ["finance"], used: "mart_margin_weekly", result: "Ответ со ссылкой", kind: "ok" },
   supplier: { sources: ["material"], used: "накладные на материалы", result: "«Не знаю», не хватает данных", kind: "ok", unknown: true },
   margin: { sources: ["finance"], used: "mart_margin_weekly", result: "Ответ со ссылкой", kind: "ok" },
-  payrollCeo: { sources: ["payroll"], used: "mart_payroll_summary, только итог", result: "Итог без персональных данных", kind: "ok" },
+  payrollCeo: { sources: [], used: "нет, зарплатные данные не публикуются", result: "Отказ: зарплаты не раскрываются", kind: "deny", refuse: true },
   payrollDenied: { sources: [], used: "нет, инструмента нет у роли", result: "Отказ по правам", kind: "deny", refuse: true },
   forecast: { sources: [], used: "нет подходящей витрины", result: "«Не знаю», не хватает данных", kind: "ok", unknown: true },
+  capacity: { sources: ["forecast"], used: "прогноз спроса и мощности (ERP, HR)", result: "Ответ со ссылкой", kind: "ok" },
   attack: { sources: [], used: "нет, инструменты не вызывались", result: "Инструкция заблокирована", kind: "block", refuse: true },
   unknown: { sources: [], used: "нет подходящей витрины", result: "«Не знаю»", kind: "ok", unknown: true },
 };
@@ -1576,6 +1681,13 @@ const nowStamp = () => { const n = S.journal.length; return `${S.today.slice(8)}
 function answerText(intent, q) {
   const f = factsFull(), A = DEMO.assistant.answers;
   if (intent === "unknown") return "Не знаю. В доступных витринах и документах нет данных для ответа на этот вопрос.";
+  if (intent === "capacity") {
+    const fc = InsightData.forecast({ growth: S.fcGrowth }), r = fcRisk(fc), near = fc.weeks.slice(0, 4).reduce((a, b) => (b.peak.load > a.peak.load ? b : a));
+    const g = S.fcGrowth ? `+${Math.round(S.fcGrowth * 100)} %` : "0 %";
+    const head = `В ближайшие 4 недели дефицита нет: пик ${fPct(near.peak.load)}, ${near.peak.name}, ${fcRange(near)}.`;
+    return r ? `${head} Первая неделя дефицита по прогнозу — ${fcRange(r.week)}: ${r.res.name} загружена на ${fPct(r.res.load)} при пороге ${fPct0(fc.threshold)}. Предлагаю: ${r.step}. Владелец — ${r.owner.toLowerCase()}, решить до ${fcDay(r.due)}. Спрос взят из той же недели прошлого года, рост ${g}; это прогноз, а не факт.`
+      : `${head} На год вперёд спрос не выходит за ${fPct0(fc.threshold)} мощности (рост ${g}).`;
+  }
   if (intent === "otherLine") {
     f.lineName = /noritsu|норитсу/i.test(q) ? "Noritsu" : "Fuji Frontier";
     const l = r => r.line === f.lineName;
@@ -1584,58 +1696,9 @@ function answerText(intent, q) {
   const text = fill(A[intent], f);
   return intent === "cause" && S.status === "done" ? fill(A.closedPrefix, f) + text : text;
 }
-/* ---------- Агент: живой ассистент (services/assistant), при недоступности остаётся сценарный режим макета ---------- */
-const AGENT_URL = window.INSIGHT_AGENT_URL || "http://localhost:8001";
-let agentCtl = null;
-const mdLite = t => {
-  const inl = x => esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\[(\d+(?:,\s*\d+)*)\]/g, '<sup class="cite">$1</sup>');
-  const out = []; let list = null;
-  for (const line of String(t).split("\n")) {
-    const li = line.match(/^\s*(?:[-•*]|\d+[.)])\s+(.*)/);
-    if (li) { if (!list) out.push(list = []); list.push(li[1]); } else { list = null; if (line.trim()) out.push(inl(line)); }
-  }
-  return out.map(x => Array.isArray(x) ? `<ul>${x.map(i => `<li>${inl(i)}</li>`).join("")}</ul>` : `<p>${x}</p>`).join("");
-};
-async function askAgent(q) {
-  const m = { who: "ai", agent: true, text: "", steps: [], artifacts: [], proposals: [], sources: [], notice: "", live: true, intent: "agent" }, chatRef = S.chat;
-  agentCtl = new AbortController();
-  const history = S.chat.filter(x => x.text && (x.who === "me" || x.agent)).slice(-7, -1).map(x => ({ role: x.who === "me" ? "user" : "assistant", content: x.text }));
-  const r = await fetch(AGENT_URL + "/chat", { method: "POST", signal: agentCtl.signal, headers: { "Content-Type": "application/json", "X-Role": S.role }, body: JSON.stringify({ message: q, history, session: sessionId() }) });
-  if (!r.ok || !r.body) throw new Error("agent " + r.status);
-  chatRef.push(m); render();
-  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "";
-  for (;;) {
-    const { done, value } = await rd.read(); if (done) break;
-    buf += dec.decode(value, { stream: true }); let i;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const ev = JSON.parse(buf.slice(0, i).replace(/^data: /, "")); buf = buf.slice(i + 2);
-      if (ev.type === "tool") m.steps.push({ id: ev.id, label: ev.label, st: "run" });
-      else if (ev.type === "tool_result") { const st = m.steps.find(x => x.id === ev.id); if (st) { st.st = ev.status; st.sum = String(ev.id).startsWith("review") ? "" : ev.summary; } }
-      else if (ev.type === "artifact") m.artifacts.push(ev);
-      else if (ev.type === "proposal") m.proposals.push({ ...ev, state: "pending" });
-      else if (ev.type === "notice") { m.notice = ev.text; if (/Заблокировано/.test(ev.text)) m.refuse = true; }
-      else if (ev.type === "answer") { m.text = ev.text; m.sources = ev.sources; }
-      else if (ev.type === "error") { m.text = ev.text; m.refuse = true; }
-      render();
-    }
-  }
-  m.live = false;
-  S.journal.unshift({ time: nowStamp(), who: roleName(), q: maskPII(q), used: m.steps.map(x => x.label).join(", ") || "нет, инструменты не вызывались", result: m.refuse ? "Заблокировано или отказ" : m.notice ? "Ответ, требует уточнения" : "Ответ со ссылками", kind: m.refuse ? "block" : "ok", answer: maskPII(m.text) });
-}
 function ask(q) {
   q = q.trim(); if (!q || S.typing) return;
-  const cc = curChat(); if (!cc.title) cc.title = q.length > 44 ? q.slice(0, 42) + "…" : q;
-  S.draft = ""; S.chat.push({ who: "me", text: q }); S.typing = q; render();
-  askAgent(q).catch(e => { if (e.name === "AbortError") return; if (!S.chat.some(x => x.live)) askScripted(q); else { const l = S.chat.find(x => x.live); l.text = l.text || "Связь с ассистентом прервалась."; } })
-    .finally(() => { S.chat.forEach(x => { x.live = false; }); S.typing = null; render(); focusChat(); });
-}
-async function agentAct(arg) {
-  const [pid, verb] = arg.split(":");
-  const r = await fetch(`${AGENT_URL}/actions/${pid}/${verb}`, { method: "POST", headers: { "X-Role": S.role } }).then(x => x.json()).catch(() => ({ ok: false, error: "нет связи" }));
-  S.chat.forEach(m => (m.proposals || []).forEach(p => { if (p.id === pid && r.ok) { p.state = verb === "confirm" ? "done" : "no"; p.result = r.message; } }));
-  if (!r.ok) toast(r.error || "Не удалось"); render();
-}
-function askScripted(q) {
+  S.chat.push({ who: "me", text: q }); S.typing = q; render();
   clearTimeout(typingTimer);
   typingTimer = setTimeout(() => {
     const intent = intentOf(q), m = INTENT[intent], text = answerText(intent, q);
@@ -1644,59 +1707,20 @@ function askScripted(q) {
     S.typing = null; render(); announce("Ассистент: " + text); focusChat();
   }, 700);
 }
-/* История чатов: в макете прошлые беседы заготовлены, новая создаётся кнопкой. Рабочая папка на сервере у каждого чата своя */
-const SESSION_BASE = Math.random().toString(36).slice(2, 8);
-const mockAi = (text, extra = {}) => ({ who: "ai", agent: true, text, steps: [], artifacts: [], proposals: [], sources: [], notice: "", live: false, ...extra });
-function ensureChats() {
-  if (S.chats) return;
-  S.chats = [
-    { id: "c0", title: "", group: "Сегодня", msgs: S.chat },
-    { id: "h1", title: "Почему вырос брак на линии Ricoh", group: "Вчера", msgs: [{ who: "me", text: "Почему вырос брак на линии Ricoh?" },
-      mockAi("Брак на Ricoh за две недели вырос с 1,4% до 3,1%. Основной вклад даёт ночная смена на новой партии бумаги [1]. Совпадение по времени не доказывает причину: нужна проверка калибровки.", { steps: [{ id: "1", label: "Разбираю причины отклонения", st: "ok" }], sources: [{ n: 1, name: "Брак по неделям", kind: "данные производства", detail: "по линиям, сменам, поставщикам" }] })] },
-    { id: "h2", title: "Квартальная презентация для совета", group: "Вчера", msgs: [{ who: "me", text: "Подготовь презентацию по итогам квартала" }, mockAi("Презентация собрана: сводка, отклонения, решения и риски. Файл ниже.", { artifacts: [{ kind: "file", name: "quarter.pptx", title: "Итоги квартала", url: "#" }] })] },
-    { id: "h3", title: "Что будет с маржой Premium при купоне 25%", group: "На этой неделе", msgs: [{ who: "me", text: "Что будет с маржой Premium, если ограничить купон 25%?" }, mockAi("При ограничении купона на 25% маржа Premium вырастет примерно на 2,1 п.п., выручка просядет на 1,3%. Расчёт по данным за 8 недель.")] },
-    { id: "h4", title: "Опрос начальников смен о простоях", group: "На этой неделе", msgs: [{ who: "me", text: "Узнай у начальника ночной смены, почему был простой" }, mockAi("Сообщение подготовлено, отправится после вашего подтверждения.")] },
-    { id: "h5", title: "Прогноз спроса на весну", group: "Раньше", msgs: [{ who: "me", text: "Покажи прогноз спроса и мощности на 8 недель" }, mockAi("Дефицит мощности возможен через 6 недель: прогноз заказов превышает мощность линий.")] },
-  ];
-  S.cur = "c0";
-}
-const curChat = () => (ensureChats(), S.chats.find(c => c.id === S.cur));
-const sessionId = () => SESSION_BASE + "-" + S.cur;
 const focusChat = () => { const el = document.getElementById("chat-input"); if (el) el.focus(); };
-const MIC = '<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>';
-const SEND = '<path d="M12 19V5M5 12l7-7 7 7"/>';
-const PLUS = '<path d="M12 5v14M5 12h14"/>';
-const svg = d => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 function vAssistant() {
-  ensureChats();
-  const agentMsg = m => `<div class="cg-ai${m.refuse ? " refuse" : ""}">
-     ${m.steps.length ? (m.live ? `<ul class="steps">${m.steps.map(x => `<li class="st-${x.st}"><span class="st-dot"></span>${esc(x.label)}${x.sum ? `<em> · ${esc(x.sum)}</em>` : ""}</li>`).join("")}</ul>`
-        : `<details class="more cg-steps"><summary>Что я сделал (${m.steps.length})</summary><ul class="steps">${m.steps.map(x => `<li class="st-${x.st}"><span class="st-dot"></span>${esc(x.label)}${x.sum ? `<em> · ${esc(x.sum)}</em>` : ""}</li>`).join("")}</ul></details>`) : ""}
-     ${m.live && !m.text ? `<div class="muted small cg-think">Думаю…</div>` : ""}
-     ${m.notice ? `<div class="note warn small">${esc(m.notice)}</div>` : ""}
-     ${m.text ? `<div class="ans">${mdLite(m.text)}</div>` : ""}
-     ${m.artifacts.map(a => a.kind === "image" ? `<a href="${AGENT_URL + a.url}" target="_blank" rel="noopener"><img class="art-img" src="${AGENT_URL + a.url}" alt="${esc(a.title)}"></a>` : `<a class="art-file" href="${a.url === "#" ? "#/assistant" : AGENT_URL + a.url}" download><b>${esc((a.name.split(".").pop() || "").toUpperCase())}</b>${esc(a.title)}</a>`).join("")}
-     ${m.proposals.map(p => `<div class="proposal ${p.state}"><div><b>${esc(p.title)}</b></div><div class="small muted">${Object.entries(p.details || {}).map(([k, v]) => esc(k) + ": " + esc(v)).join(" · ")}</div>
-        ${p.state === "pending" ? `<div class="actions"><button class="btn btn-primary btn-sm" data-act="agentAct" data-arg="${esc(p.id)}:confirm">Подтвердить${p.risk === "external" ? " и отправить" : ""}</button><button class="btn btn-quiet btn-sm" data-act="agentAct" data-arg="${esc(p.id)}:reject">Отклонить</button></div>` : `<div class="small">${p.state === "done" ? esc(p.result || "Выполнено") : "Отклонено, ничего не выполнено"}</div>`}</div>`).join("")}
-     ${m.sources.length ? `<details class="more"><summary>Источники (${m.sources.length})</summary><ol class="srcs">${m.sources.map(x => `<li><b>${esc(x.name)}</b> <span class="muted">${esc(x.kind)}${x.detail ? ", " + esc(x.detail) : ""}</span></li>`).join("")}</ol></details>` : ""}</div>`;
-  const msgs = S.chat.map(m => m.who === "me" ? `<div class="cg-me"><div>${esc(m.text)}</div></div>` : m.agent ? agentMsg(m) :
-    `<div class="cg-ai${m.refuse ? " refuse" : ""}"><div class="ans">${esc(m.text)}</div>
+  const msgs = S.chat.length ? S.chat.map(m => m.who === "me" ? `<div class="msg me">${esc(m.text)}</div>` :
+    `<div class="msg ai${m.refuse ? " refuse" : ""}"><div>${esc(m.text)}</div>
      ${m.sources.length ? `<details class="more"><summary>Источники</summary>${sourcesHtml(m.sources)}</details>` : ""}
-     ${m.intent === "cause" ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.main)}">Открыть разбор отклонения</a>` : ""}</div>`).join("");
-  const hero = `<div class="cg-hero"><h1 tabindex="-1">Чем помочь?</h1><p class="muted">Спросите о показателях, попросите посчитать, построить график или собрать презентацию. Я вижу только данные вашей роли.</p>
-    <div class="cg-presets">${DEMO.assistant.presets.slice(0, 4).map((x, i) => `<button class="cg-preset" data-act="preset" data-arg="${i}">${esc(x)}</button>`).join("")}</div></div>`;
-  const groups = []; S.chats.filter(c => c.title || c.id === S.cur).forEach(c => { let g = groups.find(x => x.name === c.group); if (!g) groups.push(g = { name: c.group, items: [] }); g.items.push(c); });
-  const hist = `<aside class="cg-hist${S.histOpen ? " open" : ""}" aria-label="История чатов">
-    <button class="cg-new" data-act="newChat"${S.typing ? " disabled" : ""}>${svg(PLUS)}Новый чат</button>
-    <div class="cg-list">${groups.map(g => `<p class="cg-grp">${esc(g.name)}</p>${g.items.map(c => `<button class="cg-item${c.id === S.cur ? " cur" : ""}" data-act="openChat" data-arg="${esc(c.id)}"${S.typing ? " disabled" : ""}>${esc(c.title || "Новый чат")}</button>`).join("")}`).join("")}</div></aside>`;
-  return `<div class="cg">${hist}
-    <section class="cg-main"><div class="cg-bar"><button class="round cg-toggle" data-act="toggleHist" aria-label="История чатов">${svg('<path d="M4 6h16M4 12h16M4 18h10"/>')}</button><span class="cg-title">${esc(curChat().title || "Новый чат")}</span></div>
-      <div class="cg-scroll" id="chat" role="log" aria-label="Диалог с ассистентом"><div class="cg-col">${S.chat.length ? msgs : hero}</div></div>
-      <div class="cg-compose"><form class="cg-box" data-form="ask"><label for="chat-input" class="sr">Ваш вопрос</label>
-        <textarea id="chat-input" rows="1" placeholder="Спросите ассистента" autocomplete="off">${esc(S.draft)}</textarea>
-        <button type="button" class="cg-ic" data-act="mic" aria-label="Голосовой ввод">${svg(MIC)}</button>
-        ${S.typing ? `<button type="button" class="cg-send stop" data-act="stop" aria-label="Остановить">■</button>` : `<button class="cg-send" type="submit" aria-label="Отправить">${svg(SEND)}</button>`}</form>
-        <p class="cg-foot">Ассистент может ошибаться. Проверяйте важные числа по источникам.</p></div></section></div>`;
+     ${m.intent === "cause" ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.main)}">Открыть разбор отклонения</a>` : ""}
+     ${m.intent === "capacity" && devVisible(DEMO.deviationsMeta.season) && deviationRows().some(r => r.id === DEMO.deviationsMeta.season) ? `<a class="small" href="#/deviations/${esc(DEMO.deviationsMeta.season)}">Открыть карточку решения</a>` : ""}
+     ${m.intent === "stop" ? "" : `<div class="msg-meta"><span class="badge b-ai">Ответ AI</span></div>`}</div>`).join("")
+    : `<p class="muted">Задайте вопрос о показателях компании. Ассистент видит только данные вашей роли и отвечает со ссылкой на источник.</p>`;
+  return `<div class="page-head"><div><h1 tabindex="-1">Ассистент</h1></div></div>
+  <div class="two"><section class="sheet"><div class="chat" id="chat" role="log" aria-label="Диалог с ассистентом">${msgs}</div>
+    ${S.typing ? `<div class="typing"><span>Ищу в витринах и документах…</span><button class="btn btn-quiet btn-sm" data-act="stop">Остановить</button></div>` : ""}
+    <form class="chat-form" data-form="ask"><div class="field"><label for="chat-input">Ваш вопрос</label><input id="chat-input" autocomplete="off"></div><button class="btn btn-primary" type="submit">Спросить</button></form></section>
+  <aside class="sheet"><h2>Попробуйте спросить</h2><div class="chips">${DEMO.assistant.presets.map((p, i) => `<button class="chip" data-act="preset" data-arg="${i}">${esc(p)}</button>`).join("")}</div></aside></div>`;
 }
 
 /* ---------- Экран: встречи ---------- */
@@ -1815,8 +1839,21 @@ function outliers() {
   const sd = Math.sqrt(rows.reduce((a, b) => a + (b - m) ** 2, 0) / rows.length);
   return BASE.filter((r, i) => Math.abs(rows[i] - m) > 3 * sd);
 }
+/* Источники, их свежесть и связность (УП-01, сценарий 5.2.5), сверка 1С и ERP и контракт события (лекция заказчика, слайд 37) */
+function qualitySourcesHtml() {
+  const Q = InsightData.quality(), C = InsightData.contract(), n = v => v ? `<b>${fInt(v)}</b>` : `<span class="muted">0</span>`;
+  const rows = Q.sources.map(s => `<tr><td><b>${esc(s.name)}</b><span class="muted small src-keys">${esc(s.keys.join(", "))}</span></td><td>${esc(s.cadence)}</td>
+    <td>${esc(fmtLoad(s.lastLoad))} <span class="badge ${s.fresh ? "b-done" : "b-open"}">${s.fresh ? "свежие" : "устарели"}</span></td>
+    <td class="r num">${fInt(s.rows)}</td><td class="r num">${n(s.gaps)}</td><td class="r num">${n(s.dups)}</td><td class="r num">${n(s.orphans)}${s.orphans ? `<span class="muted small src-note">${esc(s.orphanText)}</span>` : ""}</td></tr>`).join("");
+  const recon = Math.abs(Q.recon.diff);
+  return `<section class="sheet"><h2>Источники</h2><p class="muted small">Общие ключи связывают системы между собой. Данные синтетические: ${esc(Q.period)}, пересобираются генератором <code>data/generate.mjs</code>.</p>
+    <div class="table-wrap"><table><thead><tr><th>Источник и ключи</th><th>Обновление</th><th>Последняя загрузка</th><th class="r">Строк</th><th class="r">Пропуски</th><th class="r">Дубли</th><th class="r">Без связи</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="recon"><span class="badge ${recon <= 0.005 ? "b-done" : "b-work"}">${recon <= 0.005 ? "Сходится" : "Расхождение"}</span><span>Сверка финансов: оплаты в 1С против заказов в ERP — расхождение <b>${fPct(Q.recon.diff)}</b>, допустимо до 0,5 %. Причина: ${esc(Q.recon.explain)}.</span></p></section>
+  <section class="sheet"><h2>Контракт события</h2><p class="muted small">Сначала договорённость о данных, потом интеграция. Так выглядят события, из которых считаются показатели.</p>
+    <div class="contract"><pre class="code">${esc(JSON.stringify(C.events[0], null, 2))}</pre><dl class="rules">${C.rules.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join("")}</dl></div></section>`;
+}
 function vData() {
-  const I = DEMO.ingest, out = outliers(), total = BASE.length + DEMO.clients.length + DEMO.hr.length;
+  const I = DEMO.ingest, out = outliers(), total = InsightData.quality().sources.reduce((s, x) => s + x.rows, 0);
   const checks = [
     { name: "Схема", desc: "Типы и обязательные поля", items: I.schemaErrors, st: "pass" },
     { name: "Пропуски", desc: "Пустые значения", items: I.missing, st: "fix" },
@@ -1830,7 +1867,8 @@ function vData() {
   const result = !L ? "" : `<h2>Выгрузка загружена</h2><ul class="load-result">${L.lines.map(l => `<li>${esc(l.text)}</li>`).join("")}</ul>`;
   return `<div class="page-head"><div><h1 tabindex="-1">Качество данных</h1><p class="lead">${L ? `Данные загружены ${dueShort(L.date)}` : esc(I.source)}. Загружено ${fInt(total)} ${plural(total, "строка", "строки", "строк")}.</p></div></div>
   ${load || result ? `<section class="sheet">${result}${load ? `<div class="actions">${load}</div>` : ""}</section>` : ""}
-  <section class="sheet"><div class="table-wrap"><table><thead><tr><th>Проверка</th><th>Что проверяет</th><th class="r">Найдено</th><th>Результат</th></tr></thead><tbody>
+  ${qualitySourcesHtml()}
+  <section class="sheet"><h2>Проверки последней выгрузки</h2><div class="table-wrap"><table><thead><tr><th>Проверка</th><th>Что проверяет</th><th class="r">Найдено</th><th>Результат</th></tr></thead><tbody>
   ${checks.map(c => `<tr><td><b>${esc(c.name)}</b>${c.items.length ? `<details class="more"><summary>Подробнее</summary><ul class="sources col">${c.items.map(x => `<li><span class="src-name">${esc(x.ref)}</span><span class="muted">${esc(x.detail)}</span></li>`).join("")}</ul></details>` : ""}</td><td>${esc(c.desc)}</td><td class="r num">${fInt(c.items.length)}</td><td><span class="badge ${lab[c.st][1]}">${lab[c.st][0]}</span></td></tr>`).join("")}
   </tbody></table></div></section>`;
 }
@@ -1869,18 +1907,23 @@ const ICON_PATHS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
   tasks: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5.5"/>',
   bell: '<path d="M6 10a6 6 0 0 1 12 0c0 6 2.5 7 2.5 7h-17S6 16 6 10"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
+  chat: '<path d="M4.5 5.5h15a1.5 1.5 0 0 1 1.5 1.5v8.5a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.5V17H4.5A1.5 1.5 0 0 1 3 15.5V7a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M8 10h8M8 13h5"/>',
+  team: '<circle cx="12" cy="7.5" r="3"/><path d="M6.5 19.5c.6-3.200 2.800-5 5.500-5s4.900 1.800 5.500 5"/><circle cx="5" cy="10" r="2"/><circle cx="19" cy="10" r="2"/><path d="M2.500 17c.300-1.600 1.200-2.600 2.500-2.900M21.500 17c-.300-1.600-1.200-2.600-2.500-2.900"/>',
+  phone: '<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 17.5h2"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.500 6.500 0 0 0 10.500 10.500z"/>',
 };
 const icon = name => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
 const ROUTES = [
-  { path: "overview", label: "Главная", roles: ["ceo", "manager"], view: vOverview },
+  { path: "overview", label: "Главная", roles: ["ceo", "head", "manager"], view: vOverview },
   { path: "tasks", label: "Мои задачи", roles: ["manager"], view: vTasks, count: "mine" },
-  { path: "deviations", label: "Отклонения", roles: ["ceo", "manager"], view: vDeviations, count: true },
-  { path: "assistant", label: "Ассистент", roles: ["ceo", "manager"], view: vAssistant },
+  { path: "deviations", label: "Отклонения", roles: ["ceo", "head", "manager"], view: vDeviations, count: true },
+  { path: "assistant", label: "Ассистент", roles: ["ceo", "head", "manager"], view: vAssistant },
   { path: "meetings", label: "Встречи", roles: ["ceo", "manager"], view: vMeetings, count: "meet" },
   { path: "data", label: "Качество данных", roles: ["ceo", "manager", "admin"], view: vData, sep: true },
   { path: "security", label: "Журнал и защита", roles: ["ceo", "admin"], view: vSecurity, sep: true },
+  /* Карточка заказа открывается из оснований отклонения, в меню её нет */
+  { path: "orders", label: "Заказ", roles: ["ceo", "head"], view: () => stateBlock("Выберите заказ", "Заказы открываются из карточки отклонения, в блоке «Заказы-основания».", '<a class="btn btn-outline" href="#/deviations">К отклонениям</a>'), hidden: true },
 ];
 const parseHash = () => {
   const parts = location.hash.replace(/^#\/?/, "").split("/"); let id = parts[1] || null;
@@ -1936,14 +1979,13 @@ document.addEventListener("keydown", ev => { if (ev.key === "Escape" && tipFor) 
 
 function renderNav(cur) {
   closeNavTip();
-  const allowed = ROUTES.filter(r => r.roles.includes(S.role));
+  const allowed = ROUTES.filter(r => r.roles.includes(S.role) && !r.hidden);
   const countOf = r => r.count === "meet" ? (isCeo() ? S.meetings.filter(needsOut).length : 0) : r.count === "mine" ? myOpen().length : r.count && isCeo() ? deviationRows().filter(x => ["decide", "review"].includes(caseState(x.id).group)).length : 0;
   const item = r => { const n = countOf(r); return `<a href="#/${r.path}"${r.path === cur ? ' aria-current="page"' : ""}>${icon(r.path)}<span>${esc(r.label)}</span>${n ? `<span class="nav-count" aria-label="Нужно ваше внимание: ${n}">${n}</span>` : ""}</a>`; };
   const risky = mainDeviation().triggered && S.status !== "done";
   document.getElementById("nav").innerHTML = `<div class="nav-main">${allowed.filter(r => !r.sep).map(item).join("")}</div>
     <div class="nav-sec nav-integrations"><p class="nav-h">Интеграции</p>${DEMO.integrations.map(([g, t], i) => `<button class="nav-sub" data-act="integration" data-tip="${i}"><span class="int-ico" aria-hidden="true">${icon(g)}</span>${esc(t)}</button>`).join("")}<button class="nav-sub" data-act="integration" data-tip="add"><span class="int-add" aria-hidden="true">+</span>Добавить</button></div>
-    ${S.role === "admin" ? "" : `<div class="nav-sec nav-lines"><p class="nav-h">Линии</p>${DEMO.lines.map(l => `<button class="nav-sub" data-act="line" data-arg="${esc(l)}" aria-pressed="${S.line === l}"><span class="line-dot${l === DEMO.rules.ricoh && risky ? " bad" : ""}" aria-hidden="true"></span>${esc(l)}${l === DEMO.rules.ricoh && risky ? '<span class="sr">, есть отклонение</span>' : ""}</button>`).join("")}</div>
-    <div class="nav-sec nav-lines"><p class="nav-h">Продукты</p>${PRODUCTS.map(p => `<button class="nav-sub" data-act="product" data-arg="${esc(p)}" aria-pressed="${S.product === p}"><span class="line-dot" aria-hidden="true"></span>${esc(p)}</button>`).join("")}</div>`}
+    ${S.role === "admin" ? "" : `<div class="nav-sec nav-lines"><p class="nav-h">Линии</p>${DEMO.lines.map(l => `<button class="nav-sub" data-act="line" data-arg="${esc(l)}" aria-pressed="${S.line === l}"><span class="line-dot${l === DEMO.rules.ricoh && risky ? " bad" : ""}" aria-hidden="true"></span>${esc(l)}${l === DEMO.rules.ricoh && risky ? '<span class="sr">, есть отклонение</span>' : ""}</button>`).join("")}</div>`}
     <div class="nav-bottom">${allowed.filter(r => r.sep).map(item).join("")}</div>`;
   placeNavPill(cur);
 }
@@ -1958,7 +2000,7 @@ function renderTop() {
   const mine = S.notices.map((x, i) => ({ ...x, i })).filter(x => x.role === S.role && (!x.to || S.role !== "manager" || x.to === S.me)).reverse(), unread = mine.filter(x => !x.read).length;
   const bell = `<details class="menu bell-menu"><summary class="round" aria-label="Уведомления, новых: ${unread}">${icon("bell")}${unread ? '<i class="round-dot"></i>' : ""}</summary><div class="menu-pop right notices">${mine.length ? mine.map(x => `<a href="${x.href}" class="${x.read ? "" : "unread"}" data-act="noticeGo" data-arg="${x.i}">${esc(x.text)}</a>`).join("") : '<p class="muted small">Уведомлений нет</p>'}</div></details>`;
   /* Демо: кто сейчас вошёл. В продукте здесь профиль, а каждый сотрудник входит под своим логином */
-  const who = S.role === "manager" ? S.me : roleName();
+  const who = S.role === "manager" ? S.me : S.role === "head" ? deptOf(S.dept).head : roleName();
   const person = (arg, name, on, sub) => `<button data-act="switchTo" data-arg="${esc(arg)}" aria-pressed="${on}"><span class="sw-name">${esc(name)}</span>${sub ? `<span class="sw-n">${sub}</span>` : ""}</button>`;
   /* Права у всех сотрудников одинаковые, поэтому в меню одна роль. Кем войти, выбирается по смыслу, конкретного можно выбрать ниже */
   const nOpen = p => allTasks().filter(t => t.owner === p && OPEN_T.includes(t.status)).length, tasksWord = n => n ? `${n} ${plural(n, "задача", "задачи", "задач")}` : "";
@@ -1966,7 +2008,7 @@ function renderTop() {
   const staffItem = `<button data-act="switchTo" data-arg="staff" aria-pressed="${S.role === "manager"}"><span class="sw-two"><span class="sw-name">Сотрудник</span><span class="sw-sub">${esc(S.role === "manager" ? S.me : next)}</span></span>${nn && S.role !== "manager" ? `<span class="sw-n">${tasksWord(nn)}</span>` : ""}</button>`;
   const staff = `<details class="sw-more"><summary>Выбрать сотрудника</summary>${DEMO.people.map(p => person("p:" + p, p, S.role === "manager" && S.me === p, tasksWord(nOpen(p)))).join("")}</details>`;
   const switcher = `<details class="menu who-menu"><summary class="avatar who" aria-label="Вошли как ${esc(who)}. Сменить пользователя"><span class="who-ico" aria-hidden="true">${esc(who[0])}</span><span class="who-name">${esc(who)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></summary><div class="menu-pop right sw">
-    <p class="menu-h">Войти как</p>${person("ceo", "Руководитель", isCeo())}${staffItem}${person("admin", "Администратор", S.role === "admin")}${staff}
+    <p class="menu-h">Войти как</p>${person("ceo", "Руководитель", isCeo())}<details class="sw-more"${S.role === "head" ? " open" : ""}><summary>Руководитель подразделения</summary>${InsightData.depts().map(d => person("h:" + d.id, d.head, S.role === "head" && S.dept === d.id, d.name)).join("")}</details>${staffItem}${person("admin", "Администратор", S.role === "admin")}${staff}
     <hr><button data-act="demoRestart">Начать демо заново</button><button data-act="toggleBar">Настройки демо</button></div></details>`;
   /* Переключатель темы есть только там, где подключена светлая тема (glass.html ставит data-theme) */
   const theme = document.documentElement.dataset.theme;
@@ -1989,7 +2031,8 @@ function render(focusKey) {
   else if (S.state === "empty") html = stateBlock("Пока нет данных", "За выбранный период данные ещё не загружены. Запустите загрузку или выберите другой период.", `<button class="btn btn-primary" data-act="retry">Загрузить данные</button>`);
   else if (S.state === "error") html = stateBlock("Не удалось получить данные", "Витрина не ответила. Данные не потеряны, запрос можно повторить.", `<button class="btn btn-primary" data-act="retry">Повторить</button>`);
   else {
-    html = id && route.path === "deviations" ? vDeviationDetail(id) : id && route.path === "tasks" ? vTaskDetail(id) : id && route.path === "meetings" ? vMeetingDetail(id) : route.view();
+    html = id && route.path === "deviations" && !devVisible(id) ? stateBlock("Нет доступа", `Отклонение ${esc(id)} относится к другому подразделению. Руководитель подразделения видит только свои отклонения.`, `<a class="btn btn-outline" href="#/deviations">К своим отклонениям</a>`)
+      : id && route.path === "deviations" ? vDeviationDetail(id) : id && route.path === "tasks" ? vTaskDetail(id) : id && route.path === "meetings" ? vMeetingDetail(id) : id && route.path === "orders" ? vOrderDetail(id) : route.view();
     S.visited[id && path === "deviations" ? "cause" : path] = true;
   }
   view.innerHTML = html;
@@ -2009,11 +2052,9 @@ function render(focusKey) {
   renderNav(path);
   renderTop();
   document.title = (route ? route.label + " · " : "") + "picPac Insight";
-  document.body.classList.toggle("chat-page", path === "assistant");
   const chatBox = document.getElementById("chat");
   if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
   if (focusKey) { const el = document.querySelector(focusKey); if (el) el.focus(); }
-  const ci = document.getElementById("chat-input"); if (ci) growBox(ci);
   if (path === "assistant") playChat(); else if (!S.chat.length) chatShown = 0;
   if (pendingEnter) { pendingEnter = false; enterView(path + (id ? "/" + id : "")); if (firstPaint) { firstPaint = false; enterShell(); } }
 }
@@ -2078,13 +2119,18 @@ const ACT = {
     return "skip";
   },
   period: a => { S.period = +a; },
+  fDept: a => { S.fDept = a === "all" ? null : a; announce("Подразделение: " + (S.fDept ? deptOf(S.fDept).name : "все")); },
+  fReset: () => { S.fDept = S.role === "head" ? S.dept : null; S.fProduct = null; S.period = 4; announce("Фильтры сброшены"); },
+  basisAll: a => { S.basisAll[a] = !S.basisAll[a]; },
+  fcHorizon: a => { S.fcHorizon = a === "season" ? "season" : 4; announce(S.fcHorizon === "season" ? "Прогноз на сезон" : "Прогноз на 4 недели"); },
+  fcGrowth: a => { S.fcGrowth = +a; announce("Рост спроса: " + (S.fcGrowth ? "+" + Math.round(S.fcGrowth * 100) + " %" : "0 %")); },
+  fProduct: a => { S.fProduct = a === "all" ? null : +a; announce("Продукт: " + (S.fProduct == null ? "все" : InsightData.products()[S.fProduct])); },
   month: a => { S.month = a; },
   barMetric: a => { S.barMetric = a; },
   barRange: a => { S.barRange = +a; },
   calDay: a => { S.calDay = a; },
   calMove: a => { S.calAnchor = addDays(S.calAnchor, +a); },
   line: a => { S.line = S.line === a ? null : a; if (parseHash().path !== "overview") { location.hash = "#/overview"; return "skip"; } },
-  product: a => { S.product = S.product === a ? null : a; if (parseHash().path !== "overview") { location.hash = "#/overview"; return "skip"; } },
   integration: () => { toast("Интеграция пока не подключена"); return "skip"; },
   setRole: a => { S.role = a; document.getElementById("role").value = a; const route = ROUTES.find(r => r.path === parseHash().path); if (route && !route.roles.includes(a)) location.hash = firstAllowed(); announce("Роль: " + roleName()); },
   askPreset: a => { S.pendingAsk = DEMO.assistant.presets[+a]; return "nav"; },
@@ -2097,12 +2143,7 @@ const ACT = {
   retry: () => { S.state = "data"; document.getElementById("state").value = "data"; },
   toggleBar: () => { document.body.classList.toggle("bar-hidden"); return "skip"; },
   hideBar: () => { document.body.classList.add("bar-hidden"); toast("Панель скрыта. Вернуть: Alt+D"); return "skip"; },
-  agentAct: a => { agentAct(a); return "skip"; },
-  newChat: () => { if (S.typing) return "skip"; ensureChats(); const c = S.chats[0]; if (c.msgs.length || c.title) { const id = "n" + Date.now().toString(36); S.chats.unshift({ id, title: "", group: "Сегодня", msgs: [] }); } S.cur = S.chats[0].id; S.chat = S.chats[0].msgs; S.histOpen = false; chatShown = 0; return "render"; },
-  openChat: a => { if (S.typing) return "skip"; ensureChats(); const c = S.chats.find(x => x.id === a); if (c) { S.cur = c.id; S.chat = c.msgs; chatShown = 0; S.histOpen = false; } return "render"; },
-  toggleHist: () => { S.histOpen = !S.histOpen; return "render"; },
-  mic: () => { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) { toast("Голосовой ввод: в продукте локальный Whisper, в браузере макета он недоступен"); return "skip"; } const r = new SR(); r.lang = "ru-RU"; r.onresult = e => { const el = document.getElementById("chat-input"); if (el) { el.value = (el.value + " " + e.results[0][0].transcript).trim(); S.draft = el.value; } }; r.start(); toast("Говорите…"); return "skip"; },
-  stop: () => { if (agentCtl) agentCtl.abort(); clearTimeout(typingTimer); S.typing = null; S.chat.push({ who: "ai", text: "Ответ остановлен.", sources: [], intent: "stop" }); },
+  stop: () => { clearTimeout(typingTimer); S.typing = null; S.chat.push({ who: "ai", text: "Ответ остановлен.", sources: [], intent: "stop" }); },
   preset: a => { ask(DEMO.assistant.presets[+a]); return "skip"; },
   askCause: a => { const info = DEMO.otherCases[a], q = DEMO.assistant.presets[info && info.ask != null ? info.ask : 0]; if (S.chat.some(m => m.who === "me" && m.text === q)) S.chatTo = q; else S.pendingAsk = q; return "nav"; },
   /* Встречи */
@@ -2222,18 +2263,21 @@ const ACT = {
     if (a === "staff") a = "p:" + (S.role === "manager" ? S.me : pickStaff());
     const { path, id } = parseHash(), from = path === "tasks" && id ? findTask(id) : null;
     let hash = null;
-    if (a.startsWith("p:")) {
+    if (a.startsWith("h:")) {
+      /* Руководитель подразделения: главная сразу отфильтрована по своему подразделению */
+      S.role = "head"; S.dept = a.slice(2); S.fDept = S.dept; hash = "#/overview";
+    } else if (a.startsWith("p:")) {
       const p = a.slice(2), t = path === "deviations" && id ? allTasks().find(x => x.dev === id && x.owner === p && x.status !== "accepted") : null;
-      S.role = "manager"; S.me = p; hash = t ? "#/tasks/" + t.id : "#/tasks";
+      S.role = "manager"; S.me = p; S.fDept = null; hash = t ? "#/tasks/" + t.id : "#/tasks";
     } else {
-      S.role = a;
+      S.role = a; S.fDept = null;
       if (a === "admin") hash = "#/data";
       else if (from) hash = "#/deviations/" + from.dev;
       else if (path === "data" && S.lastLoad && S.lastLoad.first) hash = "#/deviations/" + S.lastLoad.first;
       else if (path === "tasks") hash = "#/deviations";
     }
     document.getElementById("role").value = S.role;
-    announce("Вошли как " + (S.role === "manager" ? S.me : roleName()));
+    announce("Вошли как " + (S.role === "manager" ? S.me : S.role === "head" ? deptOf(S.dept).head : roleName()));
     if (hash && location.hash !== hash) { location.hash = hash; return "skip"; }
     const route = ROUTES.find(r => r.path === parseHash().path);
     if (route && !route.roles.includes(S.role)) { location.hash = firstAllowed(); return "skip"; }
@@ -2404,7 +2448,7 @@ document.addEventListener("click", ev => {
   if (CEO_ONLY.includes(name) && !isCeo()) { ev.preventDefault(); toast("Это действие доступно только руководителю"); return; }
   if (EXECUTOR_ONLY.includes(name) && S.role !== "manager") { ev.preventDefault(); return; }
   const first = FLIP_ACTS.includes(name) ? captureRects() : null;
-  const flow = flowKey(), bars = BAR_ACTS.includes(name) ? captureBars() : null, nums = name === "period" ? captureNums() : null;
+  const flow = flowKey(), bars = BAR_ACTS.includes(name) ? captureBars() : null, nums = ["period", "fProduct", "fReset"].includes(name) ? captureNums() : null;
   const r = ACT[name](arg);
   if (r === "nav") return;
   if (r === "skip") return;
@@ -2418,9 +2462,6 @@ document.addEventListener("click", ev => {
   if (!document.activeElement || document.activeElement === document.body) focusHeading();
 });
 function setPath(path, v) { const p = path.split("."); let o = S; for (let i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = v; }
-const growBox = el => { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 200) + "px"; };
-document.addEventListener("input", ev => { if (ev.target.id === "chat-input") { S.draft = ev.target.value; growBox(ev.target); } });
-document.addEventListener("keydown", ev => { if (ev.target.id === "chat-input" && ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); ask(ev.target.value); } });
 document.addEventListener("input", ev => {
   const t = ev.target;
   if (t.dataset.bind) { setPath(t.dataset.bind, t.value); if (/^(draftText|reviewText|answerText|askText|newTask|editDraft)\./.test(t.dataset.bind)) S.taskErr = {}; if (t.dataset.bind.startsWith("out.")) S.outErr = {}; if (t.dataset.bind === "rec.text") S.rec.err = ""; else
@@ -2432,7 +2473,7 @@ document.addEventListener("input", ev => {
 document.addEventListener("keydown", ev => { if (ev.altKey && (ev.key === "d" || ev.key === "D" || ev.key === "в" || ev.key === "В")) { ev.preventDefault(); document.body.classList.toggle("bar-hidden"); } });
 document.addEventListener("change", ev => {
   const t = ev.target;
-  if (t.id === "role") { S.role = t.value; const { path } = parseHash(); const route = ROUTES.find(r => r.path === path); if (route && !route.roles.includes(S.role)) location.hash = firstAllowed(); render(); announce("Роль: " + roleName()); return; }
+  if (t.id === "role") { S.role = t.value; S.fDept = S.role === "head" ? S.dept : null; const { path } = parseHash(); const route = ROUTES.find(r => r.path === path); if (route && !route.roles.includes(S.role)) location.hash = firstAllowed(); render(); announce("Роль: " + roleName()); return; }
   if (t.id === "state") { S.state = t.value; render(); return; }
 
   if (t.dataset.task) { if (S.role !== "admin") { S.doneTasks[t.dataset.task] = t.checked;
