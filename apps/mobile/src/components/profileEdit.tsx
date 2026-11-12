@@ -1,7 +1,7 @@
 /**
  * Правка данных профиля — листом снизу, в стиле приложения: имя, телефон (с кодом из SMS), доставка по умолчанию
  * (Европочта — пункт выдачи, остальное — адрес), карты (основная, удалить, добавить). Лист едет вместе с клавиатурой.
- * Демо: код из SMS — 0000; карты — без проверки банком.
+ * Код из SMS отправляет и проверяет сервер (на стенде показа с DEMO_MODE — 0000); карты — без проверки банком.
  */
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -11,6 +11,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import Animated, { FadeIn, FadeOut, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { loginErrorText, requestCode, verifyCode } from '@/api/client';
 import { ChoiceTile } from '@/components/choice';
 import { Tap } from '@/components/ui';
 import { delivery as METHODS, pickupPoints } from '@/data/demo';
@@ -54,40 +55,66 @@ function NameForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** Телефон: новый номер → код из SMS (в демо 0000) → сохранили. */
+/** Телефон: новый номер → код из SMS → вход в аккаунт этого номера. Код отправляет и проверяет сервер. */
 function PhoneForm({ onDone }: { onDone: () => void }) {
   const { phone, setPhone } = useStore();
   const [step, setStep] = useState<'num' | 'code'>('num');
   const [num, setNum] = useState('');
   const [code, setCode] = useState('');
-  const [bad, setBad] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [demoHint, setDemoHint] = useState(false);
   const digits = num.replace(/\D/g, '');
-  const okNum = digits.length >= 9;
+  const okNum = digits.length === 9 || digits.length === 12;
+  const fail = (e: unknown) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    setErr(loginErrorText(e));
+  };
   if (step === 'num') {
     return (
       <>
         <Text style={s.hint}>Сейчас: {phone}</Text>
-        <Field value={num} onChange={setNum} placeholder="+375 29 123-45-67" keyboard="phone-pad" autoFocus />
-        <Save label="Получить код" off={!okNum} onPress={() => setStep('code')} />
+        <Field value={num} onChange={(t) => { setNum(t); setErr(null); }} placeholder="+375 29 123-45-67" keyboard="phone-pad" autoFocus warn={!!err} />
+        {err ? <Text style={s.warn}>{err}</Text> : null}
+        <Save
+          label={busy ? 'Отправляем…' : 'Получить код'}
+          off={!okNum || busy}
+          onPress={async () => {
+            setBusy(true);
+            try {
+              const r = await requestCode(num);
+              setDemoHint(!!r.demo_code_hint);
+              setStep('code');
+            } catch (e) {
+              fail(e);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
       </>
     );
   }
   return (
     <>
-      <Text style={s.hint}>Код из SMS на {num}. В демо — 0000.</Text>
-      <Field value={code} onChange={(t) => { setCode(t); setBad(false); }} placeholder="Код из SMS" keyboard="number-pad" autoFocus warn={bad} />
-      {bad ? <Text style={s.warn}>Код не подошёл — проверьте SMS</Text> : null}
+      <Text style={s.hint}>Код из SMS на {num}.{demoHint ? ' Демо-стенд: код 0000.' : ''}</Text>
+      <Field value={code} onChange={(t) => { setCode(t.replace(/\D/g, '').slice(0, 4)); setErr(null); }} placeholder="Код из SMS" keyboard="number-pad" autoFocus warn={!!err} />
+      {err ? <Text style={s.warn}>{err}</Text> : null}
       <Save
-        label="Подтвердить"
-        off={code.length < 4}
-        onPress={() => {
-          if (code !== '0000') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-            return setBad(true);
+        label={busy ? 'Проверяем…' : 'Подтвердить'}
+        off={code.length < 4 || busy}
+        onPress={async () => {
+          setBusy(true);
+          try {
+            await verifyCode(num, code);
+            setPhone(`+375 ${digits.slice(-9, -7)} •••-••-${digits.slice(-2)}`);
+            done();
+            onDone();
+          } catch (e) {
+            fail(e);
+          } finally {
+            setBusy(false);
           }
-          setPhone(`+375 ${digits.slice(-9, -7)} •••-••-${digits.slice(-2)}`);
-          done();
-          onDone();
         }}
       />
     </>

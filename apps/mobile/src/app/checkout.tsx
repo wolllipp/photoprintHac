@@ -14,6 +14,7 @@ import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isServerProject, orderErrorText, orderOnServer, orderPrintsOnServer } from '@/api/book';
+import { isRegistered, loginErrorText, requestCode, verifyCode } from '@/api/client';
 import { ChoiceTile } from '@/components/choice';
 import { TariffSheet } from '@/components/tariffSheet';
 import { Pik, Tap } from '@/components/ui';
@@ -43,11 +44,25 @@ export default function Checkout() {
   const [promo, setPromo] = useState('');
   const [promoOk, setPromoOk] = useState<boolean | null>(null);
   const card = cards.find((c) => c.id === cardId) ?? cards[0];
-  // телефон: смотреть → ввести новый → код из SMS (демо-код 0000)
+  // телефон: смотреть → ввести номер → код из SMS. Код отправляет и проверяет сервер, приложение кодов не знает
   const [phoneStep, setPhoneStep] = useState<'view' | 'edit' | 'code'>('view');
   const [draftPhone, setDraftPhone] = useState('');
   const [code, setCode] = useState('');
-  const [codeErr, setCodeErr] = useState(false);
+  const [codeErr, setCodeErr] = useState<string | null>(null);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [demoHint, setDemoHint] = useState(false);
+  // вошёл ли человек по номеру на этом устройстве (ref — чтобы «Оплатить» сразу после входа видела новое значение)
+  const signedInRef = useRef(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const payAfterLogin = useRef(false);
+  useEffect(() => {
+    isRegistered()
+      .then((v) => {
+        signedInRef.current = v;
+        setSignedIn(v);
+      })
+      .catch(() => {});
+  }, []);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // доставка — по умолчанию та, что в профиле
   const pref = useStore().delivery;
@@ -121,6 +136,12 @@ export default function Checkout() {
       scroll.current?.scrollToEnd({ animated: true });
       return;
     }
+    // заказ уйдёт на сервер — сначала вход по номеру; после кода оплата продолжится сама
+    if (toServer(cart[0]) && !signedInRef.current) {
+      payAfterLogin.current = true;
+      openPhone();
+      return;
+    }
     // запрос уже идёт — второе нажатие не создаёт второй заказ
     if (busy.current) return;
     busy.current = true;
@@ -168,6 +189,49 @@ export default function Checkout() {
     placeOrder(total, piksSpent, server, payment);
     router.dismissAll();
     router.navigate('/orders');
+  };
+  const openPhone = () => {
+    setCodeErr(null);
+    setPhoneStep('edit');
+  };
+  // «Получить код» — сервер отправляет SMS на введённый номер
+  const sendCode = async () => {
+    if (loginBusy) return;
+    setLoginBusy(true);
+    setCodeErr(null);
+    try {
+      const r = await requestCode(draftPhone);
+      setDemoHint(!!r.demo_code_hint);
+      setCode('');
+      setPhoneStep('code');
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setCodeErr(loginErrorText(e));
+    } finally {
+      setLoginBusy(false);
+    }
+  };
+  // код из SMS — проверяет сервер; подошёл — человек вошёл в свой аккаунт (по этому номеру)
+  const checkCode = async (c: string) => {
+    setLoginBusy(true);
+    try {
+      await verifyCode(draftPhone, c);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      signedInRef.current = true;
+      setSignedIn(true);
+      setPhone(draftPhone);
+      setPhoneStep('view');
+      if (payAfterLogin.current) {
+        payAfterLogin.current = false;
+        // лист закрывается — оплата продолжается без второго нажатия
+        setTimeout(() => onPay(), 350);
+      }
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setCodeErr(loginErrorText(e));
+    } finally {
+      setLoginBusy(false);
+    }
   };
   const enter = (i: number) => FadeInDown.delay(60 * i).duration(420).easing(ease.smoothOut);
 
@@ -322,11 +386,11 @@ export default function Checkout() {
           <Text style={s.h2}>Получатель</Text>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.rowTitle}>{phone}</Text>
-                <Text style={s.rowSub}>код из SMS — только при первом заказе</Text>
+                <Text style={s.rowTitle}>{signedIn ? phone : 'Номер телефона'}</Text>
+                <Text style={s.rowSub}>{signedIn ? 'вы вошли по этому номеру' : 'для заказа и SMS о статусе · код из SMS один раз'}</Text>
               </View>
-              <Tap onPress={() => setPhoneStep('edit')} accessibilityRole="button" hitSlop={10}>
-                <Text style={s.link}>Изменить</Text>
+              <Tap onPress={openPhone} accessibilityRole="button" hitSlop={10}>
+                <Text style={s.link}>{signedIn ? 'Изменить' : 'Указать'}</Text>
               </Tap>
             </View>
         </Animated.View>
@@ -382,8 +446,8 @@ export default function Checkout() {
       </View>
 
       {/* смена телефона — окно снизу, поднимается над клавиатурой и ничего не закрывает */}
-      <Modal visible={phoneStep !== 'view'} transparent animationType="fade" onRequestClose={() => setPhoneStep('view')}>
-        <PhoneSheet onClose={() => setPhoneStep('view')}>
+      <Modal visible={phoneStep !== 'view'} transparent animationType="fade" onRequestClose={() => { payAfterLogin.current = false; setPhoneStep('view'); }}>
+        <PhoneSheet onClose={() => { payAfterLogin.current = false; setPhoneStep('view'); }}>
           {phoneStep === 'edit' ? (
             <Animated.View key={phoneStep} entering={FadeIn.duration(200)} style={s.sheetBody}>
               <LateInput
@@ -400,45 +464,39 @@ export default function Checkout() {
                   <Text style={s.smallPlainText}>Отмена</Text>
                 </Tap>
                 <Tap
-                  style={[s.small, draftPhone.replace(/\D/g, '').length < 12 && { opacity: 0.4 }]}
-                  disabled={draftPhone.replace(/\D/g, '').length < 12}
-                  onPress={() => {
-                    setCode('');
-                    setCodeErr(false);
-                    setPhoneStep('code');
-                  }}
-                  accessibilityRole="button">
-                  <Text style={s.smallText}>Получить код</Text>
+                  style={[s.small, (draftPhone.replace(/\D/g, '').length < 12 || loginBusy) && { opacity: 0.4 }]}
+                  disabled={draftPhone.replace(/\D/g, '').length < 12 || loginBusy}
+                  onPress={sendCode}
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: loginBusy }}>
+                  <Text style={s.smallText}>{loginBusy ? 'Отправляем…' : 'Получить код'}</Text>
                 </Tap>
               </View>
+              {codeErr ? <Text style={s.err}>{codeErr}</Text> : null}
             </Animated.View>
           ) : (
             <Animated.View key={phoneStep} entering={FadeIn.duration(200)} style={s.sheetBody}>
-              <Text style={s.rowSub}>Код из SMS на {draftPhone} · в демо — 0000</Text>
+              <Text style={s.rowSub}>Код из SMS на {draftPhone}{demoHint ? ' · демо-стенд: код 0000' : ''}</Text>
               <LateInput
                 value={code}
+                editable={!loginBusy}
                 onChangeText={(t) => {
                   const c = t.replace(/\D/g, '').slice(0, 4);
                   setCode(c);
-                  setCodeErr(false);
-                  if (c.length === 4) {
-                    if (c === '0000') {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                      setPhone(draftPhone);
-                      setPhoneStep('view');
-                    } else {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-                      setCodeErr(true);
-                    }
-                  }
+                  setCodeErr(null);
+                  // четыре цифры — сразу на проверку сервером
+                  if (c.length === 4) checkCode(c);
                 }}
                 placeholder="• • • •"
                 placeholderTextColor={colors.mut2}
                 keyboardType="number-pad"
-                                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
+                style={[s.input, s.code, codeErr && { borderColor: colors.coralAction }]}
                 accessibilityLabel="Код из SMS"
               />
-              {codeErr ? <Text style={s.err}>Код не подошёл — проверьте SMS</Text> : null}
+              {codeErr ? <Text style={s.err}>{codeErr}</Text> : loginBusy ? <Text style={s.rowSub}>Проверяем код…</Text> : null}
+              <Tap onPress={() => setPhoneStep('edit')} accessibilityRole="button" hitSlop={8}>
+                <Text style={[s.link, { textAlign: 'center' }]}>Другой номер</Text>
+              </Tap>
             </Animated.View>
           )}
         </PhoneSheet>
@@ -520,6 +578,13 @@ export default function Checkout() {
       {tariffOpen && book ? <TariffSheet value={book.tariff as Tariff['id']} format={book.format} pages={book.pages} onPick={changeTariff} onClose={() => setTariffOpen(false)} /> : null}
     </View>
   );
+}
+
+/** Заказ уйдёт на сервер: книга собрана там или фотопечать из фото галереи (демо-снимки приложения на сервер не уходят). */
+function toServer(item: { projectId: string; tariff: string; prints?: { uri: string }[] } | undefined) {
+  if (!item) return false;
+  if (isServerProject(item.projectId)) return true;
+  return item.tariff === 'print' && !!item.prints?.length && item.prints.every((p) => p.uri.includes('/'));
 }
 
 /** Поле в окне снизу: клавиатура поднимается, когда окно уже доехало, — без рывка. */

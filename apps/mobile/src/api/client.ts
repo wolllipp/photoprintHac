@@ -65,6 +65,7 @@ async function raw<T>(method: string, path: string, body?: unknown, auth = true)
     });
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
+    if (res.status === 401 && auth) await forgetToken();
     if (!res.ok) throw new ApiError(res.status, detailText(data?.detail) || res.statusText);
     return data as T;
   } finally {
@@ -88,16 +89,59 @@ export async function ensureToken() {
   return r.token;
 }
 
-/**
- * Перед заказом нужен вход по телефону (заказывать гостю нельзя). В демо — код из SMS всегда 0000 (DEMO_MODE на сервере);
- * черновик гостя переходит к аккаунту. В продукте код вводит человек на экране оформления.
- */
-export async function ensureRegistered(phone = '+375291234567') {
+/** Токен больше не принимается (сервер сменил секрет, база пересоздана): забываем его — следующий запрос получит гостевой. */
+async function forgetToken() {
+  token = null;
+  registered = false;
+  await AsyncStorage.multiRemove([TOKEN_KEY, REGISTERED_KEY]).catch(() => {});
+}
+
+/** Человек уже вошёл по номеру телефона на этом устройстве? */
+export async function isRegistered() {
   await loadToken();
-  if (registered) return;
-  await raw('POST', '/auth/otp/request', { phone }, false);
-  const r = await raw<{ token: string }>('POST', '/auth/otp/verify', { phone, code: '0000' }, true);
+  return registered;
+}
+
+/** «29 123-45-67», «+375 29 123-45-67» → «+375291234567» — так номер ждёт сервер. */
+export function toServerPhone(input: string) {
+  const d = input.replace(/\D/g, '');
+  return `+${d.length === 9 ? `375${d}` : d}`;
+}
+
+/** Отправить код из SMS на введённый номер. Ответ сервера: на стенде показа — подсказка, что код демо. */
+export async function requestCode(phone: string) {
+  return raw<{ sent: boolean; demo_code_hint?: string }>('POST', '/auth/otp/request', { phone: toServerPhone(phone) }, false);
+}
+
+/**
+ * Проверить код, который ввёл человек, — проверяет только сервер. С гостевым токеном: черновики гостя переходят к аккаунту.
+ * Разные номера — разные аккаунты.
+ */
+export async function verifyCode(phone: string, code: string) {
+  const r = await raw<{ token: string; user: { id: string; phone: string } }>('POST', '/auth/otp/verify', { phone: toServerPhone(phone), code }, true);
   await saveToken(r.token, true);
+  return r.user;
+}
+
+/** Ошибка входа — понятной фразой для листа «Номер телефона». */
+export function loginErrorText(e: unknown) {
+  if (e instanceof ApiError) {
+    if (e.status === 400) return 'Код не подошёл — проверьте SMS';
+    if (e.status === 422) return 'Проверьте номер: +375 и 9 цифр';
+    if (e.status === 503) return 'Вход по SMS пока не работает — попробуйте позже';
+    if (e.status === 429) return 'Слишком много попыток — подождите минуту';
+    return 'Не получилось войти — попробуйте ещё раз';
+  }
+  return 'Нет связи с сервером — проверьте интернет';
+}
+
+/**
+ * Перед заказом нужен вход по телефону (заказывать гостю нельзя). Номер и код вводит человек на оформлении
+ * (requestCode → verifyCode); здесь только проверяем, что вход уже был.
+ */
+export async function ensureRegistered() {
+  await loadToken();
+  if (!registered) throw new ApiError(401, 'Войдите по номеру телефона');
 }
 
 export const api = {
