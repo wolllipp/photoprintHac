@@ -79,10 +79,8 @@ export default function Profile() {
 
         {/* переходы */}
         <Animated.View entering={enter(1)} style={s.group}>
-          {/* пики — только у вошедшего по номеру; баланс с сервера */}
-          {signedIn ? (
-            <Row title="Пики" sub="баллы за друзей и отзывы" onPress={() => router.push('/points')} right={<View style={s.pts}><Text style={s.ptsText}>{points}</Text><Pik size={18} /></View>} />
-          ) : null}
+          {/* пики — всем; баланс с сервера (у гостя 0, пока не вошёл по номеру) */}
+          <Row title="Пики" sub={signedIn ? 'баллы за друзей и отзывы' : 'войдите по номеру, чтобы копить и тратить'} onPress={() => router.push('/points')} right={<View style={s.pts}><Text style={s.ptsText}>{points}</Text><Pik size={18} /></View>} />
           <Row title="Черновики" sub="незаконченные книги — храним 60 дней" onPress={() => { router.back(); router.navigate('/drafts'); }} />
           <Row
             title="Заказы"

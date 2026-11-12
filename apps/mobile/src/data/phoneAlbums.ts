@@ -18,6 +18,30 @@ export const ALBUM_PREFIX = 'album:';
 
 const byId = new Map<string, MediaLibrary.Album>();
 
+/** Служебные альбомы айфона — не подборки для книги (по-русски и по-английски). */
+const NOT_FOR_BOOKS =
+  /screenshot|снимк\S* экрана|скриншот|screen ?record|запис\S* экрана|recently deleted|недавно удал|hidden|скрыт|burst|сери[ия]|video|видео|slo-?mo|замедл|time-?lapse|таймлапс|animated|анимир|\braw\b|import|импорт|duplicate|дубликат|document|документ|receipt|чек/i;
+
+/**
+ * Хорошее фото для книги и превью: снимок камеры, а не скриншот; не меньше 2 Мпикс; обычные пропорции
+ * (не длинная полоса экрана или панорамы). Скриншоты айфон помечает сам (mediaSubtypes: screenshot).
+ */
+function goodPhoto(a: MediaLibrary.Asset) {
+  if (a.mediaSubtypes?.includes('screenshot')) return false;
+  if (!a.width || !a.height || a.width * a.height < 2_000_000) return false;
+  const r = a.width / a.height;
+  return r > 0.55 && r < 1.9;
+}
+
+/** Обложка — самое крупное по разрешению из хороших; превью — из разных частей альбома, а не подряд. */
+function pickShow(good: MediaLibrary.Asset[]) {
+  const cover = [...good].sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  const rest = good.filter((a) => a !== cover);
+  const step = Math.max(1, Math.floor(rest.length / 4));
+  const pages = [0, 1, 2, 3].map((i) => rest[i * step]).filter((a): a is MediaLibrary.Asset => !!a);
+  return { cover: cover?.uri, pages: pages.map((a) => a.uri) };
+}
+
 /** Доступ к фото уже дали? (не спрашивает) */
 export async function albumsAllowed() {
   return (await MediaLibrary.getPermissionsAsync().catch(() => null))?.granted ?? false;
@@ -31,16 +55,22 @@ export async function askAlbums() {
 /** Альбомы телефона: свои и умные («Избранное», «Недавние», люди, места), где хотя бы 10 фото; самые большие — первыми. */
 export async function phoneAlbums(limit = 8) {
   const albums = await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true });
-  const big = albums.filter((a) => a.assetCount >= ALBUM_MIN).sort((a, b) => b.assetCount - a.assetCount).slice(0, limit);
+  const big = albums
+    .filter((a) => a.assetCount >= ALBUM_MIN && !NOT_FOR_BOOKS.test(a.title))
+    .sort((a, b) => b.assetCount - a.assetCount)
+    .slice(0, limit * 2);
   const out = await Promise.all(
     big.map(async (a) => {
       byId.set(a.id, a);
-      // обложка и пара фото для просмотра — самые свежие
-      const page = await MediaLibrary.getAssetsAsync({ album: a, first: 5, mediaType: 'photo', sortBy: [['creationTime', false]] }).catch(() => null);
-      return { id: a.id, title: a.title, count: a.assetCount, photos: page?.assets.map((x) => x.uri) ?? [] };
+      // смотрим 60 свежих: из них — только хорошие фото (без скриншотов и мелких картинок)
+      const page = await MediaLibrary.getAssetsAsync({ album: a, first: 60, mediaType: 'photo', sortBy: [['creationTime', false]] }).catch(() => null);
+      const good = (page?.assets ?? []).filter(goodPhoto);
+      const show = pickShow(good);
+      return { id: a.id, title: a.title, count: a.assetCount, good: good.length, photos: show.cover ? [show.cover, ...show.pages] : [] };
     }),
   );
-  return out.filter((x) => x.photos.length);
+  // альбом, где хороших фото меньше, чем на самую маленькую книгу, — не подборка
+  return out.filter((x) => x.photos.length && x.good >= ALBUM_MIN).slice(0, limit);
 }
 
 /** Альбомы — подборками для кружков на главной (тот же вид, что демо-идеи). */
@@ -71,9 +101,10 @@ export async function albumSuggestions(): Promise<Suggestion[]> {
 export async function bookFromAlbum(albumId: string, title: string) {
   const album = byId.get(albumId) ?? (await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true })).find((a) => a.id === albumId);
   if (!album) throw new Error('Альбом не найден — обновите главную');
-  const page = await MediaLibrary.getAssetsAsync({ album, first: ALBUM_TAKE, mediaType: 'photo', sortBy: [['creationTime', false]] });
+  // берём с запасом и отбрасываем скриншоты и мелкие картинки — в книгу только хорошие фото
+  const page = await MediaLibrary.getAssetsAsync({ album, first: ALBUM_TAKE * 2, mediaType: 'photo', sortBy: [['creationTime', false]] });
   const files: { uri: string; width: number; height: number; creationTime: number }[] = [];
-  const queue = [...page.assets];
+  const queue = page.assets.filter(goodPhoto).slice(0, ALBUM_TAKE);
   const worker = async () => {
     for (let a = queue.shift(); a; a = queue.shift()) {
       const info = await MediaLibrary.getAssetInfoAsync(a).catch(() => null);
