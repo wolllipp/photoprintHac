@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from app.api import auth, catalog, home, orders, photos, projects, insight
+from app.api import admin, auth, catalog, home, orders, photos, projects, insight
+from app.audit import audit_middleware
 from app.config import settings
 from app.db import engine
 from app.jobs import recover_stale_jobs
@@ -20,8 +21,10 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="picPac API", lifespan=lifespan)
-for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router, insight.router):
+for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router, insight.router, admin.router):
     app.include_router(r)
+# журнал действий (ОТ-04): каждое изменяющее действие
+app.middleware("http")(audit_middleware)
 if settings.demo_mode:
     from app.api import dev
     app.include_router(dev.router)

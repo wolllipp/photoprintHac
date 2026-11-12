@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,3 +35,19 @@ class PickupPoint(Base):
     carrier: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(200))
     address: Mapped[str] = mapped_column(String(300))
+
+
+class AuditLog(Base):
+    """Журнал действий (ТЗ, ОТ-04): кто, когда, что сделал, над чем и с каким результатом.
+    Тела запросов, телефоны и тексты в журнал не пишем — только действие, объект и код ответа."""
+    __tablename__ = "audit_log"
+    id: Mapped[uuid.UUID] = uuid_pk()
+    at: Mapped[datetime] = created_at()
+    user_id: Mapped[uuid.UUID | None] = mapped_column(index=True)  # без внешнего ключа: запись переживает удаление гостя
+    role: Mapped[str | None] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(60), index=True)
+    object_type: Mapped[str | None] = mapped_column(String(30))
+    object_id: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[int] = mapped_column(Integer)
+    result: Mapped[str] = mapped_column(String(10))  # ok | denied | error
+    ip: Mapped[str | None] = mapped_column(String(45))

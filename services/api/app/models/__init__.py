@@ -3,4 +3,4 @@ from app.models.orders import Order, OrderItem, OrderStage, PointsLedger, Stage,
 from app.models.projects import (  # noqa: F401
     BuildJob, Photo, Project, ProjectPage, ProjectPhoto, ProjectSource, ProjectStatus,
 )
-from app.models.users import PickupPoint, Role, User  # noqa: F401
+from app.models.users import AuditLog, PickupPoint, Role, User  # noqa: F401

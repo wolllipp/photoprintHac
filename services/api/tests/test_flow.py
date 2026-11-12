@@ -632,3 +632,37 @@ async def test_caption_font_is_saved_with_page(client):
     assert first["caption"] == "Лето" and first["caption_font"] == "hand"
     bad = await client.put(f"/projects/{pid}/pages/0", headers=gh, json={"template": "caption", "frames": [frame], "caption": "Лето", "caption_font": "comic"})
     assert bad.status_code == 422
+
+
+
+async def test_audit_log_and_staff_role(client):
+    """Журнал действий пишет вход, загрузку, книгу, заказ; смотреть его может только сотрудник, клиенту — 403."""
+    from app import db
+    from app.models import Role, User
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    photos = (await client.post("/photos", headers=gh, files=[("files", ("a.png", png(11), "image/png"))])).json()
+    pid = (await client.post("/projects", headers=gh, json={"title": "Журнал", "photo_ids": [photos[0]["id"]]})).json()["id"]
+    uh = auth((await client.post("/auth/otp/verify", headers=gh, json={"phone": "+375291230000", "code": "0000"})).json()["token"])
+    o = (await client.post("/orders", headers=uh, json={"product": "print_chemical", "format": "10x15", "delivery": "europost_pvz",
+                                                          "payment": "card", "prints": [{"photo_id": photos[0]["id"], "qty": 1}]})).json()
+    # клиент журнал и чужие заказы не видит
+    assert (await client.get("/admin/audit", headers=uh)).status_code == 403
+    assert (await client.get("/admin/orders", headers=gh)).status_code == 403
+    assert (await client.get("/admin/audit")).status_code == 401
+    # менеджер — видит
+    mh = auth((await client.post("/auth/otp/verify", json={"phone": "+375291230001", "code": "0000"})).json()["token"])
+    async with db.SessionLocal() as s:
+        from sqlalchemy import select
+        m = (await s.execute(select(User).where(User.phone == "+375291230001"))).scalar_one()
+        m.role = Role.manager
+        await s.commit()
+    mh = auth((await client.post("/auth/otp/verify", json={"phone": "+375291230001", "code": "0000"})).json()["token"])
+    log = (await client.get("/admin/audit?limit=500", headers=mh)).json()
+    actions = {(r["action"], r["object_id"]) for r in log}
+    assert ("создание книги", pid) in actions
+    assert ("заказ", o["id"]) in actions
+    assert any(a == "загрузка фото" for a, _ in actions) and any(a == "вход по телефону" for a, _ in actions)
+    # в журнале нет телефонов
+    assert "375291230000" not in str(log)
+    orders = (await client.get("/admin/orders", headers=mh)).json()
+    assert any(x["number"] == o["number"] for x in orders)

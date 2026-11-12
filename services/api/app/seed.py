@@ -14,12 +14,14 @@ from sqlalchemy import select
 from app import db
 from app.config import settings
 import app.models  # noqa: F401
-from app.models import DeliveryMethod, OrderItem, PointsLedger, Product, ProductOption, Project, User
+from app.models import Role, DeliveryMethod, OrderItem, PointsLedger, Product, ProductOption, Project, User
 
 # Демо-аккаунт стенда показа (только DEMO_MODE): вход по этому номеру с кодом 0000 — и сразу есть пики.
 # Пики начисляет сервер, приложение баланс только показывает (GET /me).
 DEMO_PHONE = "+375297000000"
 DEMO_POINTS = 350
+# Демо-менеджер (роль manager): журнал действий и все заказы — GET /admin/audit, /admin/orders
+DEMO_MANAGER_PHONE = "+375297000001"
 
 # (code, title, line, {format: ...}, min_p, base_p, base_price, step_price, max_p, days, assumed)
 BOOKS = [
@@ -114,7 +116,10 @@ async def seed() -> None:
 
 
 async def seed_demo_account(s) -> None:
-    """Демо-аккаунт и его стартовые пики — один раз (повторный сид не начисляет снова)."""
+    """Демо-аккаунт и его стартовые пики — один раз (повторный сид не начисляет снова); демо-менеджер."""
+    manager = (await s.execute(select(User).where(User.phone == DEMO_MANAGER_PHONE))).scalar_one_or_none()
+    if manager is None:
+        s.add(User(phone=DEMO_MANAGER_PHONE, name="Менеджер (демо)", role=Role.manager))
     user = (await s.execute(select(User).where(User.phone == DEMO_PHONE))).scalar_one_or_none()
     if user is None:
         user = User(phone=DEMO_PHONE, name="Демо")
