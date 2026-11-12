@@ -96,15 +96,26 @@ const MIN_PHOTOS = BOOK.premium.min;
 /** Коллаж — в среднем 2,5 фото на страницу; «хватает на коллажи» — хотя бы 2 фото на каждую страницу минимума. */
 const PER_PAGE = 2.5;
 const collageNeed = (t: BookTariff) => BOOK[t].min * 2;
-type BookTariff = 'lite' | 'classic' | 'premium';
+export type BookTariff = 'lite' | 'classic' | 'premium';
+
+/**
+ * Тариф, на котором из n фото выйдут коллажи: Lite, если фото хватает; иначе тариф с меньшим минимумом страниц;
+ * совсем мало — самый маленький (Premium, по одному фото). null — меньше 10 фото, книгу не собрать.
+ */
+export function collageTariff(n: number): BookTariff | null {
+  if (n >= collageNeed('lite')) return 'lite';
+  if (n >= collageNeed('classic')) return 'classic';
+  if (n >= collageNeed('premium')) return 'premium';
+  return n >= MIN_PHOTOS ? 'premium' : null;
+}
 
 /** Собрать книгу из этих фото на этом тарифе: объём — по числу снимков (коллажи), не меньше минимума тарифа. */
-function startBook(uris: string[], tariff: BookTariff) {
+export function startBook(uris: string[], tariff: BookTariff, title = 'Новая книга') {
   const n = uris.length;
   const pages = fitPages(tariff, Math.round(n / PER_PAGE));
   // выбранные фото — экрану сборки: он загрузит их на сервер и соберёт книгу по-настоящему
-  setPendingBook({ uris, title: 'Новая книга', pages, tariff });
-  router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(pages), tariff } });
+  setPendingBook({ uris, title, pages, tariff });
+  router.push({ pathname: '/build', params: { title, photos: String(n), pages: String(pages), tariff } });
 }
 
 /**

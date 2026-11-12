@@ -10,8 +10,28 @@ import { setPreview } from '@/data/photos';
 /** Длинная сторона копии для экрана: страница книги на телефоне — около 1200 точек. */
 const PREVIEW_PX = 1200;
 
+/** Что нужно знать о снимке для копий: адрес и размер. */
+type Shot = { uri: string; width: number; height: number };
+
+/**
+ * Фото из альбома айфона (экран «Мои альбомы»): запоминаем размер и дату съёмки, как у выбранных в галерее,
+ * и готовим уменьшенные копии для экрана. Возвращает адреса.
+ */
+export async function rememberLibrary(items: { uri: string; width: number; height: number; creationTime: number }[]) {
+  const two = (n: number) => String(n).padStart(2, '0');
+  items.forEach((a) => {
+    sizeOfUri.set(a.uri, { w: a.width, h: a.height });
+    if (a.creationTime) {
+      const d = new Date(a.creationTime);
+      takenOfUri.set(a.uri, `${d.getFullYear()}:${two(d.getMonth() + 1)}:${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`);
+    }
+  });
+  await makePreviews(items);
+  return items.map((a) => a.uri);
+}
+
 /** Уменьшенная копия для экрана; не вышло — показываем оригинал, как раньше. */
-async function makePreview(a: ImagePicker.ImagePickerAsset) {
+async function makePreview(a: Shot) {
   const long = Math.max(a.width || 0, a.height || 0);
   if (!long || long <= PREVIEW_PX * 1.2) return;
   try {
@@ -55,7 +75,7 @@ export async function uploadCopy(uri: string) {
 }
 
 /** Копии по 3 за раз: первые ждём (их сразу видно на экране сборки), остальные доделываются, пока фото грузятся. */
-async function makePreviews(assets: ImagePicker.ImagePickerAsset[], waitFirst = 6) {
+async function makePreviews(assets: Shot[], waitFirst = 6) {
   const queue = [...assets];
   const worker = async () => {
     for (let a = queue.shift(); a; a = queue.shift()) await makePreview(a);
