@@ -1086,8 +1086,8 @@ details.menu[open] > .menu-pop.right { transform-origin: top right; }
 @keyframes stpulse { 50% { opacity: .25; } }
 .ans { line-height: 1.5; } .cite { font-size: .7em; color: var(--ink-3); }
 .art-img { width: 100%; max-width: 560px; border-radius: 10px; border: 1px solid var(--line, #e5e2d9); background: #fff; display: block; }
-.art-file { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line, #e5e2d9); background: var(--white, #fff); color: inherit; text-decoration: none; width: fit-content; }
-.art-file b { font-size: var(--t-xs); background: var(--ink-2); color: var(--white, #fff); border-radius: 6px; padding: 2px 6px; }
-.proposal { border: 1px solid var(--ink-2); border-radius: 12px; padding: 10px 12px; background: var(--white, #fff); display: flex; flex-direction: column; gap: 6px; }
+.art-file { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; text-decoration: none; width: fit-content; }
+.art-file b { font-size: var(--t-xs); border: 1px solid currentColor; border-radius: 6px; padding: 2px 6px; }
+.proposal { border: 1px solid color-mix(in srgb, currentColor 40%, transparent); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, currentColor 6%, transparent); display: flex; flex-direction: column; gap: 6px; }
 .proposal.done { border-color: var(--teal, #1f8a70); } .proposal.no { opacity: .6; border-style: dashed; }
 .srcs { margin: 6px 0 0; padding-left: 18px; font-size: var(--t-xs); }

@@ -2,11 +2,11 @@
 выгружена из insight.js). В продукте: SQL-витрины в контуре компании, ассистент под ролью только на чтение."""
 from __future__ import annotations
 
-import json
 from datetime import date, timedelta
-from pathlib import Path
 
-D = json.loads((Path(__file__).resolve().parent.parent / "data" / "demo.json").read_text())
+from .connectors import load_data
+
+D = load_data()
 COLS = D["columns"]
 ROWS = [dict(zip(COLS, r)) for r in D["production"]]
 CLIENTS, HR = D["clients"], D["hr"]

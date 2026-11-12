@@ -91,3 +91,21 @@ def test_agent_denies_unknown_tool(monkeypatch):
     monkeypatch.setattr(agent.llm, "complete", lambda *a, **k: next(calls))
     ev = list(agent.run("manager", "покажи зарплаты", None))
     assert any(e["type"] == "tool_result" and e["status"] == "denied" for e in ev)
+
+
+def test_messenger_webhook_adapter(monkeypatch):
+    from app import connectors
+    class R:
+        def raise_for_status(self): pass
+        def json(self): return {"reply": "Сделаем"}
+    monkeypatch.setattr(connectors.httpx, "post", lambda url, json, timeout: R())
+    r = connectors.WebhookMessenger("http://x").send("Технолог печати", "вопрос")
+    assert r == {"delivered": True, "reply": "Сделаем"}
+    monkeypatch.setattr(connectors.httpx, "post", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    assert not connectors.WebhookMessenger("http://x").send("a", "b")["delivered"]
+
+
+def test_ask_colleague_commit_uses_connector(monkeypatch):
+    res = people.ask_colleague(CEO, "Технолог печати", "Была ли калибровка?")
+    out = res.proposal.commit()
+    assert "Отправлено: Технолог печати" in out and "Калибровку" in out

@@ -7,7 +7,7 @@ import re
 import httpx
 
 URL = os.getenv("ASSISTANT_LLM_URL", "http://localhost:11434/v1")
-MODEL = os.getenv("ASSISTANT_MODEL", "qwen3:4b")
+MODEL = os.getenv("ASSISTANT_MODEL", "qwen3:4b-instruct")
 
 
 def available() -> bool:

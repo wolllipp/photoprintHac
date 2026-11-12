@@ -1,20 +1,12 @@
 """Совещания, задачи, общение с коллегами. Запись и отправка сообщений только после подтверждения."""
 from __future__ import annotations
 
-from .. import store as S
+from .. import connectors, store as S
 from ..registry import Proposal, Result, tool
 from ._common import SRC
 
 TASKS = [dict(t, by_assistant=False) for t in S.D["tasks"]]
-OUTBOX: list[dict] = []  # заглушка мессенджера: в продукте корпоративный чат/Telegram через коннектор
-# Имитация ответов коллег в демо. В продукте ответы приходят из мессенджера.
-CANNED = {
-    "Технолог печати": "Калибровку после простоя 27.10 не проводили, ждали наладчика. Сделаем сегодня до ночной смены.",
-    "Менеджер закупок": "Протокол входного контроля партии РБ-1141 не нашёл. Запросил у поставщика, ответ обещали завтра.",
-    "Руководитель смен": "В ночную смену на Ricoh было 3 человека вместо 4, двое новых без наставника.",
-    "Начальник производства": "Принял, проверю линию и отвечу до конца дня.",
-    "Директор по развитию": "По акции жду ваше решение по лимиту скидки.",
-}
+MSG = connectors.messenger()  # демо-заглушка или webhook, см. app/connectors.py
 
 
 @tool("prepare_meeting", "people", "Готовлю повестку совещания",
@@ -55,8 +47,10 @@ def propose_task(ctx, title, owner, due):
       keywords=("узнай у", "спроси", "уточни у", "напиши", "коллег", "начальник"))
 def ask_colleague(ctx, role, question):
     def commit():
-        OUTBOX.append(dict(to=role, text=question, reply=CANNED.get(role, "Принял.")))
-        return f"Отправлено: {role}. Ответ: «{CANNED.get(role, 'Принял.')}»"
+        r = MSG.send(role, question)
+        if not r["delivered"]:
+            return f"Не удалось отправить: {role} ({r.get('error', 'ошибка')})."
+        return f"Отправлено: {role}. " + (f"Ответ: «{r['reply']}»" if r["reply"] else "Ответа пока нет, он придёт позже.")
     return Result(data=dict(status="ждёт подтверждения человеком", summary=f"сообщение для {role}"),
                   proposal=Proposal(f"Написать: {role}", dict(текст=question), commit))
 
@@ -70,9 +64,9 @@ def poll_group(ctx, roles, question):
     def commit():
         out = []
         for r in roles:
-            OUTBOX.append(dict(to=r, text=question, reply=CANNED.get(r, "Принял.")))
-            out.append(f"{r}: {CANNED.get(r, 'Принял.')}")
-        return "Ответы собраны:\n" + "\n".join(out)
+            x = MSG.send(r, question)
+            out.append(f"{r}: " + (x["reply"] or ("ответа пока нет" if x["delivered"] else "не доставлено")))
+        return "Результат опроса:\n" + "\n".join(out)
     return Result(data=dict(status="ждёт подтверждения человеком", summary=f"опрос: {len(roles)} получателей"),
                   proposal=Proposal(f"Опросить: {', '.join(roles)}", dict(вопрос=question), commit))
 
