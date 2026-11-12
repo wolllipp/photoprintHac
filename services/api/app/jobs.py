@@ -24,6 +24,25 @@ async def _lock_project_job(s, job_id: uuid.UUID, project_id: uuid.UUID):
     return project, job
 
 
+async def recover_stale_jobs() -> int:
+    """При старте сервера: сборки, которые шли в прошлом процессе, уже никто не доделает (план 1.12).
+
+    queued/running → failed, книга из «собирается» → черновик: повторный POST /build создаёт новую задачу,
+    а не возвращает навсегда зависшую. Возвращает, сколько задач помечено.
+    """
+    async with db.SessionLocal() as s:
+        jobs = (await s.execute(select(BuildJob).where(BuildJob.status.in_(["queued", "running"]))
+                                .with_for_update())).scalars().all()
+        for job in jobs:
+            job.status, job.stage = "failed", None
+            job.progress = {**(job.progress or {}), "error": "сервер перезапущен во время сборки"}
+            project = await s.get(Project, job.project_id)
+            if project is not None and project.status == ProjectStatus.building:
+                project.status = ProjectStatus.draft
+        await s.commit()
+        return len(jobs)
+
+
 async def run_build(job_id: uuid.UUID) -> None:
     async with db.SessionLocal() as s:
         queued_job = await s.get(BuildJob, job_id)

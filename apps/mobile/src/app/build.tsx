@@ -11,7 +11,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, FadeIn, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { buildOnServer, takePendingBook } from '@/api/book';
+import { BuildError, buildOnServer, cancelServerBuild, takePendingBook } from '@/api/book';
 import { TitleBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { type PhotoName, pic } from '@/data/photos';
@@ -25,6 +25,13 @@ const STEPS = [
   { now: 'Раскладываем по страницам' },
 ];
 const STEP_MS = 1600;
+/** Почему книга не собралась — коротко и без технических слов; фото у человека остаются. */
+const ERROR_TEXT: Record<BuildError['kind'], string> = {
+  offline: 'Нет связи с сервером — проверьте интернет',
+  timeout: 'Сборка зависла — попробуйте ещё раз',
+  failed: 'Не получилось собрать книгу — попробуйте ещё раз',
+  stopped: 'Сборка остановлена',
+};
 
 const CARDS: PhotoName[] = ['city-sunset', 'cafe-dessert', 'roses', 'night-window', 'bouquet', 'cafe-interior'];
 const ORBIT_MS = 10000;
@@ -80,20 +87,48 @@ export default function Build() {
   const done = step >= STEPS.length;
   const title = params.title ?? 'Карелия, июль';
 
-  // если фото выбраны в галерее — собираем на сервере: этапы приходят оттуда. Сервер недоступен — доигрываем демо.
+  // если фото выбраны в галерее — собираем на сервере: этапы приходят оттуда.
+  // Не получилось — честная ошибка и «Попробовать ещё раз» (а не демо-книга из чужих фото); без своих фото — демо, как раньше
   const [pending] = useState(() => takePendingBook());
-  const [server, setServer] = useState<'off' | 'running' | 'done'>(pending ? 'running' : 'off');
+  const [server, setServer] = useState<'off' | 'running' | 'done' | 'error'>(pending ? 'running' : 'off');
+  const [error, setError] = useState<BuildError['kind'] | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(null);
   useEffect(() => {
     if (!pending) return;
-    buildOnServer(pending, (n) => setStep((x) => Math.max(x, Math.min(n, STEPS.length - 1))))
+    let alive = true;
+    buildOnServer(pending, (n) => alive && setStep((x) => Math.max(x, Math.min(n, STEPS.length - 1))))
       .then((book) => {
+        if (!alive) return;
         setProjectId(book.projectId);
         setServer('done');
         setStep(STEPS.length);
       })
-      .catch(() => setServer('off'));
-  }, [pending]);
+      .catch((e) => {
+        if (!alive) return;
+        const kind = e instanceof BuildError ? e.kind : 'failed';
+        // «Остановить» — человек уже ушёл с экрана, ошибку не показываем
+        if (kind === 'stopped') return;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        setError(kind);
+        setServer('error');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [pending, attempt]);
+  const retry = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setError(null);
+    setStep(0);
+    setServer('running');
+    setAttempt((x) => x + 1);
+  };
+  const stop = () => {
+    // настоящая отмена на сервере и конец опроса
+    if (server === 'running') cancelServerBuild().catch(() => {});
+    router.back();
+  };
 
   useEffect(() => {
     if (done) {
@@ -103,8 +138,8 @@ export default function Build() {
       return () => clearTimeout(t);
     }
     if (step > 0) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    // пока собирает сервер — шаги двигает он, а не таймер
-    if (server === 'running') return;
+    // пока собирает сервер — шаги двигает он, а не таймер; при ошибке шаги стоят
+    if (server === 'running' || server === 'error') return;
     const t = setTimeout(() => setStep((x) => x + 1), STEP_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,8 +151,8 @@ export default function Build() {
     <View style={[s.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 12 }]}>
       <TitleBar
         title={
-          <Animated.Text key={done ? 'done' : 'work'} entering={FadeIn.duration(duration.slow)} style={s.title} numberOfLines={1} accessibilityRole="header">
-            {done ? 'Книга готова' : 'Собираем книгу'}
+          <Animated.Text key={done ? 'done' : error ? 'error' : 'work'} entering={FadeIn.duration(duration.slow)} style={s.title} numberOfLines={1} accessibilityRole="header">
+            {done ? 'Книга готова' : error ? 'Книга не собралась' : 'Собираем книгу'}
           </Animated.Text>
         }
       />
@@ -132,7 +167,11 @@ export default function Build() {
         {/* этап — одной строкой и тонкой полосой, без отдельных плиток */}
         <View style={s.status} accessibilityLiveRegion="polite">
           <View style={s.statusRow}>
-            {done ? (
+            {error ? (
+              <Animated.Text key="error" entering={FadeIn.duration(duration.fast)} style={[s.statusText, { color: colors.coralAction }]}>
+                {ERROR_TEXT[error]}
+              </Animated.Text>
+            ) : done ? (
               <Animated.Text key="done" entering={FadeIn.duration(duration.fast)} style={s.statusText}>
                 Готово · 24 страницы
               </Animated.Text>
@@ -147,9 +186,20 @@ export default function Build() {
         </View>
         </View>
       </View>
-      <Tap style={s.stop} onPress={() => router.back()} accessibilityRole="button">
-        <Text style={s.stopText}>Остановить</Text>
-      </Tap>
+      {error ? (
+        <View style={{ gap: 8 }}>
+          <Tap style={[s.stop, s.retry]} onPress={retry} accessibilityRole="button">
+            <Text style={[s.stopText, { color: '#fff' }]}>Попробовать ещё раз</Text>
+          </Tap>
+          <Tap style={s.stop} onPress={() => router.back()} accessibilityRole="button">
+            <Text style={s.stopText}>Назад</Text>
+          </Tap>
+        </View>
+      ) : (
+        <Tap style={s.stop} onPress={stop} accessibilityRole="button">
+          <Text style={s.stopText}>Остановить</Text>
+        </Tap>
+      )}
     </View>
   );
 }
@@ -170,4 +220,5 @@ const s = StyleSheet.create({
   trackFill: { height: 6, borderRadius: 3, backgroundColor: colors.coralAction },
   stop: { height: 54, borderRadius: 27, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center', marginHorizontal: 18 },
   stopText: { fontSize: 17, fontFamily: fonts.semibold, color: colors.fg },
+  retry: { backgroundColor: colors.coralAction },
 });

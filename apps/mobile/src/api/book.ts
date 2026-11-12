@@ -64,12 +64,46 @@ const LAYOUT_BY_COUNT: Record<number, string> = { 1: 'one', 2: 'two-side', 3: 't
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Сборка, которая идёт сейчас: «Остановить» отменяет её на сервере и прекращает опрос. */
+let running: { jobId: string | null; stopped: boolean } | null = null;
+export async function cancelServerBuild() {
+  const r = running;
+  if (!r) return;
+  r.stopped = true;
+  if (r.jobId) await api.post(`/jobs/${r.jobId}/cancel`).catch(() => {});
+}
+
+/** Почему сборка не получилась — экран сборки показывает понятную фразу и «Попробовать ещё раз». */
+export class BuildError extends Error {
+  constructor(public kind: 'offline' | 'timeout' | 'failed' | 'stopped') {
+    super(kind);
+  }
+}
+
+/** Сколько ждём сборку: дольше — считаем, что зависла (сервер перезапустили и т. п.). */
+const BUILD_WAIT_MS = 90_000;
+
 /**
- * Собрать книгу на сервере. onStep — номер шага экрана сборки (0–4). Бросает ошибку, если что-то пошло не так:
- * экран сборки тогда доигрывает демо.
+ * Собрать книгу на сервере. onStep — номер шага экрана сборки (0–4).
+ * Не получилось — BuildError: экран показывает ошибку, а не чужую демо-книгу.
  */
 export async function buildOnServer(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void): Promise<ServerBook> {
-  if (!(await online())) throw new Error('сервер недоступен');
+  if (!(await online())) throw new BuildError('offline');
+  const me = { jobId: null as string | null, stopped: false };
+  running = me;
+  try {
+    return await build(input, onStep, me);
+  } catch (e) {
+    if (me.stopped) throw new BuildError('stopped');
+    if (e instanceof BuildError) throw e;
+    // обрыв связи или ответ сервера с ошибкой посреди загрузки и сборки
+    throw new BuildError(e instanceof ApiError ? 'failed' : 'offline');
+  } finally {
+    if (running === me) running = null;
+  }
+}
+
+async function build(input: { uris: string[]; title: string; pages: number }, onStep: (n: number) => void, me: { jobId: string | null; stopped: boolean }): Promise<ServerBook> {
 
   // 1. загрузка — пачками, чтобы не держать в памяти все снимки сразу
   onStep(0);
@@ -86,12 +120,19 @@ export async function buildOnServer(input: { uris: string[]; title: string; page
   });
 
   // 3. сборка: этапы с сервера двигают экран
+  if (me.stopped) throw new BuildError('stopped');
   const { job_id } = await api.post<{ job_id: string }>(`/projects/${project.id}/build`);
-  for (let t = 0; t < 120; t++) {
+  me.jobId = job_id;
+  const until = Date.now() + BUILD_WAIT_MS;
+  for (;;) {
+    if (me.stopped) throw new BuildError('stopped');
     const job = await api.get<{ status: string; stage: string | null }>(`/jobs/${job_id}`);
     if (job.stage) onStep(STAGE_STEP[job.stage] ?? 1);
     if (job.status === 'done') break;
-    if (job.status === 'failed' || job.status === 'cancelled') throw new Error(`сборка: ${job.status}`);
+    if (job.status === 'cancelled') throw new BuildError('stopped');
+    if (job.status === 'failed') throw new BuildError('failed');
+    // не дождались — не открываем пустую книгу, а говорим, что сборка зависла
+    if (Date.now() > until) throw new BuildError('timeout');
     await sleep(400);
   }
 
