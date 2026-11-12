@@ -206,6 +206,16 @@ export async function checkOnServer(projectId: string): Promise<Record<string, P
   return out;
 }
 
+/**
+ * Все фото проекта на сервере — так, как их знает приложение (адрес на телефоне или srv:id).
+ * Из них «ИИ: исправить» и смена макета берут замену: в книгу человека не попадают чужие демо-снимки.
+ */
+export async function projectPhotos(projectId: string): Promise<string[]> {
+  type Sel = { photos: { photo_id: string }[] };
+  const res = await api.get<Sel>(`/projects/${projectId}/selection`);
+  return res.photos.map((p) => uriOfId.get(p.photo_id) ?? `srv:${p.photo_id}`);
+}
+
 /** Формат печати в приложении → на сервере. */
 const PRINT_FORMAT: Record<string, string> = { '10×15': '10x15', '15×20': '15x20', '20×30': '20x30', '30×45': '30x45' };
 

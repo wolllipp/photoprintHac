@@ -20,7 +20,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { checkOnServer, loadServerBook, savePage, serverBook } from '@/api/book';
+import { checkOnServer, loadServerBook, projectPhotos, savePage, serverBook } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { PageOrder } from '@/components/pageOrder';
@@ -70,25 +70,28 @@ function makePages(n: number): Page[] {
 }
 
 /** Как ИИ правит страницу по замечаниям: крупнее, убрать или заменить кадры (без людей, если просили). */
-function fix(p: Page, notes: string[], seed: number): Page {
+function fix(p: Page, notes: string[], seed: number, source: Pic[] = POOL): Page {
   const all = notes.join(' ');
   if (/крупн|больше/i.test(all)) return { layout: 'one', photos: [p.photos[0]] };
-  if (/четыре|4 фото/i.test(all)) return withLayout(p, 'four');
+  if (/четыре|4 фото/i.test(all)) return withLayout(p, 'four', 0, source);
   if (/убер|убра|лишн/i.test(all) && !/селф|люд/i.test(all) && slotsOf(p.layout) > 1) {
     const left = p.photos.slice(0, slotsOf(p.layout) - 1);
     return { layout: SIMPLE[left.length], photos: left };
   }
   const noPeople = /селф|люд|лиц/i.test(all);
-  const pool = POOL.filter((k) => !p.photos.includes(k) && (!noPeople || !PEOPLE.includes(k)));
+  const pool = source.filter((k) => !p.photos.includes(k) && (!noPeople || !PEOPLE.includes(k)));
+  // заменить не на что (в своей книге все фото уже стоят) — страница остаётся как есть
+  if (!pool.length) return p;
   return { ...p, photos: p.photos.map((_, i) => pool[(seed + i) % pool.length]) };
 }
 
 /** Сменить макет: лишние фото уходят, недостающие — добираем из того же дня; улучшения ИИ остаются у своих фото. */
-function withLayout(p: Page, layout: string, keep = 0): Page {
+/** source — откуда добирать фото: в демо-книге — демо-снимки, в своей книге — только фото человека из проекта. */
+function withLayout(p: Page, layout: string, keep = 0, source: Pic[] = POOL): Page {
   const n = slotsOf(layout);
   // фото, на которое нажали, идёт первым: выбрали «одно крупное» — останется именно оно
   const order = [p.photos[keep], ...p.photos.filter((_, i) => i !== keep)].filter((x): x is Pic => !!x);
-  const extra = POOL.filter((k) => !order.includes(k));
+  const extra = source.filter((k) => !order.includes(k));
   const fx = p.fx?.[keep] ? { 0: p.fx[keep] } : undefined;
   return { ...p, layout, photos: [...order.slice(0, n), ...extra].slice(0, n), fx: keep ? fx : p.fx };
 }
@@ -129,6 +132,22 @@ export default function Review() {
     // loadedTick — книга догрузилась с сервера
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagesN, edits, fromServer, loadedTick, tariff]);
+
+  // откуда ИИ и смена макета берут фото: в своей книге — только фото человека из проекта (сначала те, что ещё не в книге),
+  // в демо-книге — демо-снимки
+  const [ownPhotos, setOwnPhotos] = useState<string[]>([]);
+  useEffect(() => {
+    if (!params.projectId) return;
+    projectPhotos(params.projectId)
+      .then(setOwnPhotos)
+      .catch(() => {});
+  }, [params.projectId]);
+  const source = useMemo<Pic[]>(() => {
+    if (!params.projectId) return POOL;
+    const inBook = new Set(pages.flatMap((p) => p.photos).filter(Boolean).map(String));
+    const all = [...new Set([...ownPhotos, ...inBook])];
+    return [...all.filter((k) => !inBook.has(k)), ...all.filter((k) => inBook.has(k))];
+  }, [params.projectId, ownPhotos, pages]);
 
   // каждая правка страницы (замена фото, макет, подпись, «Исправить») сохраняется на сервере — книга не теряется
   const synced = useRef<Record<number, string>>({});
@@ -298,7 +317,7 @@ export default function Review() {
   const setLayout = (id: string) => {
     if (!menu) return;
     const page = menu.page;
-    editPage(page, withLayout(pages[page], id, menu.slot), `Макет: ${layoutOf(id).name.toLowerCase()}`);
+    editPage(page, withLayout(pages[page], id, menu.slot, source), `Макет: ${layoutOf(id).name.toLowerCase()}`);
     // макет с подписью — сразу просим текст и место подписи
     if (layoutOf(id).caption) setTimeout(() => setCaptionFor(page), 280);
   };
@@ -311,9 +330,9 @@ export default function Review() {
     const v = text.trim();
     if (!v) {
       // подпись не написали — страница снова обычная
-      editPage(page, { ...withLayout(p, plainLayout(layout)), caption: undefined, fx: p.fx }, 'Без подписи');
+      editPage(page, { ...withLayout(p, plainLayout(layout), 0, source), caption: undefined, fx: p.fx }, 'Без подписи');
     } else {
-      editPage(page, { ...withLayout(p, layout), caption: v, fx: p.fx }, 'Подпись сохранена');
+      editPage(page, { ...withLayout(p, layout, 0, source), caption: v, fx: p.fx }, 'Подпись сохранена');
     }
     setCaptionFor(null);
   };
@@ -322,7 +341,7 @@ export default function Review() {
     if (captionFor === null) return;
     const p = pages[captionFor];
     if (layoutOf(p.layout).caption && !p.caption) {
-      editPage(captionFor, { ...withLayout(p, plainLayout(p.layout)), fx: p.fx }, 'Без подписи');
+      editPage(captionFor, { ...withLayout(p, plainLayout(p.layout), 0, source), fx: p.fx }, 'Без подписи');
     }
     setCaptionFor(null);
   };
@@ -376,7 +395,7 @@ export default function Review() {
       setEdits((e) => {
         const next = { ...e };
         byPage.forEach(({ notes, fx }, page) => {
-          let pg = notes.length ? fix(pages[page], notes, page * 3 + (e[page] ? 2 : 0)) : pages[page];
+          let pg = notes.length ? fix(pages[page], notes, page * 3 + (e[page] ? 2 : 0), source) : pages[page];
           fx.forEach(({ slot, f }) => {
             const had = pg.fx?.[slot] ?? [];
             pg = { ...pg, fx: { ...(pg.fx ?? {}), [slot]: had.includes(f) ? had : [...had, f] } };
