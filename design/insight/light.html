@@ -59,6 +59,10 @@
 <div id="toast" class="toast" role="status" hidden></div>
 <noscript><p>Для макета нужен JavaScript.</p></noscript>
 <script src="data/synthetic.js"></script>
+<script>/* общая система: снимок с сервера приложения (GET /insight/snapshot) — та же форма, что data/synthetic.js, плюс живые заказы
+   и обращения из приложения; сервер недоступен — остаётся снимок из файла. ?api=http://host:8000 — другой адрес сервера */
+(function () { try { var m = location.search.match(/[?&]api=([^&]+)/); var base = m ? decodeURIComponent(m[1]) : location.protocol + "//" + (location.hostname || "localhost") + ":8000";
+  var x = new XMLHttpRequest(); x.open("GET", base + "/insight/snapshot", false); x.send(); if (x.status === 200) { var d = JSON.parse(x.responseText); if (d && d.orders && d.meta) window.INSIGHT_DATA = d; } } catch (e) { /* остаётся снимок из файла */ } })();</script>
 <script src="insight-data.js"></script>
 <script src="insight.js"></script>
 </body>
