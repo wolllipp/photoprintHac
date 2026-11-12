@@ -744,7 +744,11 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
         <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(160)} style={[s.sheet, { paddingBottom: bottom + 12 }, lift]}>
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle}>Подпись</Text>
-            <Text style={s.sheetSub}>стр. {pageN}</Text>
+            <Text style={[s.sheetSub, { flex: 1 }]}>стр. {pageN}</Text>
+            {/* закрыть без сохранения — видно и при открытой клавиатуре */}
+            <Tap style={s.close} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Закрыть без сохранения">
+              <XIcon size={16} color={colors.fg} weight="bold" />
+            </Tap>
           </View>
 
           {/* где подпись: схема страницы и переключатель */}
@@ -765,7 +769,18 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
           </View>
 
           <View style={s.field}>
-            <TextInput value={text} onChangeText={setText} placeholder="Например: лето у бабушки" placeholderTextColor={colors.mut2} style={s.input} multiline accessibilityLabel="Текст подписи" />
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Например: лето у бабушки"
+              placeholderTextColor={colors.mut2}
+              style={s.input}
+              multiline
+              // «Готово» на клавиатуре прячет её (в многострочном поле иначе не спрятать)
+              returnKeyType="done"
+              submitBehavior="blurAndSubmit"
+              accessibilityLabel="Текст подписи"
+            />
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="always">
             <Tap style={s.chip} onPress={() => setText(CAPTION_DATE)} accessibilityRole="button">
@@ -780,7 +795,8 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
               </Tap>
             ) : null}
           </ScrollView>
-          <Tap style={s.save} onPress={() => onSave(text, layout)} accessibilityRole="button">
+          {/* flex: 0 — в столбце кнопка с flex: 1 сжималась до нулевой высоты и её не было видно */}
+          <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={() => onSave(text, layout)} accessibilityRole="button">
             <Text style={s.saveText}>Готово</Text>
           </Tap>
         </Animated.View>
@@ -1030,7 +1046,7 @@ const s = StyleSheet.create({
   toastLink: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralLink },
   sheetWrap: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 16, gap: 12 },
-  sheetHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sheetTitle: { fontSize: 21, lineHeight: 26, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   sheetSub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 6, paddingLeft: 14 },
