@@ -17,10 +17,11 @@ import { StatusBar } from 'expo-status-bar';
 import { ChatCircleTextIcon, CheckIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedKeyboard, useAnimatedStyle, ZoomIn } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, SlideInDown, SlideOutDown, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditorGuide } from '@/components/editorGuide';
+import { VoiceGlow } from '@/components/voiceGlow';
 import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { captionLayout, captionPlaces, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
@@ -683,14 +684,40 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
     const t = setTimeout(() => input.current?.focus(), 40);
     return () => clearTimeout(t);
   }, [pin.text]);
+  // голос — как в «Собрать по описанию»: снизу поднимается разноцветный свет и «дышит» с речью,
+  // слова появляются по ходу; закончил говорить — свет гаснет, фраза остаётся в поле
+  const level = useSharedValue(0);
   const voice = () => {
+    if (listening) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    input.current?.blur();
+    setText('');
     setListening(true);
-    setTimeout(() => {
-      setText(HEARD);
-      setListening(false);
-    }, 1200);
   };
+  useEffect(() => {
+    if (!listening) {
+      level.set(withTiming(0, { duration: 300 }));
+      return;
+    }
+    const words = HEARD.split(' ');
+    let i = 0;
+    const t = setInterval(() => {
+      i += 1;
+      setText(words.slice(0, i).join(' '));
+      if (i >= words.length) {
+        clearInterval(t);
+        setTimeout(() => setListening(false), 700);
+      }
+    }, 280);
+    // shortcut: громкость имитируется; в продукте — уровень с микрофона
+    const m = setInterval(() => {
+      level.set(withTiming(i < words.length ? 0.35 + Math.random() * 0.65 : 0.08, { duration: 110 }));
+    }, 110);
+    return () => {
+      clearInterval(t);
+      clearInterval(m);
+    };
+  }, [listening, level]);
   return (
     <>
       <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
@@ -704,8 +731,8 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
           </View>
           <View style={s.field}>
             {listening ? (
-              <View style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
-                <ThinkingLine text="Слушаю…" style={s.input} />
+              <View style={{ flex: 1, minHeight: 44, justifyContent: 'center' }} accessibilityLiveRegion="polite">
+                {text ? <Text style={s.input}>{text}</Text> : <ThinkingLine text="Слушаю…" style={s.input} />}
               </View>
             ) : (
               <TextInput
@@ -720,7 +747,7 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
                 accessibilityLabel="Замечание к этому месту"
               />
             )}
-            <Tap style={s.mic} onPress={voice} accessibilityRole="button" accessibilityLabel="Сказать голосом">
+            <Tap style={[s.mic, listening && s.micOn]} onPress={voice} accessibilityRole="button" accessibilityLabel={listening ? 'Слушаю' : 'Сказать голосом'}>
               <MicrophoneIcon size={18} color="#fff" weight="fill" />
             </Tap>
           </View>
@@ -752,6 +779,7 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
           </View>
         </Animated.View>
       </View>
+      <VoiceGlow active={listening} processing={false} level={level} />
     </>
   );
 }
@@ -861,6 +889,7 @@ const s = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 6, paddingLeft: 14 },
   input: { flex: 1, minHeight: 44, fontSize: 16, fontFamily: fonts.medium, color: colors.fg },
   mic: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  micOn: { backgroundColor: colors.fg },
   quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: colors.card, justifyContent: 'center' },
   chipText: { fontSize: 14, fontFamily: fonts.medium, color: colors.fg },

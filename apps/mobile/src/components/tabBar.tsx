@@ -93,25 +93,33 @@ async function bookFromPhotos() {
   router.push({ pathname: '/build', params: { title: 'Новая книга', photos: String(n), pages: String(fitPages('lite', Math.round(n / 1.6))) } });
 }
 
+/** Печать: сначала выбираем фото в галерее, потом — формат, бумага и копии. */
+async function printFromPhotos() {
+  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
+  if (res.canceled || !res.assets.length) return;
+  router.push({ pathname: '/print', params: { photos: JSON.stringify(res.assets.map((a) => a.uri)) } });
+}
+
 /** Лист «Создать» — один на все вкладки: открывается и «+» в меню, и кружком на главной. */
 export function CreateHost() {
   const { creating, setCreating } = useStore();
   // галерею открываем, только когда лист закрылся полностью: iOS молча не покажет второе окно поверх закрывающегося
-  const wantGallery = useRef(false);
+  const wantGallery = useRef<'book' | 'print' | null>(null);
   const openGallery = () => {
-    if (!wantGallery.current) return;
-    wantGallery.current = false;
-    bookFromPhotos().catch(() => {});
+    const want = wantGallery.current;
+    if (!want) return;
+    wantGallery.current = null;
+    (want === 'book' ? bookFromPhotos() : printFromPhotos()).catch(() => {});
   };
   const onPick = (c: NewChoice) => {
     setCreating(false);
-    if (c === 'photos') {
-      wantGallery.current = true;
+    // книга и печать начинаются с выбора фото в галерее
+    if (c === 'photos' || c === 'print') {
+      wantGallery.current = c === 'photos' ? 'book' : 'print';
       // на Android у Modal нет onDismiss — ждём, пока закончится анимация закрытия
       if (Platform.OS !== 'ios') setTimeout(openGallery, 400);
     } else if (c === 'words') router.push('/story');
     else if (c === 'voice') router.push({ pathname: '/story', params: { voice: '1' } });
-    else if (c === 'print') router.push('/print');
     else router.push('/shared');
   };
   return <NewSheet visible={creating} onClose={() => setCreating(false)} onPick={onPick} onDismissed={openGallery} />;

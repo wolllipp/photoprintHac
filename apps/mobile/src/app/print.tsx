@@ -7,14 +7,15 @@
  */
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { MinusIcon, PlusIcon } from 'phosphor-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
+import { CaretLeftIcon, MinusIcon, PlusIcon } from 'phosphor-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { photos, pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
@@ -50,7 +51,15 @@ export default function Print() {
   const { width } = useWindowDimensions();
   const { orderNow } = useStore();
   const params = useLocalSearchParams<{ photos?: string }>();
-  const [SHOTS] = useState(() => parseShots(params.photos));
+  // фото — те, что выбрали в галерее (или в чате/книге); можно добавить ещё
+  const [SHOTS, setShots] = useState(() => parseShots(params.photos));
+  const addMore = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 1 });
+    if (res.canceled || !res.assets.length) return;
+    const fresh = res.assets.map((a) => a.uri).filter((u) => !SHOTS.includes(u));
+    setShots((x) => [...x, ...fresh]);
+    setQty((q) => ({ ...q, ...Object.fromEntries(fresh.map((u) => [u, 1])) }));
+  };
   const [format, setFormat] = useState(FORMATS[0]);
   const [fit, setFit] = useState<'crop' | 'fields'>('crop');
   const [paper, setPaper] = useState<(typeof PAPERS)[number]['id']>('Глянец');
@@ -90,11 +99,16 @@ export default function Print() {
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title="" />
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
-        <Animated.Text entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.title}>
+      {/* «назад» и заголовок — в одну линию */}
+      <View style={s.head}>
+        <Tap style={s.back} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Назад" hitSlop={8}>
+          <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
+        </Tap>
+        <Animated.Text entering={FadeInDown.duration(420).easing(ease.smoothOut)} style={s.title} accessibilityRole="header">
           Фотопечать
         </Animated.Text>
+      </View>
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
 
         {/* формат */}
         <View style={s.section}>
@@ -173,7 +187,23 @@ export default function Print() {
                     setPaper(p.id);
                   }}
                   accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}>
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={`Бумага ${p.title}: ${p.sub}`}>
+                  {/* образец: тот же снимок на глянцевой бумаге (яркий, с бликом) и на матовой (мягкий, без блика) */}
+                  <View style={s.swatch}>
+                    <Image source={pic('city-sunset')} style={StyleSheet.absoluteFill} contentFit="cover" />
+                    {p.id === 'Глянец' ? (
+                      <LinearGradient
+                        colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0)', 'rgba(255,255,255,0.18)']}
+                        locations={[0, 0.32, 0.55, 1]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    ) : (
+                      <View style={[StyleSheet.absoluteFill, s.matte]} />
+                    )}
+                  </View>
                   <Text style={s.paperName}>{p.title}</Text>
                   <Text style={s.paperSub}>{p.sub}</Text>
                 </Tap>
@@ -213,6 +243,11 @@ export default function Print() {
                 <Stepper value={qty[k]} onMinus={() => change(k, -1)} onPlus={() => change(k, 1)} min={0} small />
               </View>
             ))}
+            {/* добавить ещё фото из галереи */}
+            <Tap style={[s.add, { width: cell, height: cell }]} onPress={() => addMore().catch(() => {})} accessibilityRole="button" accessibilityLabel="Добавить фото из галереи">
+              <PlusIcon size={22} color={colors.peachInk} weight="bold" />
+              <Text style={s.addText}>Добавить{'\n'}из галереи</Text>
+            </Tap>
           </View>
         </View>
       </ScrollView>
@@ -247,7 +282,9 @@ function Stepper({ value, onMinus, onPlus, min, small }: { value: number; onMinu
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 16, gap: 14 },
-  title: { fontSize: 32, lineHeight: 38, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6 },
+  back: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
   section: { backgroundColor: colors.card, borderRadius: 22, padding: 14, gap: 10 },
   label: { fontSize: 13, fontFamily: fonts.semibold, color: colors.mut },
   row: { flexDirection: 'row', gap: 6 },
@@ -264,7 +301,11 @@ const s = StyleSheet.create({
   fitChip: { flex: 1, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   fitChipOn: { backgroundColor: colors.coralAction },
   fitChipText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
-  paper: { flex: 1, borderRadius: 18, backgroundColor: '#fff', padding: 12, gap: 2, borderWidth: 2, borderColor: 'transparent' },
+  paper: { flex: 1, borderRadius: 18, backgroundColor: '#fff', padding: 10, gap: 2, borderWidth: 2, borderColor: 'transparent' },
+  add: { borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.peachStrong, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  addText: { fontSize: 12, lineHeight: 15, fontFamily: fonts.semibold, color: colors.peachInk, textAlign: 'center' },
+  swatch: { height: 74, borderRadius: 10, overflow: 'hidden', marginBottom: 8, backgroundColor: colors.card2 },
+  matte: { backgroundColor: 'rgba(240,236,230,0.32)' },
   paperOn: { borderColor: colors.coralAction },
   paperName: { fontSize: 15, fontFamily: fonts.bold, color: colors.fg },
   paperSub: { fontSize: 12.5, lineHeight: 16, fontFamily: fonts.regular, color: colors.mut },

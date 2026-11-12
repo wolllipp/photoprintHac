@@ -5,12 +5,11 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { PlusIcon } from 'phosphor-react-native';
+import { CaretLeftIcon, PlusIcon } from 'phosphor-react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NavBar } from '@/components/nav';
 import { Tap } from '@/components/ui';
 import { sharedAlbums } from '@/data/demo';
 import { pic } from '@/data/photos';
@@ -21,9 +20,14 @@ export default function SharedList() {
   const insets = useSafeAreaInsets();
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      <NavBar title="" />
+      {/* «назад» и заголовок — в одну линию */}
+      <View style={s.head}>
+        <Tap style={s.back} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Назад" hitSlop={8}>
+          <CaretLeftIcon size={18} color={colors.fg} weight="bold" />
+        </Tap>
+        <Text style={s.title} accessibilityRole="header">Общие альбомы</Text>
+      </View>
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
-        <Text style={s.title}>Общие альбомы</Text>
         <Text style={s.lead}>Отправьте ссылку родным — каждый добавит свои фото, без приложения. Из всех снимков — одна книга.</Text>
 
         <Tap style={s.create} onPress={() => router.push('/shared/new')} accessibilityRole="button">
@@ -64,7 +68,9 @@ export default function SharedList() {
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 16, gap: 12 },
-  title: { fontSize: 32, lineHeight: 38, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6 },
+  back: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, fontSize: 30, lineHeight: 36, fontFamily: fonts.display, letterSpacing: -0.8, color: colors.fg },
   lead: { fontSize: 15, lineHeight: 21, fontFamily: fonts.regular, color: colors.mut, marginBottom: 4 },
   create: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.peach, borderRadius: 26, padding: 16 },
   plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
