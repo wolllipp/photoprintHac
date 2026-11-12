@@ -75,3 +75,29 @@ def read_text(session: str, name: str, limit: int = 6000) -> str:
     else:
         text = f.read_text(encoding="utf-8", errors="replace")
     return text[:limit]
+
+
+def lint_pptx(session: str, name: str) -> list[str]:
+    """Замечания к готовой презентации: возвращаются модели, как ошибки компилятора. Дизайн решает модель, мы только замечаем явные провалы."""
+    from pptx import Presentation
+    p = Presentation(path(session) / name)
+    out, sigs, visuals = [], [], 0
+    for i, s in enumerate(p.slides, 1):
+        txt = sum(len(sh.text_frame.text.strip()) for sh in s.shapes if sh.has_text_frame)
+        vis = sum(1 for sh in s.shapes if sh.shape_type in (3, 13) or getattr(sh, "has_chart", False))
+        visuals += vis
+        sigs.append(tuple(sorted(str(sh.shape_type) for sh in s.shapes)))
+        if txt < 25:
+            out.append(f"слайд {i}: почти нет текста, добавьте вывод и подписи")
+        for sh in s.shapes:
+            if sh.left is not None and (sh.left + sh.width > p.slide_width * 1.02 or sh.top + sh.height > p.slide_height * 1.02):
+                out.append(f"слайд {i}: элемент выходит за край слайда"); break
+        for sh in s.shapes:
+            if sh.has_text_frame and len(sh.text_frame.text) > 600:
+                out.append(f"слайд {i}: слишком много текста в одном блоке, сократите или разбейте"); break
+    n = len(p.slides)
+    if n > 3 and visuals == 0:
+        out.append("в презентации нет ни диаграмм, ни картинок: добавьте нативные диаграммы или графики там, где есть числа")
+    if n > 4 and len(set(sigs[1:])) <= 1:
+        out.append("все слайды устроены одинаково: варьируйте раскладки (крупное число, две колонки, диаграмма с выводом, схема, таймлайн)")
+    return out[:8]
