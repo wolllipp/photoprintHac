@@ -61,6 +61,7 @@
 <div id="live" class="sr" aria-live="polite"></div>
 <div id="toast" class="toast" role="status" hidden></div>
 <noscript><p>Для макета нужен JavaScript.</p></noscript>
+<script>/* данные с сервера приложения: тот же источник, что у ассистента; ?api=http://host:8000 — другой адрес */ (function () { try { var m = location.search.match(/[?&]api=([^&]+)/); var base = m ? decodeURIComponent(m[1]) : location.protocol + "//" + (location.hostname || "localhost") + ":8000"; var x = new XMLHttpRequest(); x.open("GET", base + "/insight/data", false); x.send(); if (x.status === 200) window.INSIGHT_DATA = JSON.parse(x.responseText); } catch (e) { /* сервер недоступен — данные из файла */ } })();</script>
 <script src="insight.js"></script>
 </body>
 </html>

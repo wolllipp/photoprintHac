@@ -2,7 +2,7 @@
 /* picPac Insight, HTML-макет. Весь ввод макета лежит в DEMO; при переносе в Next.js объект становится фикстурой моков.
    Правило проекта: числа считает код, модель только объясняет. Поэтому агрегаты ниже считаются из сырых строк. */
 // ДОПУЩЕНИЕ: объёмы, цены заказа, пороги, сотрудники и партии придуманы. Пороги должна утвердить Алеся (D4, D8).
-const DEMO = {
+const DEMO_FILE = {
   meta: { firstWeekStart: "2026-07-20", today: "2026-11-09", lastWeek: 16, firstHistoryWeek: -32 },
   calendar: [
     { date: "2026-10-26", title: "На Ricoh пошла новая партия материала", href: "#/deviations/D-118" },
@@ -622,6 +622,11 @@ const DEMO = {
   },
 };
 
+/* Данные — с сервера (GET /insight/data, загружает index.html): та же история компании плюс живые заказы и обращения
+   из приложения (live). Сервер недоступен — данные из файла, как раньше. */
+const DEMO = window.INSIGHT_DATA && window.INSIGHT_DATA.production ? { ...DEMO_FILE, ...window.INSIGHT_DATA } : DEMO_FILE;
+const LIVE = (window.INSIGHT_DATA && window.INSIGHT_DATA.live) || null;
+
 /* ---------- Состояние ---------- */
 const DEMO_MODE = true;
 const blankMeet = (devs, today) => ({ title: "Оперативное совещание по качеству", date: today || DEMO.meta.today, time: "15:00", people: [], devs: devs || [], topics: [], topicText: "" });
@@ -1181,12 +1186,13 @@ const WIDGETS = {
     const r = homeRange();
     return `<div class="sheet"><h2>Все показатели</h2><div class="ledger">${KPI.map(g => (g.hr && !isCeo()) ? `<div class="lg-col"><h2>${g.group}</h2><p class="note small">Кадровые показатели видит только руководитель.</p></div>` : `<div class="lg-col"><h2>${g.group}</h2>${g.items.map(k => { const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null; return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><span class="lg-value num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}</div>`; }).join("")}</div>`).join("")}</div></div>`;
   } },
+  live: { title: "Заказы из приложения", html: () => liveHtml() },
   forecast: { title: "Прогноз на 4 недели", html: () => forecastHtml() },
   sources: { title: "Свежесть данных", html: () => sourcesFreshHtml() },
   ask: { title: "Спросить ассистента", html: () => `<div class="sheet"><h2>Спросить ассистента</h2><div class="chips">${DEMO.assistant.presets.slice(0, 3).map((p, i) => `<a class="chip" href="#/assistant" data-act="askPreset" data-arg="${i}">${esc(p)}</a>`).join("")}</div></div>` },
 };
 /* Размер плитки постоянный и не зависит от места. Сетка из трёх колонок: 4 = одна колонка, 8 = две, 12 = весь ряд */
-const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, kpi: { full: true, spans: [12], pref: 12 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 }, forecast: { full: true, spans: [12], pref: 12 }, sources: { spans: [4, 8], pref: 4 } };
+const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, kpi: { full: true, spans: [12], pref: 12 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 }, live: { spans: [4, 8], pref: 8 }, forecast: { full: true, spans: [12], pref: 12 }, sources: { spans: [4, 8], pref: 4 } };
 /* Каждая плитка встаёт в первое свободное место, куда помещается. Пустые ячейки запоминаем, чтобы показать их при настройке */
 function packLayout(ids) {
   const spans = {}, pos = {}, options = {}, rows = [], holes = [];
@@ -1212,9 +1218,9 @@ function packLayout(ids) {
   return { spans, pos, options, holes };
 }
 const packSpans = ids => packLayout(ids).spans;
-const DEFAULT_LAYOUT = ["hero", "bars", "quality", "calendar", "kpi", "forecast", "goals", "decisions", "sources"];
+const DEFAULT_LAYOUT = ["hero", "live", "bars", "quality", "calendar", "kpi", "forecast", "goals", "decisions", "sources"];
 // v3: в раскладку по умолчанию добавлены прогноз и свежесть данных — старая сохранённая раскладка их бы не показала
-const LAYOUT_KEY = "picpac-insight-layout-v3";
+const LAYOUT_KEY = "picpac-insight-layout-v4";
 
 /*
  * Прогноз спроса и мощности на 4 недели (ТЗ 5.2). Спрос — тренд листов за последние 8 недель по каждой линии
@@ -1237,6 +1243,18 @@ function forecastRows() {
     const deficit = weeks.find((w, i) => demand[i] > capacity * RISK_LOAD);
     return { line, weeks, demand, capacity, deficit, trend: k };
   });
+}
+/* Живые заказы и обращения из приложения клиента (тот же сервер и та же база, что у приложения). */
+const LIVE_STAGE = { accepted: "Принят", layout_checked: "Макет проверен", printing: "Печать", binding: "Переплёт", handed_to_delivery: "В доставке", ready_for_pickup: "Можно забирать", delivered: "Получен" };
+function liveHtml() {
+  if (!LIVE) return `<div class="sheet"><h2>Заказы из приложения</h2><p class="muted">Сервер приложения недоступен — показываем историю из файла.</p></div>`;
+  const when = LIVE.updated_at ? new Date(LIVE.updated_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "";
+  const stages = Object.entries(LIVE.orders_by_stage || {}).map(([k, v]) => `<span class="chip">${esc(LIVE_STAGE[k] || k)}: ${fInt(v)}</span>`).join("");
+  const rows = (LIVE.orders || []).slice(0, 5).map(o => `<li class="fresh-row"><span class="fresh-dot" aria-hidden="true"></span><span><b>№ ${esc(o.number)}</b><span class="muted small"> · ${esc(o.product || "заказ")} · ${esc(LIVE_STAGE[o.stage] || o.stage)}</span></span><span class="num small">${esc(String(o.total).replace(".", ","))} р.</span></li>`).join("");
+  return `<div class="sheet"><div class="w-head"><h2>Заказы из приложения</h2><span class="goal-count">${fInt(LIVE.orders_total || 0)}</span></div>
+    <div class="chips">${stages || '<span class="muted small">Заказов пока нет</span>'}</div>
+    ${rows ? `<ul class="fresh-list">${rows}</ul>` : ""}
+    <p class="note small">Открытых обращений: ${fInt(LIVE.support_open || 0)} · обновлено ${esc(when)} · источник: ${esc(LIVE.source || "picPac API")}</p></div>`;
 }
 function forecastHtml() {
   const rows = forecastRows(), weeks = rows[0] ? rows[0].weeks : [];
