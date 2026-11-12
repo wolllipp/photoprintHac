@@ -236,11 +236,18 @@ def test_build_deck_appends_and_rejects_leaks_and_empty_slides():
     assert "второй тезис" in workspace.read_text("t4", name)
 
 
-def test_pptx_lint_flags_template_look_and_empty_slides():
-    from app.tools import sandbox
-    ctx = {**CEO, "session": "t5"}
-    code = ("from pptx import Presentation\nfrom pptx.util import Inches\np = Presentation()\n"
-            "for i in range(5):\n    s = p.slides.add_slide(p.slide_layouts[6]); t = s.shapes.add_textbox(Inches(1), Inches(1), Inches(5), Inches(1)); t.text_frame.text = 'Одинаковый слайд номер %d про систему' % i\n"
-            "p.save('x.pptx')\ns = p.slides.add_slide(p.slide_layouts[6])\np.save('y.pptx')")
-    joined = " ".join(sandbox.run_python(ctx, code).data["замечания_к_файлам"])
-    assert "почти нет текста" in joined and "ни диаграмм" in joined and "одинаково" in joined
+def test_make_slides_html_to_editable_pptx_and_exact_layout_issues():
+    import shutil
+    if not shutil.which("node"):
+        return
+    from pptx import Presentation
+    from app import workspace
+    from app.tools import slides
+    ctx = {**CEO, "session": "t6"}
+    css = "<style>*{box-sizing:border-box;margin:0}.slide{width:1280px;height:720px;padding:60px;background:#111;color:#eee;display:flex;flex-direction:column;justify-content:center}h1{font-size:60px}</style>"
+    ok = slides.make_slides(ctx, "d", "<!doctype html><meta charset=utf-8>" + css + '<section class="slide"><h1>Вывод слайда</h1><p>Текст</p></section>')
+    assert ok.data["file"] == "d.pptx" and "замечания_по_вёрстке" not in ok.data
+    assert "Вывод слайда" in " ".join(sh.text_frame.text for sh in Presentation(workspace.path("t6") / "d.pptx").slides[0].shapes if sh.has_text_frame)
+    bad = slides.make_slides(ctx, "e", "<!doctype html><meta charset=utf-8>" + css.replace("h1{", "h1{white-space:nowrap;") + '<section class="slide"><h1>Очень длинный заголовок который не помещается в строку и вылезает за слайд справа далеко</h1></section>')
+    assert "не помещается" in " ".join(bad.data["замечания_по_вёрстке"])
+    assert "error" in slides.make_slides(ctx, "x", "<script>alert(1)</script>").data

@@ -110,7 +110,7 @@ def claims_action_without_tool(answer: str, used_tools: list[str]) -> bool:
 
 
 _WANTS_FILE = re.compile(r"презентац|слайд|docx|xlsx|excel|word|служебн\w* записк|документ\b|таблиц\w* excel", re.I)
-_MAKERS = {"run_python", "build_docx", "report_docx", "workbook_xlsx"}
+_MAKERS = {"make_slides", "run_python", "build_docx", "report_docx", "workbook_xlsx"}
 
 
 def review(answer: str, evidence: str, used: list[str], question: str = "") -> list[str]:
@@ -122,7 +122,7 @@ def review(answer: str, evidence: str, used: list[str], question: str = "") -> l
     if claims_action_without_tool(answer, used):
         out.append("в ответе сказано, что действие выполнено, но ни один инструмент не вызывался")
     if _WANTS_FILE.search(question) and not (_MAKERS & set(used)):
-        out.append("пользователь просил файл (презентацию или документ), а файл не создан: создай его кодом через run_python (по своим знаниям, если тема общая), без шаблонов")
+        out.append("пользователь просил файл (презентацию или документ), а файл не создан: презентацию сделай инструментом make_slides, документ или таблицу через run_python (по своим знаниям, если тема общая)")
     bad = ungrounded_numbers(answer, evidence) if evidence else []
     if bad:
         out.append("числа " + ", ".join(dict.fromkeys(bad)) + " не подтверждены данными")
