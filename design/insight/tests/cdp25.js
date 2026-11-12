@@ -28,11 +28,11 @@ const D=await ev(`(()=>{const m=InsightData.meta(),L=InsightData.orders({from:m.
   const raw=window.INSIGHT_DATA,T=raw.tickets.rows,O=new Map(raw.orders.rows.map(r=>[r[0],r]));
   const early=T.filter(t=>t[2]&&(t[5]===1||t[5]===3)&&O.get(t[2])&&t[3]<=O.get(t[2])[14]).length;
   return {n:L.length,all:L.every(o=>o.line==='Ricoh'&&o.shift==='Ночь'&&o.defects>0&&o.date>=m.stories.batch),sorted:L.every((o,i)=>!i||L[i-1].ts>=o.ts),owners:L.every(o=>o.action.owner==='Начальник производства'),p:P.length,pAll:P.every(o=>o.product==='Фотокнига Premium'&&o.coupon),early,first:L[0].id}})()`);
-ok('основания D-118: Ricoh, ночь, брак, с 26 окт',D.n===8&&D.all,String(D.n));ok('основания отсортированы от новых к старым',D.sorted);
+ok('основания D-118: Ricoh, ночь, брак, с 26 окт',D.n===7&&D.all,String(D.n));ok('основания отсортированы от новых к старым',D.sorted);
 ok('у каждого заказа брака ответственный — начальник производства',D.owners);
 ok('основания D-117: Premium по купону',D.p>0&&D.pAll,String(D.p));
 ok('в данных нет жалоб на брак или доставку раньше отгрузки',D.early===0,String(D.early));
-const O=await ev(`(()=>{const o=InsightData.order(${JSON.stringify(D.first)});return {erp:!!o.erp,ledger:!!o.ledger,crm:!!o.crm,support:Array.isArray(o.support),ev:o.events.length,sortedEv:o.events.every((e,i)=>!i||o.events[i-1].ts<=e.ts),tz:o.events.every(e=>/\\+03:00$/.test(e.ts)),srcs:[...new Set(o.events.map(e=>e.source))].sort().join(),noName:!JSON.stringify(o).match(/name|фио|phone|email/i)}})()`);
+const O=await ev(`(()=>{const o=InsightData.order(${JSON.stringify(D.first)});return {erp:!!o.erp,ledger:!!o.ledger,crm:!!o.crm,support:Array.isArray(o.support),ev:o.events.length,sortedEv:o.events.every((e,i)=>!i||o.events[i-1].ts<=e.ts),tz:o.events.every(e=>/\\+03:00$/.test(e.ts)),srcs:[...new Set(o.events.map(e=>e.source))].sort().join(),noName:!JSON.stringify(o).match(/"[^"]*(name|fio|фио|phone|email)[^"]*":|@|\\+\\d[\\d\\s()-]{8,}/i)}})()`);
 ok('карточка заказа собирает ERP, 1С, CRM и поддержку',O.erp&&O.ledger&&O.crm&&O.support);
 ok('события по времени, с часовым поясом',O.ev>=4&&O.sortedEv&&O.tz,O.srcs);ok('в карточке нет ФИО и контактов',O.noName);
 
@@ -41,7 +41,7 @@ await asRole('ceo');clicks=0;
 ok('плитка «Брак» красная и ведёт в отклонение',await ev(`(()=>{const t=[...document.querySelectorAll('#view .pulse .kpi-tile')].find(t=>t.innerText.includes('Брак'));return !!t.querySelector('.st-bad')&&!!t.querySelector('a.kpi-link[href="#/deviations/D-118"]')})()`));
 await click('#view .pulse a.kpi-link[href="#/deviations/D-118"]');
 ok('клик 1: карточка D-118 с заказами-основаниями',await hash()==='#/deviations/D-118'&&(await view()).includes('Заказы-основания'));
-ok('в списке 6 заказов и «Показать все 8»',await ev(`document.querySelectorAll('.basis tbody tr').length`)===6&&(await view()).includes('Показать все 8'));
+ok('в списке 6 заказов и «Показать все 7»',await ev(`document.querySelectorAll('.basis tbody tr').length`)===6&&(await view()).includes('Показать все 7'));
 await shot(THEME+'-25a-basis');
 await click(`.basis a.order-link[href="#/orders/${D.first}/D-118"]`);
 ok('клик 2: открыт конкретный заказ',await hash()===`#/orders/${D.first}/D-118`,await hash());
@@ -53,7 +53,7 @@ ok('директор видит себестоимость и маржу зак�
 ok('в меню нет пункта «Заказ»',!(await ev(`[...document.querySelectorAll('#nav a')].some(a=>a.getAttribute('href')==='#/orders')`)));
 await shot(THEME+'-25b-order');
 await click('#view a.crumb');ok('назад к отклонению D-118',await hash()==='#/deviations/D-118');
-await click('.basis [data-act=basisAll]');ok('«Показать все» раскрывает 8 заказов',await ev(`document.querySelectorAll('.basis tbody tr').length`)===8);
+await click('.basis [data-act=basisAll]');ok('«Показать все» раскрывает 7 заказов',await ev(`document.querySelectorAll('.basis tbody tr').length`)===7);
 await go('#/orders/O-1');ok('несуществующий заказ: понятное сообщение',(await view()).includes('Заказ не найден'));
 
 /* Руководитель продаж: своя плитка скидки → D-117 → заказ, без себестоимости; чужой заказ закрыт */

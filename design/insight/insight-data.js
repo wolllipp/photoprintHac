@@ -224,7 +224,20 @@ const InsightData = (() => {
     // Сверка финансов: сумма оплат в 1С против суммы заказов в ERP (как пришло, с дублями), расхождение в %
     const erpNet = D.ordersRaw.reduce((s, o) => s + o.list_price - o.discount, 0), ledgerNet = D.payments.reduce((s, p) => s + p.net, 0);
     const recon = { diff: erpNet ? (erpNet - ledgerNet) / erpNet : 0, explain: "в ERP есть дубли заказов, а часть оплат ещё не дошла до 1С" };
-    return { sources: SOURCES.map(s => ({ ...s, ...freshness(s), ...rows[s.id] })), recon, period: `${fmtDate(D.meta.start)} – ${fmtDate(D.meta.end)}` };
+    // Те же находки построчно — для блока «Проверки последней выгрузки». Числа совпадают с таблицей источников выше
+    const dupIds = (rs, key) => { const n = new Map(); rs.forEach(r => n.set(r[key], (n.get(r[key]) || 0) + 1)); return [...n].filter(([, c]) => c > 1); };
+    const topics = D.dicts.topics;
+    const issues = {
+      missing: D.ordersRaw.filter(o => o.channel == null).map(o => ({ ref: `ERP · заказ ${o.order_id}`, detail: "Не указан канал продаж. В показатели по каналам заказ не попадает" }))
+        .concat(D.customersRaw.filter(c => c.channel == null).map(c => ({ ref: `CRM · клиент ${c.customer_id}`, detail: "Не указан канал привлечения" }))),
+      duplicates: dupIds(D.ordersRaw, "order_id").map(([id, c]) => ({ ref: `ERP · заказ ${id}`, detail: `${c} одинаковые строки, в расчёт показателей идёт одна` }))
+        .concat(dupIds(D.customersRaw, "customer_id").map(([id, c]) => ({ ref: `CRM · клиент ${id}`, detail: `${c} одинаковые записи, в расчёт идёт одна` }))),
+      orphans: D.orders.filter(o => !D.customerIds.has(o.customer_id)).map(o => ({ ref: `ERP · заказ ${o.order_id}`, detail: `Клиента ${o.customer_id} нет в CRM` }))
+        .concat(D.orders.filter(o => !paidIds.has(o.order_id)).map(o => ({ ref: `1С · заказ ${o.order_id}`, detail: "Оплаты ещё нет в 1С" })))
+        .concat(D.tickets.filter(t => D.dicts.topicNeedsOrder[t.topic] && !t.order_id).map(t => ({ ref: `Поддержка · обращение ${t.ticket_id}`, detail: `Тема «${topics[t.topic]}» требует номер заказа, а его нет` })))
+        .concat(D.tickets.filter(t => t.order_id && !D.byOrder.has(t.order_id)).map(t => ({ ref: `Поддержка · обращение ${t.ticket_id}`, detail: `Заказа ${t.order_id} нет в ERP` }))),
+    };
+    return { sources: SOURCES.map(s => ({ ...s, ...freshness(s), ...rows[s.id] })), recon, issues, period: `${fmtDate(D.meta.start)} – ${fmtDate(D.meta.end)}` };
   }
   const fmtDate = iso => { const [y, m, d] = iso.split("-"); return `${d}.${m}.${y}`; };
 
@@ -341,7 +354,60 @@ const InsightData = (() => {
     };
   }
 
+  /* ---------- Недельная сводка для разбора отклонений (D-117, D-118) ---------- */
+  // Те же заказы, что и в KPI, сложенные по неделе × линии × продукту × смене. Поэтому брак Ricoh в карточке
+  // отклонения и на плитке «Брак» с фильтром линии — одно и то же число.
+  // Выпуск и брак — по дню отгрузки (как в KPI «Брак»), заказы, деньги и опоздания — по дню заказа (как в KPI «Оборот», «Скидка», «В срок»).
+  // Простой линии за смену делится между продуктами этой линии пропорционально выпуску.
+  // Оператор — закреплённый за линией, продуктом и сменой (ДОПУЩЕНИЕ макета). Партия материала Ricoh меняется в день meta.stories.batch.
+  const OPERATORS = { "0|4": ["R-1", "R-3"], "0|0": ["R-2", "R-4"], "0|1": ["R-6", "R-5"], "1|3": ["F-1", "F-2"], "2|2": ["N-1", "N-2"] };
+  const BATCHES = { 0: ["Поставщик А · партия РА-0926", "Поставщик Б · партия РБ-1141"], 1: ["Поставщик В · партия ФХ-0814"], 2: ["Поставщик Г · партия Н-0702"] };
+  // firstMonday — понедельник недели 1 макета; недели считаются от него, номера могут быть отрицательными
+  function weekly(firstMonday, wFrom, wTo) {
+    const d1 = dayOf(new Date(firstMonday + "T00:00:00Z")), weekOf = d => Math.floor((d - d1) / 7) + 1, batchDay = dayOf(new Date(D.meta.stories.batch + "T00:00:00Z"));
+    const rows = new Map(), last = D.days - 1;
+    const row = (w, line, product, shift) => {
+      const key = `${w}|${line}|${product}|${shift}`;
+      if (!rows.has(key)) {
+        const ops = OPERATORS[`${line}|${product}`] || ["—", "—"], b = BATCHES[line], batch = b[Math.min(b.length - 1, w >= weekOf(batchDay) ? 1 : 0)];
+        rows.set(key, { w, line: D.dicts.lines[line], product: D.dicts.products[product], shift: D.dicts.shifts[shift], operator: ops[shift], supplier: batch,
+          orders: 0, sheets: 0, defects: 0, revenue: 0, cost: 0, discount: 0, downtime: 0, late: 0 });
+      }
+      return rows.get(key);
+    };
+    const inRange = w => w >= wFrom && w <= wTo;
+    const units = new Map(); // выпуск линии за день и смену — для деления простоя
+    D.orders.forEach(o => {
+      const wo = weekOf(o.day);
+      if (inRange(wo)) {
+        const r = row(wo, o.line, o.product, o.shift), p = paymentOf(o.order_id);
+        r.orders++; if (o.ship_day > o.promise_day) r.late++;
+        if (p) { r.revenue += p.net; r.cost += p.cost; r.discount += p.discount; }
+      }
+      if (o.ship_day > last) return;
+      const ws = weekOf(o.ship_day);
+      if (inRange(ws)) { const r = row(ws, o.line, o.product, o.shift); r.sheets += o.units; r.defects += o.defects; }
+      const k = `${o.ship_day}|${o.line}|${o.shift}`; if (!units.has(k)) units.set(k, new Map()); const m = units.get(k); m.set(o.product, (m.get(o.product) || 0) + o.units);
+    });
+    D.lines.forEach(l => {
+      const w = weekOf(l.day); if (!inRange(w) || !l.downtime_h) return;
+      const m = units.get(`${l.day}|${l.line}|${l.shift}`); if (!m) return;
+      const total = [...m.values()].reduce((a, b) => a + b, 0);
+      m.forEach((u, p) => { row(w, l.line, p, l.shift).downtime += l.downtime_h * u / total; });
+    });
+    const r1 = v => Math.round(v * 10) / 10;
+    return [...rows.values()].map(r => ({ ...r, revenue: Math.round(r.revenue), cost: Math.round(r.cost), discount: Math.round(r.discount), downtime: r1(r.downtime) }))
+      .sort((a, b) => a.w - b.w || a.line.localeCompare(b.line) || a.product.localeCompare(b.product) || a.shift.localeCompare(b.shift));
+  }
+  // Обращения с темой «Брак» по неделям — претензии клиентов для разбора D-118
+  function claimsWeekly(firstMonday, wFrom, wTo) {
+    const d1 = dayOf(new Date(firstMonday + "T00:00:00Z")), topic = D.dicts.topics.indexOf("Брак"), out = new Map();
+    for (let w = wFrom; w <= wTo; w++) out.set(w, 0);
+    D.tickets.forEach(t => { const w = Math.floor((t.day - d1) / 7) + 1; if (t.topic === topic && out.has(w)) out.set(w, out.get(w) + 1); });
+    return [...out].map(([w, claims]) => ({ w, claims }));
+  }
+
   return { load, boot, kpis, sources: () => SOURCES.map(s => ({ ...s, ...freshness(s) })), quality, contract, depts: () => DEPTS, statusText: s => STATUS_TEXT[s], dayOf, isoOf, meta: () => D.meta, days: () => D.days,
-    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order };
+    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order, weekly, claimsWeekly };
 })();
 InsightData.boot();
