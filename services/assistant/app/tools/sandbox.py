@@ -82,7 +82,15 @@ def run_python(ctx, code):
         result = None
     made = W.changed(sid, before)
     arts = [W.artifact(sid, n) for n in made]
-    return Result(data=dict(printed=out.strip()[-3000:], result=result, files=made, summary=f"выполнено, файлов: {len(made)}" if made else "выполнено"),
+    notes = []
+    for n in made:
+        if n.endswith(".pptx"):
+            try:
+                notes += [f"{n}: {x}" for x in W.lint_pptx(sid, n)]
+            except Exception as e:  # битый файл тоже замечание
+                notes.append(f"{n}: не открывается ({str(e)[:80]})")
+    extra = dict(замечания_к_файлам=notes, подсказка="исправьте замечания тем же кодом и пересохраните файл") if notes else {}
+    return Result(data=dict(printed=out.strip()[-3000:], result=result, files=made, summary=f"выполнено, файлов: {len(made)}" if made else "выполнено", **extra),
                   sources=[SRC["defects"]], artifacts=arts)
 
 

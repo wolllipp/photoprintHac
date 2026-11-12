@@ -1,60 +1,70 @@
-# Руководство: как собирать файлы в run_python
+# Руководство: как делать файлы в run_python
 
-Все файлы сохраняй в рабочую папку (текущая папка, путь в WS). Один и тот же код может читать то, что создано раньше.
+Это не шаблон, а справочник приёмов. Дизайн и структуру придумываешь ты под тему и аудиторию. Файлы сохраняй в рабочую папку (текущая папка, путь в WS). Один и тот же код может открыть то, что создано раньше.
 
-## График
-```python
-import matplotlib.pyplot as plt
-from collections import defaultdict
-agg = defaultdict(lambda: [0, 0])
-for r in DATA:
-    agg[r["w"]][0] += r["defects"]; agg[r["w"]][1] += r["sheets"]
-weeks = sorted(agg)
-fig, ax = plt.subplots(figsize=(8, 4))
-ax.plot(weeks, [agg[w][0] / agg[w][1] * 100 for w in weeks], color="#e8a900", lw=3)
-ax.set_title("Брак по неделям, %")
-fig.savefig("defects.png", dpi=150, bbox_inches="tight")
-```
+## Как делать презентацию
+1. Реши посыл: что аудитория должна понять и сделать после. Слайды строятся вокруг этого, а не вокруг оглавления.
+2. Заголовок слайда — вывод («Брак вырос втрое за две недели»), а не тема («Брак»).
+3. Выбери палитру и шрифты под тему (вулканы — тёмные земляные и огненные; финансы — сдержанные; детям — яркие). Задай их константами и применяй везде. Фон можно красить целиком (`slide.background.fill`).
+4. Чередуй раскладки: титул на весь экран, крупное число с подписью, две колонки, диаграмма + вывод, схема из блоков и стрелок, таймлайн, цитата, итог с действиями. Одинаковые слайды подряд — провал.
+5. Числа показывай диаграммой, а не списком. Используй нативные диаграммы pptx (редактируются в PowerPoint), для сложных графиков — matplotlib → png → `add_picture`.
+6. 1 мысль на слайд, текст крупный (≥18 пт), не больше 40 слов. Подпись-вывод рядом с каждой диаграммой.
+7. Данные считай кодом из DATA (или используй факты из search_docs), цифры из головы не вставляй, если речь о компании.
 
-## Презентация с нуля
-Размер 16:9, у каждого слайда заголовок-вывод, 2–4 тезиса крупным шрифтом, картинка не заменяет текст: рядом с графиком подпись-вывод.
+## Приёмы python-pptx
 ```python
 from pptx import Presentation
 from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import PP_ALIGN
+
 p = Presentation(); p.slide_width, p.slide_height = Inches(13.33), Inches(7.5)
-def slide(title, bullets, img=None):
-    s = p.slides.add_slide(p.slide_layouts[6])
-    t = s.shapes.add_textbox(Inches(.6), Inches(.4), Inches(12), Inches(1)).text_frame
-    t.word_wrap = True; t.text = title; t.paragraphs[0].font.size = Pt(30); t.paragraphs[0].font.bold = True
-    w = 6 if img else 12
-    b = s.shapes.add_textbox(Inches(.6), Inches(1.6), Inches(w), Inches(5)).text_frame; b.word_wrap = True
-    for i, x in enumerate(bullets):
-        para = b.paragraphs[0] if i == 0 else b.add_paragraph(); para.text = "• " + x; para.font.size = Pt(20)
-    if img: s.shapes.add_picture(img, Inches(7), Inches(1.6), width=Inches(5.8))
-slide("Брак вырос на Ricoh", ["вывод 1", "вывод 2"], "defects.png")
+BG, FG, ACC = RGBColor(0x14,0x10,0x10), RGBColor(0xF5,0xEF,0xEA), RGBColor(0xFF,0x6B,0x35)
+
+def new(bg=BG):
+    s = p.slides.add_slide(p.slide_layouts[6]); s.background.fill.solid(); s.background.fill.fore_color.rgb = bg; return s
+
+def text(s, x, y, w, h, t, size=20, bold=False, color=FG, align=None):
+    tf = s.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h)).text_frame; tf.word_wrap = True
+    tf.text = t; r = tf.paragraphs[0]; r.font.size = Pt(size); r.font.bold = bold; r.font.color.rgb = color
+    if align: r.alignment = align
+    return tf
+
+def block(s, x, y, w, h, color):  # плашка, линия, акцент
+    sh = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+    sh.fill.solid(); sh.fill.fore_color.rgb = color; sh.line.fill.background(); return sh
+
+# крупное число
+s = new(); text(s, .8, 1.2, 6, 2.5, "3,1%", 110, True, ACC); text(s, .8, 4.0, 6, 1.5, "брак на Ricoh за две недели — вдвое выше нормы", 26)
+
+# нативная столбчатая диаграмма
+cd = CategoryChartData(); cd.categories = ["Ricoh", "Fuji", "Noritsu"]; cd.add_series("Брак, %", (3.1, 1.4, 1.2))
+gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(7), Inches(1.2), Inches(5.8), Inches(5), cd)
+ch = gf.chart; ch.has_legend = False; ch.plots[0].series[0].format.fill.solid(); ch.plots[0].series[0].format.fill.fore_color.rgb = ACC
+ch.plots[0].has_data_labels = True
+# другие типы: LINE_MARKERS, PIE, DOUGHNUT, BAR_CLUSTERED, AREA, XY_SCATTER
+
+# схема: блоки и стрелка
+for i, name in enumerate(["Сигнал", "Причина", "Решение", "Проверка"]):
+    b = block(s, .6 + i*3.1, 5.2, 2.7, 1.1, ACC if i == 0 else RGBColor(0x2A,0x22,0x20))
+    b.text_frame.text = name
 p.save("deck.pptx")
 ```
+Картинка из matplotlib: `fig.savefig("c.png", dpi=200, transparent=True)`, затем `s.shapes.add_picture("c.png", Inches(7), Inches(1.2), width=Inches(5.8))`.
 
 ## Дополнить готовую презентацию
-Сначала list_files и read_file, чтобы увидеть, что уже есть. Затем откройте и сохраните тот же файл:
-```python
-from pptx import Presentation
-p = Presentation("deck.pptx")
-# ... добавить слайды теми же размерами и стилем ...
-p.save("deck.pptx")
-```
-Не создавайте новую презентацию, если просят «добавить»: правьте существующую.
+list_files → read_file, чтобы увидеть, что есть. Затем `p = Presentation("deck.pptx")`, добавьте слайды в том же стиле и `p.save("deck.pptx")` под тем же именем. Не создавайте новую колоду, если просят «добавить».
 
 ## Документ и таблица
 ```python
 from docx import Document
-d = Document(); d.add_heading("Заголовок", 1); d.add_paragraph("текст"); d.save("note.docx")
+d = Document(); d.add_heading("Заголовок", 1); d.add_paragraph("текст"); d.add_picture("c.png", width=None); d.save("note.docx")
 from openpyxl import Workbook
-wb = Workbook(); ws = wb.active; ws.append(["Линия", "Брак"]); ws.append(["Ricoh", 0.031]); wb.save("table.xlsx")
+wb = Workbook(); ws = wb.active; ws.append(["Линия", "Брак"]); ws.append(["Ricoh", 0.031]); ws["C2"] = "=B2*100"; wb.save("table.xlsx")
 ```
 
-## Правила качества
-- Числа только из DATA или из результатов инструментов; считай кодом, не в уме.
-- Не пиши названия инструментов и служебных таблиц на слайдах; источник пиши по-человечески («данные производства за недели 40–45»).
-- Слайд не должен состоять из одного графика без вывода и не должен содержать пустых списков.
-- Для презентации о системе используй документы about-insight и about-assistant (search_docs).
+## Проверка перед ответом
+После выполнения кода прочитай замечания к файлам, если они есть, и исправь. Не называй пользователю инструменты и служебные таблицы. Источник на слайде пиши словами («данные производства за недели 40–45»).

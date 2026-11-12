@@ -35,7 +35,7 @@ def _ungrounded(ctx, texts: list[str]) -> list[str]:
        "slides": {"type": "array", "description": "слайды по порядку",
                   "items": {"type": "object", "properties": {"title": {"type": "string"}, "bullets": {"type": "array", "items": {"type": "string"}},
                                                              "chart": CHART, "source": {"type": "string", "description": "откуда данные слайда обычными словами (например, «данные производства за недели 40–45»), без названий инструментов"}}, "required": ["title"]}}},
-      required=["title", "slides"], keywords=("презентац", "слайд", "разбор", "для технолог", "для совета", "deck", "pptx"))
+      required=["title", "slides"], roles=(), keywords=("презентац", "слайд", "разбор", "для технолог", "для совета", "deck", "pptx"))  # roles=(): модели не показывается, см. docs/guide-files.md
 def build_deck(ctx, title, slides, audience="", append_to=""):
     texts = [b for s in slides for b in (s.get("bullets") or [])] + [s.get("title", "") for s in slides]
     from ..registry import REGISTRY  # служебные имена не должны попадать на слайды: это замечание получает модель

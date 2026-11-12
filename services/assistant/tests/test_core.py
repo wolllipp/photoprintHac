@@ -17,7 +17,7 @@ def test_registry_roles_and_risk():
 
 def test_route_limits_choice_for_small_models():
     names = [t.name for t in route("ceo", "сделай презентацию к кварталу")]
-    assert len(names) <= 8 and "quarterly_deck" in names
+    assert len(names) <= 9 and "run_python" in names and "quarterly_deck" not in names and "build_deck" not in names
 
 
 def test_explain_deviation_finds_planted_cause():
@@ -234,3 +234,13 @@ def test_build_deck_appends_and_rejects_leaks_and_empty_slides():
     r2 = compose.build_deck(ctx, "T", [{"title": "B", "bullets": ["второй тезис про роли"]}], append_to=name)
     assert r2.data["file"] == name and r2.data["slides"] == r.data["slides"] + 1
     assert "второй тезис" in workspace.read_text("t4", name)
+
+
+def test_pptx_lint_flags_template_look_and_empty_slides():
+    from app.tools import sandbox
+    ctx = {**CEO, "session": "t5"}
+    code = ("from pptx import Presentation\nfrom pptx.util import Inches\np = Presentation()\n"
+            "for i in range(5):\n    s = p.slides.add_slide(p.slide_layouts[6]); t = s.shapes.add_textbox(Inches(1), Inches(1), Inches(5), Inches(1)); t.text_frame.text = 'Одинаковый слайд номер %d про систему' % i\n"
+            "p.save('x.pptx')\ns = p.slides.add_slide(p.slide_layouts[6])\np.save('y.pptx')")
+    joined = " ".join(sandbox.run_python(ctx, code).data["замечания_к_файлам"])
+    assert "почти нет текста" in joined and "ни диаграмм" in joined and "одинаково" in joined
