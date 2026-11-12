@@ -1,7 +1,8 @@
+import hashlib
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,7 +70,22 @@ def order_out(o: Order, stages: list[OrderStage], pages: int | None = None) -> d
 
 
 @router.post("/orders")
-async def create_order(body: OrderIn, user: User = Depends(registered_user), s: AsyncSession = Depends(get_session)):
+async def create_order(body: OrderIn, user: User = Depends(registered_user), s: AsyncSession = Depends(get_session),
+                       idempotency_key: str | None = Header(None, max_length=64)):
+    # строка клиента под блокировкой до конца транзакции: заказы одного человека идут по очереди —
+    # пики не списываются дважды (план 1.8), а повтор с тем же ключом видит уже созданный заказ (план 1.5)
+    await s.execute(select(User.id).where(User.id == user.id).with_for_update())
+    body_hash = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
+    if idempotency_key:
+        done = (await s.execute(select(Order).where(Order.user_id == user.id,
+                                                    Order.idempotency_key == idempotency_key))).scalar_one_or_none()
+        if done is not None:
+            if done.idempotency_hash != body_hash:
+                raise HTTPException(409, "этот ключ уже использован для другого заказа")
+            stages = (await s.execute(select(OrderStage).where(OrderStage.order_id == done.id)
+                                      .order_by(OrderStage.at))).scalars().all()
+            # ответ на прошлый запрос потерялся — отдаём тот же заказ, второй не создаём
+            return {**order_out(done, list(stages)), "replayed": True}
     row = (await s.execute(select(Product, ProductOption).join(ProductOption, ProductOption.product_id == Product.id)
                            .where(Product.code == body.product, ProductOption.format == body.format))).first()
     dm = (await s.execute(select(DeliveryMethod).where(DeliveryMethod.code == body.delivery))).scalar_one_or_none()
@@ -121,9 +137,6 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
     goods = price + extras  # товары и допуслуги — как в приложении
     ship = delivery_cost(dm, price)  # порог бесплатной доставки — по цене товаров до скидок
     gross = goods - promo + ship
-    # строка клиента под блокировкой до конца транзакции: параллельные заказы считают баланс по очереди
-    # и не спишут одни и те же пики дважды (план 1.8)
-    await s.execute(select(User.id).where(User.id == user.id).with_for_update())
     balance = await points_balance(s, user.id)
     if body.points_to_spend > balance:
         raise HTTPException(422, f"не хватает пиков: есть {balance}")
@@ -144,6 +157,7 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
     from datetime import datetime, time, timezone
     order = Order(user_id=user.id, delivery_id=dm.id, pickup_point_id=point.id if point else None,
                   payment=body.payment, points_spent=spent, total=total,
+                  idempotency_key=idempotency_key, idempotency_hash=body_hash if idempotency_key else None,
                   promised_at=datetime.combine(ready, time(18, 0), tzinfo=timezone.utc))
     s.add(order)
     await s.flush()

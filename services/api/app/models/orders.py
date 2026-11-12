@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Identity, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Identity, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -33,6 +33,12 @@ class Order(Base):
     stage: Mapped[Stage] = mapped_column(Enum(Stage), default=Stage.accepted)
     promised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at()
+    # Idempotency-Key из приложения: тот же ключ — тот же заказ (ответ потерялся, человек нажал «Повторить»);
+    # hash — каким был запрос: тот же ключ с другим содержимым — 409
+    idempotency_key: Mapped[str | None] = mapped_column(String(64))
+    idempotency_hash: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_orders_user_idempotency"),)
 
 
 class OrderItem(Base):

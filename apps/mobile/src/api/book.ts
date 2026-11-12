@@ -219,10 +219,12 @@ export async function orderPrintsOnServer(o: {
   points: number;
   extras?: string[];
   promo?: string;
+  /** ключ повтора: тот же ключ — тот же заказ (orderKey) */
+  key?: string;
 }) {
   await ensureRegistered();
   const ids = await upload(o.prints.map((p) => p.uri));
-  return api.post<{ id: string; number: number; total: string }>('/orders', {
+  return api.post<OrderOut>('/orders', {
     product: 'print_chemical', // как на сайте по умолчанию: «на фотобумаге, как в фотоателье»
     format: PRINT_FORMAT[o.format] ?? '10x15',
     delivery: DELIVERY[o.deliveryId] ?? 'europost_pvz',
@@ -232,8 +234,18 @@ export async function orderPrintsOnServer(o: {
     prints: o.prints.map((p, i) => ({ photo_id: ids[i], qty: p.qty })),
     extras: o.extras ?? [],
     promo_code: o.promo || undefined,
-  });
+  }, idem(o.key));
 }
+
+/** Что сервер отвечает на заказ: номер, итог и разбивка (её нет у повтора — replayed). */
+export type OrderOut = { id: string; number: number; total: string; replayed?: boolean };
+
+/**
+ * Ключ повтора заказа (Idempotency-Key, план 1.5): тот же ключ — сервер вернёт уже созданный заказ,
+ * второй не создаст (ответ потерялся, человек нажал «Повторить»). Новый ключ — когда поменялось содержимое заказа.
+ */
+export const orderKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+const idem = (key?: string) => (key ? { 'Idempotency-Key': key } : undefined);
 
 /** Способ доставки приложения → код на сервере. */
 const DELIVERY: Record<string, string> = { evropochta: 'europost_pvz', courier: 'europost_courier_minsk', belpochta: 'belpost', ems: 'ems' };
@@ -254,6 +266,8 @@ export async function orderOnServer(o: {
   /** допуслуги (подарочная упаковка, «быстрее») и промокод — сервер считает сумму так же, как приложение */
   extras?: string[];
   promo?: string;
+  /** ключ повтора: тот же ключ — тот же заказ (orderKey) */
+  key?: string;
 }) {
   await ensureRegistered();
   // пики списывает сервер со своего баланса (GET /me); приложение их не начисляет
@@ -268,7 +282,7 @@ export async function orderOnServer(o: {
     extras: o.extras ?? [],
     promo_code: o.promo || undefined,
   };
-  return api.post<{ id: string; number: number; total: string }>('/orders', body);
+  return api.post<OrderOut>('/orders', body, idem(o.key));
 }
 
 /** Ошибка заказа — понятной фразой для экрана оформления. */

@@ -46,8 +46,8 @@ export class ApiError extends Error {
   }
 }
 
-async function raw<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
-  const headers: Record<string, string> = {};
+async function raw<T>(method: string, path: string, body?: unknown, auth = true, extra?: Record<string, string>): Promise<T> {
+  const headers: Record<string, string> = { ...extra };
   if (auth) {
     const t = await ensureToken();
     headers.Authorization = `Bearer ${t}`;
@@ -151,7 +151,8 @@ export async function ensureRegistered() {
 
 export const api = {
   get: <T>(path: string) => raw<T>('GET', path),
-  post: <T>(path: string, body?: unknown) => raw<T>('POST', path, body ?? {}),
+  /** headers — например, Idempotency-Key заказа */
+  post: <T>(path: string, body?: unknown, headers?: Record<string, string>) => raw<T>('POST', path, body ?? {}, true, headers),
   patch: <T>(path: string, body?: unknown) => raw<T>('PATCH', path, body ?? {}),
   put: <T>(path: string, body?: unknown) => raw<T>('PUT', path, body ?? {}),
 };

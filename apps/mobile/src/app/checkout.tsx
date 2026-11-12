@@ -13,7 +13,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View
 import Animated, { FadeIn, FadeInDown, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isServerProject, orderErrorText, orderOnServer, orderPrintsOnServer } from '@/api/book';
+import { isServerProject, orderErrorText, orderKey, orderOnServer, orderPrintsOnServer, type OrderOut } from '@/api/book';
 import { isRegistered, loginErrorText, requestCode, verifyCode } from '@/api/client';
 import { ChoiceTile } from '@/components/choice';
 import { TariffSheet } from '@/components/tariffSheet';
@@ -75,6 +75,7 @@ export default function Checkout() {
   const agreed = agree.offer && agree.print;
   // заказ отправляется: кнопка неактивна; не вышло — текст ошибки над кнопкой, кнопка «Повторить»
   const busy = useRef(false);
+  const keyRef = useRef<{ sig: string; key: string }>({ sig: '', key: '' });
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
   // куда везти: пункт выдачи или адрес (для курьера, Белпочты и EMS)
@@ -148,10 +149,15 @@ export default function Checkout() {
     setPaying(true);
     setPayErr(null);
     const payment = payId === 'erip' ? 'erip' : 'card';
+    // ключ повтора: «Повторить» с тем же содержимым — тот же ключ (сервер не создаст второй заказ);
+    // поменяли доставку, оплату, пики, допуслуги или промокод — новый ключ
+    const sig = JSON.stringify({ cart, deliveryId, to: toDoor ? addrLine : pointId, payment, piksSpent, extras, promo: promoOk ? promo.trim() : '' });
+    if (keyRef.current.sig !== sig) keyRef.current = { sig, key: orderKey() };
+    const key = keyRef.current.key;
     // книга собрана на сервере — заказ тоже там. Не вышло — показываем ошибку и «Повторить»:
     // заказ в «Заказах» не появляется, корзина и выбор на экране остаются
     const item = cart[0];
-    let server: { id: string; number: number } | undefined;
+    let server: OrderOut | undefined;
     try {
       if (item && isServerProject(item.projectId)) {
         server = await orderOnServer({
@@ -164,6 +170,7 @@ export default function Checkout() {
           points: piksSpent,
           extras: [...extras],
           promo: promoOk ? promo.trim() : undefined,
+          key,
         });
       } else if (item && item.tariff === 'print' && item.prints?.length && item.prints.every((p) => p.uri.includes('/'))) {
         // фотопечать из фото галереи — заказ на сервере (демо-снимки приложения на сервер не уходят)
@@ -176,6 +183,7 @@ export default function Checkout() {
           points: piksSpent,
           extras: [...extras],
           promo: promoOk ? promo.trim() : undefined,
+          key,
         });
       }
     } catch (e) {
@@ -186,7 +194,9 @@ export default function Checkout() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    placeOrder(total, piksSpent, server, payment);
+    // в «Заказах» — сумма, которую посчитал и записал сервер (план 1.10); демо-заказ — по экрану
+    const serverTotal = server ? Number(server.total) : NaN;
+    placeOrder(Number.isFinite(serverTotal) ? serverTotal : total, piksSpent, server, payment);
     router.dismissAll();
     router.navigate('/orders');
   };
