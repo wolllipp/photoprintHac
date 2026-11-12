@@ -43,6 +43,7 @@ async def live(s: AsyncSession) -> dict:
 
 @router.get("/insight/data")
 async def insight_data(s: AsyncSession = Depends(get_session)):
-    data = json.loads(DEMO.read_text()) if DEMO.exists() else {}
+    # кодировка явно: на Windows по умолчанию cp1251, и русские данные компании давали 500
+    data = json.loads(DEMO.read_text(encoding="utf-8")) if DEMO.exists() else {}
     data["live"] = await live(s)
     return data
