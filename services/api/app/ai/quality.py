@@ -107,8 +107,18 @@ def is_screenshot(data: bytes | None = None, *, path: str | None = None,
 
 @lru_cache(maxsize=1)
 def face_cascade():
-    """Загружает локальный Haar-каскад OpenCV."""
-    return cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    """Загружает локальный Haar-каскад OpenCV.
+
+    Файл читаем сами и отдаём OpenCV из памяти: на Windows OpenCV не открывает путь с кириллицей
+    (например, репозиторий в «D:\\Хакатон\\…»), и каскад молча оказывается пустым.
+    """
+    path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    cascade = cv2.CascadeClassifier(path)
+    if cascade.empty():
+        with open(path, encoding="utf-8") as f:
+            storage = cv2.FileStorage(f.read(), cv2.FILE_STORAGE_READ | cv2.FILE_STORAGE_MEMORY)
+        cascade.read(storage.getFirstTopLevelNode())
+    return cascade
 
 
 def _decode_gray(data: bytes) -> np.ndarray | None:
