@@ -1,0 +1,1 @@
+{"name":"picpac-slides-render","private":true,"type":"module","dependencies":{"dom-to-pptx":"^2.1.2","playwright-core":"^1.65.0"}}

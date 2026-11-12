@@ -7,6 +7,7 @@
 brew install ollama && ollama serve &        # локальная модель
 ollama pull qwen3:4b-instruct                 # проба на малой модели; на H200 — vLLM и модель крупнее
 cd services/assistant && uv sync
+(cd render && npm ci)                         # рендер презентаций: нужен Node.js, Chromium (playwright install chromium)
 uv run uvicorn app.server:app --port 8001
 python3 -m http.server 8080 --directory ../../design/insight   # открыть http://localhost:8080 → «Ассистент»
 uv run pytest                                 # 23 теста, модель не нужна
@@ -28,6 +29,7 @@ uv run pytest                                 # 23 теста, модель не
 
 ## Инструменты (30, доступны и по MCP)
 - **analysis:** `kpi_overview`, `explain_deviation`, `compare_periods`, `what_if`, `forecast_demand`, `spc_chart`, `check_effect`, `abc_xyz`, `unit_economics`
+- **make_slides:** презентация из HTML/CSS (слайды `<section class="slide">` 1280×720): браузер сам делает вёрстку, на выходе редактируемый pptx (dom-to-pptx), pdf и png, а замечания (переполнение, наложение, выход за край) приходят точными, из реального Chromium. Руководство: `docs/guide-slides.md`
 - **workspace** (общие инструменты, как у Claude Code: «инструменты + свобода»): `run_python` — код Python с файлами в папке чата (matplotlib, python-pptx, python-docx, openpyxl, numpy, данные в `DATA`), `list_files`, `read_file` (текст pptx/docx/xlsx). Один график или расчёт можно использовать в следующем шаге: файлы остаются в папке чата. Готовые инструменты ниже остаются быстрыми путями для типовых задач
 - **artifacts:** `build_deck` (в т.ч. `append_to` — добавить слайды в готовую презентацию) и `build_docx` (содержимое проектирует сама модель, числа проверяются по данным диалога), `quarterly_deck` (готовый шаблон), `make_chart`, `pareto_defects`, `quarterly_deck` (pptx), `report_docx` (записка, ответ по претензии), `workbook_xlsx` (модель с формулами)
 - **people:** `schedule_meeting` (приглашение .ics; ссылку Google Meet/Teams ассистент создать не может без подключённого календаря и говорит об этом), `prepare_meeting`, `list_tasks`, `propose_task`, `ask_colleague`, `poll_group`, `meeting_protocol`, `check_replies`
