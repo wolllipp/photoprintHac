@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import case, select
 
 from app import ai, db
+from app.ai import stickers
 from app.ai.quality import add_crop_warning, is_spread_template, page_aspect_for_format, quality_report
 from app.config import settings
 from app.models import BuildJob, Photo, Product, ProductOption, Project, ProjectPage, ProjectPhoto, ProjectStatus
@@ -162,6 +163,14 @@ async def run_build(job_id: uuid.UUID) -> None:
                     if len(layouts) != pages:
                         project.page_count = len(layouts)
                         prog["suggested_pages"] = len(layouts)
+                    # «Тематические стикеры»: набор по названию или датам съёмки, стикеры в углы мимо лиц
+                    if style.get("deco") == "stickers":
+                        pack = stickers.choose_pack(project.title, project.theme,
+                                                    [ph.get("taken_at") for ph in selected_photos])
+                        stickers.place(layouts, pack, {str(ph["photo_id"]): ph.get("faces") or []
+                                                       for ph in selected_photos})
+                        style["pack"] = pack
+                        project.style = style
                     for pg in layouts:
                         s.add(ProjectPage(project_id=project.id, position=pg["position"], layout=pg))
                     prog["layout"] = [len(layouts), pages]

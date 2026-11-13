@@ -48,3 +48,7 @@ export function pagesFor(n: number, style: BookStyle) {
 /** Фон страниц книги — для PageView и подписей (контекст, чтобы не передавать через все экраны). */
 export const PageBgContext = createContext<string>(PAGE_BG.white);
 export const usePageBg = () => useContext(PageBgContext);
+
+/** Украшения книги («Немного» — тонкие уголки на страницах) — для PageView. */
+export const PageDecoContext = createContext<Deco>('none');
+export const usePageDeco = () => useContext(PageDecoContext);

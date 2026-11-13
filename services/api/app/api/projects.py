@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import ai
+from app.ai.stickers import STICKER_ID
 from app.ai.quality import add_crop_warning, is_spread_template, quality_report
 from app.db import get_session
 from app.jobs import run_build
@@ -267,6 +268,7 @@ async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user
                        "caption_font": r.layout.get("caption_font"),
                        "caption_look": r.layout.get("caption_look"),
                        "frame": r.layout.get("frame"),
+                       "stickers": r.layout.get("stickers") or [],
                        "fx": r.layout.get("fx") or {},
                        "frames": [{"photo_id": f["photo_id"], "frame": f["frame"]} for f in r.layout.get("frames", [])]}
                       for r in rows]}
@@ -285,6 +287,15 @@ class CaptionLook(BaseModel):
     color: str | None = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
 
 
+class StickerIn(BaseModel):
+    """Стикер на странице: какой (набор/имя), где центр (доли страницы), ширина (доля ширины страницы), наклон."""
+    id: str = Field(pattern=STICKER_ID.pattern)
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    s: float = Field(ge=0.04, le=0.6)
+    r: float = Field(0, ge=-45, le=45)
+
+
 class PageIn(BaseModel):
     template: str = Field(min_length=1, max_length=40)  # макет из библиотеки приложения: one, two-side, spread…
     frames: list[FrameIn] = Field(default_factory=list, max_length=8)
@@ -292,6 +303,7 @@ class PageIn(BaseModel):
     caption_font: str | None = Field(None, pattern="^(classic|plain|bold|hand)$")  # шрифт подписи в приложении
     caption_look: CaptionLook | None = None
     frame: str | None = Field(None, pattern="^(none|mat|line|polaroid|round)$")  # рамка фото на странице
+    stickers: list[StickerIn] = Field(default_factory=list, max_length=12)
     fx: dict[str, list[str]] = Field(default_factory=dict)  # номер рамки → улучшения ИИ
 
 
@@ -311,7 +323,7 @@ async def keep_photos(s: AsyncSession, p: Project, ids: list[uuid.UUID], user: U
 def page_layout(position: int, body: PageIn, chapter: str | None = None) -> dict:
     return {"position": position, "chapter": chapter, "template": body.template,
             "caption": body.caption, "caption_font": body.caption_font,
-            "caption_look": body.caption_look.model_dump(exclude_none=True) if body.caption_look else None, "frame": body.frame, "fx": body.fx,
+            "caption_look": body.caption_look.model_dump(exclude_none=True) if body.caption_look else None, "frame": body.frame, "stickers": [x.model_dump() for x in body.stickers], "fx": body.fx,
             "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
 
 

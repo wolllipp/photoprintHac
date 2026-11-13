@@ -6,6 +6,7 @@ import { File as FsFile } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
+import type { Sticker } from '@/components/stickers';
 import type { BookStyle, Deco, PageBg } from '@/data/bookStyle';
 import type { CaptionLook } from '@/data/captionLook';
 import { layoutOf } from '@/data/layouts';
@@ -156,6 +157,8 @@ export type ServerPage = {
   captionLook?: CaptionLook;
   /** рамка фото на странице: mat | line | polaroid | round (data/frames.ts); нет — без рамки */
   frame?: string;
+  /** стикеры на странице (components/stickers.tsx) */
+  stickers?: Sticker[];
   fx?: Record<number, string[]>;
   crop?: Record<string, { cx: number; cy: number; z: number; a: number }>;
   /** свои размеры фото на странице (components/sizeEditor.tsx); нет — как в макете */
@@ -164,7 +167,7 @@ export type ServerPage = {
 /** Обложка: фото на лицевой стороне (адрес на телефоне или srv:id; нет — первое фото книги) и название на ней. */
 export type ServerCover = { photo?: string; title: boolean };
 /** bg — фон страниц после сборки (белый, бежевый, тёмный); deco — украшения из вопросов перед сборкой. */
-export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover; bg?: PageBg; deco?: Deco };
+export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover; bg?: PageBg; deco?: Deco; pack?: string };
 
 /** Фото, выбранные в галерее, ждут экрана сборки (параметры навигации для длинного списка не годятся). */
 /** tariff — на каком тарифе собрать (по умолчанию Lite; мало фото — человек мог выбрать Classic или Premium). */
@@ -305,7 +308,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { style?: { bg?: string; deco?: string } | null; cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { style?: { bg?: string; deco?: string; pack?: string } | null; cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; stickers?: Sticker[] | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -335,6 +338,7 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
       captionFont: p.caption_font ?? undefined,
       captionLook: p.caption_look ?? undefined,
       frame: p.frame ?? undefined,
+      stickers: p.stickers?.length ? p.stickers : undefined,
       fx,
       crop: Object.keys(crop).length ? crop : undefined,
       slots: differ ? rects.map((fr) => ({ x: fr.x ?? 0, y: fr.y ?? 0, w: fr.w, h: fr.h ?? 1 })) : undefined,
@@ -343,7 +347,7 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
   const c = res.cover;
   const cover = c ? { photo: c.photo_id ? (uriOfId.get(c.photo_id) ?? `srv:${c.photo_id}`) : undefined, title: c.title } : undefined;
   const st = res.style ?? undefined;
-  const book: ServerBook = { projectId, title, pages, cover, bg: (st?.bg as PageBg | undefined) ?? undefined, deco: (st?.deco as Deco | undefined) ?? undefined };
+  const book: ServerBook = { projectId, title, pages, cover, bg: (st?.bg as PageBg | undefined) ?? undefined, deco: (st?.deco as Deco | undefined) ?? undefined, pack: st?.pack };
   books.set(projectId, book);
   return book;
 }
@@ -357,6 +361,7 @@ function pageBody(page: ServerPage, ids: string[]) {
     caption_font: page.caption ? (page.captionFont ?? null) : null,
     caption_look: page.caption ? (page.captionLook ?? null) : null,
     frame: page.frame ?? null,
+    stickers: page.stickers ?? [],
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
     // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
     frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),

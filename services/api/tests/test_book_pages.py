@@ -135,3 +135,42 @@ async def test_page_frame_saved(client):
     assert out[0]["frame"] == "polaroid" and out[1]["frame"] is None
     bad = [{**page(ids[0]), "frame": "gold"}]
     assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": bad})).status_code == 422
+
+
+def test_choose_pack_by_title_then_month():
+    from datetime import datetime as dt
+
+    from app.ai.stickers import choose_pack
+    assert choose_pack("Наша свадьба", None, []) == "wedding"
+    assert choose_pack("Отпуск на море", None, []) == "sea"
+    assert choose_pack("Книга", None, [dt(2026, 12, 30), dt(2027, 1, 2)]) == "newyear"
+    assert choose_pack("Книга", None, [dt(2026, 10, 5)]) == "autumn"
+    assert choose_pack("Книга", None, []) == "travel"
+
+
+def test_stickers_avoid_faces():
+    from app.ai.stickers import place
+    # лицо в правом верхнем углу страницы — туда стикер не встаёт
+    pages = [{"frames": [{"photo_id": "p", "frame": {"x": 0, "y": 0, "w": 1, "h": 1}, "crop": {"x": 0, "y": 0, "w": 1, "h": 1}}]}]
+    place(pages, "sea", {"p": [{"x": 0.75, "y": 0.02, "w": 0.2, "h": 0.2}]})
+    assert pages[0]["stickers"] and all(not (st["x"] > 0.5 and st["y"] < 0.5) for st in pages[0]["stickers"])
+    assert all(st["id"].startswith("sea/") for st in pages[0]["stickers"])
+
+
+async def test_build_with_stickers_and_save_them(client):
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    files = [("files", (f"{i}.png", textured_png(700 + i), "image/png")) for i in range(8)]
+    ids = [p["id"] for p in (await client.post("/photos", files=files, headers=gh)).json()]
+    pid = (await client.post("/projects", headers=gh, json={"title": "День рождения Маши", "photo_ids": ids, "pages": 4,
+                                                             "style": {"deco": "stickers"}})).json()["id"]
+    job = (await client.post(f"/projects/{pid}/build", headers=gh)).json()["job_id"]
+    assert (await client.get(f"/jobs/{job}", headers=gh)).json()["status"] == "done"
+    out = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()
+    assert out["style"]["pack"] == "birthday"
+    placed = [st for p in out["pages"] for st in p["stickers"]]
+    assert placed and all(st["id"].startswith("birthday/") for st in placed)
+    # приложение сохраняет стикеры со страницей; чужой «набор» не принимаем
+    pg = {**page(ids[0]), "stickers": [{"id": "sea/sun", "x": 0.5, "y": 0.5, "s": 0.2, "r": 5}]}
+    assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": [pg]})).status_code == 200
+    bad = {**page(ids[0]), "stickers": [{"id": "../etc/passwd", "x": 0.5, "y": 0.5, "s": 0.2}]}
+    assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": [bad]})).status_code == 422

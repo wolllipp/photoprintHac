@@ -15,7 +15,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowsOutLineHorizontalIcon, ArrowUUpLeftIcon, ArrowUUpRightIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, FilePlusIcon, HandGrabbingIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, PencilSimpleIcon, PlusIcon, SquaresFourIcon, TrashIcon, XIcon } from 'phosphor-react-native';
+import { ArrowsOutLineHorizontalIcon, ArrowUUpLeftIcon, ArrowUUpRightIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, FilePlusIcon, HandGrabbingIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, PencilSimpleIcon, PlusIcon, SquaresFourIcon, StickerIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
@@ -36,7 +36,8 @@ import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { CAPTION_FONTS, captionFontStyle } from '@/data/captionFonts';
 import { BASE_COLORS, CAPTION_STYLES, captionText, defaultColorOn, isLight, lineSize, poorOn, SIZE_MAX, SIZE_MIN, sizeChanged, type CaptionLook, type CaptionStyle } from '@/data/captionLook';
-import { BGS, PAGE_BG, PageBgContext, usePageBg, type PageBg } from '@/data/bookStyle';
+import { BGS, PAGE_BG, PageBgContext, PageDecoContext, usePageBg, usePageDeco, type PageBg } from '@/data/bookStyle';
+import { Corners, StaticStickers, StickerLayer, StickerPicker, type Sticker } from '@/components/stickers';
 import { FRAMES, frameGeometry, type FrameId } from '@/data/frames';
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
@@ -51,7 +52,7 @@ import { colors, fonts } from '@/theme';
 type Fx = 'light' | 'crop' | 'sharp' | 'horizon' | 'warm' | 'bg' | 'restore' | 'bw';
 /** crop — кадр, который человек выставил вручную: фото → центр и увеличение (по фото, а не по месту — переживает смену макета). */
 /** slots — размеры фото, которые человек поменял сам (components/sizeEditor.tsx); нет — как в макете. */
-type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; captionLook?: CaptionLook; crop?: Record<string, Crop>; slots?: Rect[]; frame?: FrameId };
+type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; captionLook?: CaptionLook; crop?: Record<string, Crop>; slots?: Rect[]; frame?: FrameId; stickers?: Sticker[] };
 const slotsOf = (id: string) => layoutOf(id).slots.length;
 /** Самый простой макет на n фото — когда фото убрали. */
 const SIMPLE: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' };
@@ -233,6 +234,8 @@ export default function Review() {
   const [draft, setDraft] = useState<Pin | null>(null);
   // нажали на фото — меню: заменить из галереи, убрать, раскладка 1–4, комментарий
   const [menu, setMenu] = useState<{ page: number; slot: number; x: number; y: number } | null>(null);
+  // какая страница сейчас на экране (по прокрутке)
+  const [at, setAt] = useState(() => Number(params.start ?? 0));
   // История правок: ↶ назад и ↷ вперёд в шапке. Снимок — всё, что человек меняет: страницы, обложка, название,
   // тариф, замечания. Перед каждой правкой — record(); новая правка после «назад» стирает «вперёд».
   type Snap = { book: Page[] | null; cover: Cover | null; title: string; tariff: Tariff['id']; pins: Pin[]; bg: PageBg | null };
@@ -300,6 +303,25 @@ export default function Review() {
     setCoverEdit(next);
     pushCover(next);
   };
+  // стикеры: какой выделен (страница и номер), правка стикеров страницы — шаг истории, выбор стикера из наборов
+  const [stickerSel, setStickerSel] = useState<{ page: number; i: number } | null>(null);
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const editStickers = (page: number, next: Sticker[]) => {
+    record();
+    mutate((all) => {
+      all[page] = { ...all[page], stickers: next.length ? next : undefined };
+      return all;
+    });
+  };
+  const addSticker = (id: string) => {
+    setStickerOpen(false);
+    // на страницу, которую сейчас смотрят (у разворота — на его первую страницу)
+    const k = Math.min(at, pages.length - 1);
+    const page = k > 0 && isSpread(pages[k - 1].layout) ? k - 1 : k;
+    const list = pages[page].stickers ?? [];
+    editStickers(page, [...list, { id, x: 0.5, y: 0.5, s: 0.2, r: 0 }]);
+    setStickerSel({ page, i: list.length });
+  };
   const changeBg = (b: PageBg) => {
     Haptics.selectionAsync().catch(() => {});
     if (b === bg) return;
@@ -317,7 +339,6 @@ export default function Review() {
   // копии для печати, которые догружаются в фоне (книга собрана по черновым): «Фото для печати: N из M»
   const [prints, setPrints] = useState(printUploads);
   useEffect(() => onPrintUploads(() => setPrints(printUploads())), []);
-  const [at, setAt] = useState(() => Number(params.start ?? 0));
   const [hint, setHint] = useState(!gesturesSeen);
   // свежая книга (не продолжение черновика) — показываем, что вкус учтён
 
@@ -352,6 +373,8 @@ export default function Review() {
 
   const tapPage = (page: number, e: GestureResponderEvent, cw = pageW, ch = pageH) => {
     if (fixing) return;
+    // нажали мимо стикера — снимаем с него выделение
+    if (stickerSel) return setStickerSel(null);
     Haptics.selectionAsync().catch(() => {});
     const x = Math.max(0.03, Math.min(0.97, e.nativeEvent.locationX / cw));
     const y = Math.max(0.06, Math.min(0.94, e.nativeEvent.locationY / ch));
@@ -675,6 +698,7 @@ export default function Review() {
   return (
     // фон страниц — всем PageView и подписям (лента, сетка порядка, окно размеров)
     <PageBgContext.Provider value={PAGE_BG[bg]}>
+    <PageDecoContext.Provider value={fromServer?.deco ?? 'none'}>
     <View style={[s.screen, { paddingTop: insets.top + 6 }]}>
       <StatusBar style="dark" />
       <View style={s.head}>
@@ -744,6 +768,10 @@ export default function Review() {
         <View style={s.tip}>
           <HandTapIcon size={16} color={colors.mut} weight="bold" />
           <Text style={s.tipText} numberOfLines={1}>Нажмите на фото, чтобы изменить</Text>
+          {/* стикер на страницу — наборы по темам */}
+          <Tap onPress={() => setStickerOpen(true)} hitSlop={8} style={s.tipOrder} accessibilityRole="button" accessibilityLabel="Добавить стикер на страницу">
+            <StickerIcon size={16} color={colors.fg} weight="bold" />
+          </Tap>
           {/* фон страниц всей книги */}
           <Tap onPress={() => setBgOpen(true)} hitSlop={8} style={s.tipOrder} accessibilityRole="button" accessibilityLabel="Фон страниц">
             <View style={[s.bgDot, { backgroundColor: PAGE_BG[bg] }]} />
@@ -813,7 +841,7 @@ export default function Review() {
                 ) : null}
               </View>
               <View>
-                <PageView page={p} w={cw} h={ch} dim={fixing && mine.some((x) => !x.fixed)} picked={menu?.page === k ? menu.slot : undefined} seam={spread && tariff === 'lite'} />
+                <PageView page={p} w={cw} h={ch} dim={fixing && mine.some((x) => !x.fixed)} picked={menu?.page === k ? menu.slot : undefined} seam={spread && tariff === 'lite'} liveStickers />
                 {/* слой касаний поверх всей страницы: координаты — от края страницы, а не от фото под пальцем */}
                 <Pressable
                   style={StyleSheet.absoluteFill}
@@ -822,6 +850,17 @@ export default function Review() {
                   accessibilityRole="button"
                   accessibilityLabel={`Страница ${k + 1}. Нажмите на фото, чтобы заменить его, поменять раскладку или оставить замечание. Зажмите и перетащите, чтобы поменять порядок`}
                 />
+                {/* стикеры: нажать — «меньше / больше / убрать», тянуть — сдвинуть */}
+                {p.stickers?.length ? (
+                  <StickerLayer
+                    stickers={p.stickers}
+                    w={cw}
+                    h={ch}
+                    selected={stickerSel?.page === k ? stickerSel.i : null}
+                    onSelect={(i) => setStickerSel(i === null ? null : { page: k, i })}
+                    onChange={(next) => editStickers(k, next)}
+                  />
+                ) : null}
                 {/* точки замечаний */}
                 {[...mine, ...(draft && draft.page === k && !pins.some((x) => x.id === draft.id) ? [draft] : [])].map((pin) => (
                   <PinDot
@@ -973,6 +1012,8 @@ export default function Review() {
           onClose={() => setSizeFor(null)}
         />
       ) : null}
+
+      {stickerOpen ? <StickerPicker first={fromServer?.pack} bottom={insets.bottom} onPick={addSticker} onClose={() => setStickerOpen(false)} /> : null}
 
       {bgOpen ? (
         <>
@@ -1145,6 +1186,7 @@ export default function Review() {
         }}
       />
     </View>
+    </PageDecoContext.Provider>
     </PageBgContext.Provider>
   );
 }
@@ -1189,7 +1231,8 @@ function slotBox(def: LayoutDef, r: Rect, w: number, h: number) {
   return { left: pad + r.x * iw + (r.x > 0 ? gap / 2 : 0), top: pad + r.y * ih + (r.y > 0 ? gap / 2 : 0), width: r.w * iw - (r.x > 0 ? gap / 2 : 0) - (r.x + r.w < 1 ? gap / 2 : 0), height: r.h * ih - (r.y > 0 ? gap / 2 : 0) - (r.y + r.h < 1 ? gap / 2 : 0) };
 }
 
-function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h: number; dim?: boolean; picked?: number; seam?: boolean }) {
+function PageView({ page, w, h, dim, picked, seam, liveStickers }: { page: Page; w: number; h: number; dim?: boolean; picked?: number; seam?: boolean; liveStickers?: boolean }) {
+  const deco = usePageDeco();
   const def = layoutOf(page.layout);
   const box = (r: Rect) => slotBox(def, r, w, h);
   // фон листа — из вопросов перед сборкой или выбранный в редакторе (контекст PageBgContext)
@@ -1237,6 +1280,9 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
           <CaptionView page={page} at={def.captionAt} w={w} />
         </View>
       ) : null}
+      {deco === 'few' ? <Corners w={w} h={h} dark={!isLight(bg)} /> : null}
+      {/* стикеры поверх всего; в ленте их рисует слой с касаниями (StickerLayer) */}
+      {liveStickers ? null : <StaticStickers stickers={page.stickers} w={w} h={h} />}
     </View>
   );
 }
