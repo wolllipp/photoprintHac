@@ -72,6 +72,9 @@ const GAP = 22;
 const DRAG_TIP_KEY = 'picpac.tip.dragPages';
 /** Название книги: на обложке помещается две строки. */
 const TITLE_MAX = 60;
+/** Сколько страниц до и после той, что на экране, рисуются с фото (остальные — пустые блоки той же высоты). */
+const NEAR_BEFORE = 4;
+const NEAR_AFTER = 8;
 /** Сколько шагов «назад» помнит история правок. */
 const HISTORY_MAX = 50;
 
@@ -851,6 +854,15 @@ export default function Review() {
           const spread = isSpread(p.layout);
           const cw = pageW;
           const ch = spread ? pageW / 2 : pageH;
+          // далеко от экрана — пустой блок той же высоты, без фото: книга на 100 фото, нарисованная целиком,
+          // забирала у телефона всю память (iOS закрывал приложение). Фото появляются за несколько страниц до экрана.
+          if (k < at - NEAR_BEFORE || k > at + NEAR_AFTER) {
+            return (
+              <DragUnit key={k} index={ui}>
+                <View style={{ height: 28 + ch }} />
+              </DragUnit>
+            );
+          }
           const mine = pins.filter((x) => x.page === k);
           const fixedHere = mine.length > 0 && mine.every((x) => x.fixed);
           return (
