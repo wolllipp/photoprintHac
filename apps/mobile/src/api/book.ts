@@ -6,6 +6,7 @@ import { File as FsFile } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
+import type { BookStyle, Deco, PageBg } from '@/data/bookStyle';
 import type { CaptionLook } from '@/data/captionLook';
 import { layoutOf } from '@/data/layouts';
 import { draftCopy, takenAt, uploadCopy } from '@/data/picked';
@@ -160,11 +161,12 @@ export type ServerPage = {
 };
 /** Обложка: фото на лицевой стороне (адрес на телефоне или srv:id; нет — первое фото книги) и название на ней. */
 export type ServerCover = { photo?: string; title: boolean };
-export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover };
+/** bg — фон страниц после сборки (белый, бежевый, тёмный); deco — украшения из вопросов перед сборкой. */
+export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover; bg?: PageBg; deco?: Deco };
 
 /** Фото, выбранные в галерее, ждут экрана сборки (параметры навигации для длинного списка не годятся). */
 /** tariff — на каком тарифе собрать (по умолчанию Lite; мало фото — человек мог выбрать Classic или Premium). */
-type PendingBook = { uris: string[]; title: string; pages: number; tariff?: string };
+type PendingBook = { uris: string[]; title: string; pages: number; tariff?: string; style?: BookStyle };
 let pending: PendingBook | null = null;
 export const setPendingBook = (p: PendingBook) => {
   pending = p;
@@ -271,6 +273,8 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
     photo_ids: photoIds,
     pages: input.pages,
     option_id: option?.id,
+    // ответы перед сборкой (app/options.tsx): какие фото, размер, фон, украшения
+    style: input.style,
   });
 
   // 3. сборка: этапы с сервера двигают экран
@@ -299,7 +303,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { style?: { bg?: string; deco?: string } | null; cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -335,7 +339,8 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
   });
   const c = res.cover;
   const cover = c ? { photo: c.photo_id ? (uriOfId.get(c.photo_id) ?? `srv:${c.photo_id}`) : undefined, title: c.title } : undefined;
-  const book = { projectId, title, pages, cover };
+  const st = res.style ?? undefined;
+  const book: ServerBook = { projectId, title, pages, cover, bg: (st?.bg as PageBg | undefined) ?? undefined, deco: (st?.deco as Deco | undefined) ?? undefined };
   books.set(projectId, book);
   return book;
 }
@@ -547,4 +552,11 @@ export async function orderStage(serverId: string) {
 /** Обращение в поддержку по заказу на сервере (тема и текст) — номер обращения и срок ответа. */
 export async function supportOnServer(serverId: string, topic: string, text: string) {
   return api.post<{ number: number; status: 'open'; sla_hours: number }>(`/orders/${serverId}/support`, { topic, text });
+}
+
+/** Фон страниц всей книги — меняют в редакторе. */
+export async function setBookBg(projectId: string, bg: PageBg) {
+  await api.patch(`/projects/${projectId}`, { bg });
+  const book = books.get(projectId);
+  if (book) book.bg = bg;
 }

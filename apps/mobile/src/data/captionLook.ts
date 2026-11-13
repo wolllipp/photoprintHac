@@ -59,5 +59,10 @@ export function contrast(a: string, b: string) {
   const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
   return (x + 0.05) / (y + 0.05);
 }
-/** Подпись этим цветом на белой странице читается плохо (контраст меньше 3:1). */
-export const poorOnWhite = (hex?: string) => !!hex && /^#[0-9a-f]{6}$/i.test(hex) && contrast(hex, '#FFFFFF') < 3;
+/** Подпись этим цветом на странице такого фона читается плохо (контраст меньше 3:1). */
+export const poorOn = (hex: string | undefined, bg = '#FFFFFF') => !!hex && /^#[0-9a-f]{6}$/i.test(hex) && contrast(hex, bg) < 3;
+export const poorOnWhite = (hex?: string) => poorOn(hex);
+/** Светлый цвет (для плашки под подписью: под светлый текст — тёмная, под тёмный — светлая). */
+export const isLight = (hex: string) => lum(hex) > 0.5;
+/** Цвет подписи по умолчанию для фона: на тёмной странице — светлый. */
+export const defaultColorOn = (bg: string) => (isLight(bg) ? DEFAULT_COLOR : '#E9E2DA');

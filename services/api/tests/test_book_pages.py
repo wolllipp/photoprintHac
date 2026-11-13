@@ -80,3 +80,48 @@ async def test_cover_saved_separately(client):
     assert r.status_code == 200, r.text
     cover = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]
     assert cover == {"photo_id": ids[1], "title": False}
+
+
+async def test_build_options_pick_size_and_auto_background(client):
+    """Вопросы перед сборкой: «крупно» — не больше 2 фото на странице, «все» — смазанные не берём,
+    фон «ИИ подберёт» после сборки становится конкретным цветом."""
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    files = [("files", (f"{i}.png", textured_png(500 + i), "image/png")) for i in range(10)]
+    ids = [p["id"] for p in (await client.post("/photos", files=files, headers=gh)).json()]
+    style = {"pick": "all", "size": "large", "bg": "auto", "deco": "none"}
+    pid = (await client.post("/projects", headers=gh, json={"title": "Крупно", "photo_ids": ids, "pages": 10,
+                                                             "style": style})).json()["id"]
+    job = (await client.post(f"/projects/{pid}/build", headers=gh)).json()["job_id"]
+    assert (await client.get(f"/jobs/{job}", headers=gh)).json()["status"] == "done"
+    out = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()
+    assert all(len(p["frames"]) <= 2 for p in out["pages"])
+    assert out["style"]["bg"] in {"white", "beige", "dark"} and out["style"]["size"] == "large"
+    bad = await client.post("/projects", headers=gh, json={"title": "x", "photo_ids": ids, "style": {"size": "huge"}})
+    assert bad.status_code == 422
+
+
+def test_select_photos_all_drops_blurry_keeps_similar():
+    import uuid as _uuid
+    from app import ai
+
+    def ph(sharp):
+        return {"photo_id": _uuid.uuid4(), "path": "", "sharpness": sharp}
+    photos = [ph(500), ph(40), ph(300)]
+    hashes = {p["photo_id"]: bytes([i]) for i, p in enumerate(photos)}
+    dh = {p["photo_id"]: 0 for p in photos}  # все «похожи» по dHash
+    out = {d["photo_id"]: d for d in ai.select_photos(photos, 4, hashes=hashes, dhashes=dh, pick="all", capacity=16)}
+    assert out[photos[0]["photo_id"]]["selected"] and out[photos[2]["photo_id"]]["selected"]
+    assert not out[photos[1]["photo_id"]]["selected"] and out[photos[1]["photo_id"]]["reject_reason"] == "blur"
+    # «почти все» — похожие кадры убираются, остаётся самый резкий
+    most = ai.select_photos(photos, 4, hashes=hashes, dhashes=dh, pick="most", capacity=16)
+    assert sum(d["selected"] for d in most) == 1
+
+
+async def test_change_background_keeps_other_answers(client):
+    gh = auth((await client.post("/auth/guest")).json()["token"])
+    ids = [p["id"] for p in (await client.post("/photos", headers=gh, files=[("files", ("a.png", textured_png(901), "image/png"))])).json()]
+    pid = (await client.post("/projects", headers=gh, json={"title": "Фон", "photo_ids": ids,
+                                                             "style": {"pick": "best", "size": "small", "bg": "white", "deco": "few"}})).json()["id"]
+    r = await client.patch(f"/projects/{pid}", headers=gh, json={"bg": "dark"})
+    assert r.status_code == 200 and r.json()["style"] == {"pick": "best", "size": "small", "bg": "dark", "deco": "few"}
+    assert (await client.patch(f"/projects/{pid}", headers=gh, json={"bg": "pink"})).status_code == 422

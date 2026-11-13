@@ -21,12 +21,21 @@ router = APIRouter(tags=["projects"])
 MIN_PAGES, MAX_PAGES = 1, 200
 
 
+class StyleIn(BaseModel):
+    """Ответы перед сборкой; всё необязательно — чего нет, решает ИИ (как раньше)."""
+    pick: str = Field("most", pattern="^(best|most|all)$")  # лучшие | почти все (без похожих) | все (кроме размытых)
+    size: str = Field("medium", pattern="^(large|medium|small)$")  # фото крупно | средне | много мелких
+    bg: str = Field("white", pattern="^(white|beige|dark|auto)$")  # фон страниц; auto — по фото
+    deco: str = Field("none", pattern="^(none|few|stickers)$")  # украшения
+
+
 class ProjectIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     photo_ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
     theme: str | None = Field(None, max_length=40)
     pages: int = Field(24, ge=MIN_PAGES, le=MAX_PAGES)
     option_id: uuid.UUID | None = None
+    style: StyleIn | None = None
 
 
 class StoryIn(BaseModel):
@@ -113,7 +122,8 @@ async def create_project(body: ProjectIn, user: User = Depends(current_user), s:
     """Путь А: человек сам выбрал фото и создал проект."""
     product_id, option_id = await book_option(s, body.option_id, body.pages)
     p = Project(owner_id=user.id, title=body.title, theme=body.theme, page_count=body.pages,
-                product_id=product_id, option_id=option_id, source=ProjectSource.picked)
+                product_id=product_id, option_id=option_id, source=ProjectSource.picked,
+                style=body.style.model_dump() if body.style else None)
     s.add(p)
     await s.flush()
     await attach(s, p, body.photo_ids, user)
@@ -159,18 +169,22 @@ async def get_project(project_id: uuid.UUID, user: User = Depends(current_user),
 
 
 class ProjectPatch(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
+    title: str | None = Field(None, min_length=1, max_length=200)
+    bg: str | None = Field(None, pattern="^(white|beige|dark)$")  # фон страниц, меняют в редакторе
 
 
 @router.patch("/projects/{project_id}")
 async def rename_project(project_id: uuid.UUID, body: ProjectPatch, user: User = Depends(current_user),
                          s: AsyncSession = Depends(get_session)):
-    """Название книги — его меняют прямо в редакторе (оно же на обложке и в «Черновиках»)."""
+    """Название книги и фон страниц — их меняют прямо в редакторе (название — на обложке и в «Черновиках»)."""
     p = await locked_owned_project(s, project_id, user)
     ensure_editable(p)
-    p.title = body.title.strip() or p.title
+    if body.title is not None:
+        p.title = body.title.strip() or p.title
+    if body.bg is not None:
+        p.style = {**(p.style or {}), "bg": body.bg}
     await s.commit()
-    return project_out(p)
+    return {**project_out(p), "style": p.style}
 
 
 @router.post("/projects/{project_id}/photos")
@@ -247,6 +261,7 @@ async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user
     rows = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id)
                             .order_by(ProjectPage.position))).scalars().all()
     return {"project_id": str(p.id), "page_count": p.page_count, "status": p.status.value, "cover": p.cover,
+            "style": p.style,
             "pages": [{"position": r.position, "chapter": r.layout.get("chapter"),
                        "template": r.layout.get("template"), "caption": r.layout.get("caption"),
                        "caption_font": r.layout.get("caption_font"),

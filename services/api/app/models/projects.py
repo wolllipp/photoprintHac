@@ -53,6 +53,9 @@ class Project(Base):
     page_count: Mapped[int | None] = mapped_column(Integer)
     # обложка — отдельно от страниц: {"photo_id": фото на лицевой стороне, "title": показывать название}
     cover: Mapped[dict | None] = mapped_column(JSONB)
+    # оформление из вопросов перед сборкой: {"pick": best|most|all, "size": large|medium|small,
+    # "bg": white|beige|dark|auto, "deco": none|few|stickers}; после сборки bg «auto» заменяется на выбранный
+    style: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = created_at()
 
 

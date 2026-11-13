@@ -1,5 +1,6 @@
 """Демо-парсинг истории, отбор фото и заглушки для остальных AI-этапов."""
 import hashlib
+import math
 import re
 from html import escape
 import uuid
@@ -125,11 +126,19 @@ def select_photos(
     hashes: dict[uuid.UUID, bytes] | None = None,
     dhashes: dict[uuid.UUID, int] | None = None,
     min_keep: int = 0,
+    pick: str | None = None,
+    capacity: int | None = None,
 ) -> list[dict]:
     """Оставляет SHA-идентичные и визуально похожие фото вне книги как запас.
 
     min_keep — минимум фото для книги (минимум страниц тарифа): если после отбора фото меньше, похожие кадры
     возвращаются в книгу, лучшие первыми, — чтобы не было пустых страниц. Точные копии файла не возвращаются никогда.
+
+    pick — ответ человека перед сборкой (None — как раньше):
+      best — только лучшие: без похожих и около 60 % самых резких;
+      most — почти все: без похожих кадров;
+      all  — все, кроме смазанных (похожие остаются, точные копии файла — нет).
+    capacity — сколько фото помещается в книгу при выбранном размере фото (страниц × фото на странице).
     """
     excluded_ids = excluded_ids or set()
     included_ids = included_ids or set()
@@ -171,8 +180,9 @@ def select_photos(
     ids = list(content_hashes)
     for index, photo_id in enumerate(ids):
         for other in ids[index + 1:]:
+            # «все» — похожие кадры остаются, склеиваем только точные копии файла
             if (content_hashes[photo_id] == content_hashes[other]
-                    or dhash_distance(visual_hashes[photo_id], visual_hashes[other]) <= 8):
+                    or (pick != "all" and dhash_distance(visual_hashes[photo_id], visual_hashes[other]) <= 8)):
                 parents[root(other)] = root(photo_id)
     groups: dict[uuid.UUID, list[uuid.UUID]] = {}
     for photo_id in ids:
@@ -180,7 +190,14 @@ def select_photos(
     duplicates = {photo_id for group in groups.values() if len(group) > 1
                   for photo_id in sorted(group, key=rank)[1:]}
     unique_ids = [p["photo_id"] for p in available if p["photo_id"] not in duplicates]
-    target = min(len(unique_ids), max(len(included_ids), round(pages * 1.6)))
+    blurry = {pid for pid in unique_ids if sharpness[pid] and sharpness[pid] < BLUR_SHARPNESS and pid not in included_ids}
+    if pick is None:
+        target = min(len(unique_ids), max(len(included_ids), round(pages * 1.6)))
+    else:
+        if pick == "all":
+            unique_ids = [pid for pid in unique_ids if pid not in blurry]
+        want = len(unique_ids) if pick != "best" else max(min_keep, round(len(unique_ids) * 0.6))
+        target = min(len(unique_ids), max(len(included_ids), want, min_keep), capacity or len(unique_ids))
     keep = set(sorted(unique_ids, key=rank)[:target]) | (included_ids & set(content_hashes))
     if min_keep and len(keep) < min_keep:
         kept_hashes = {content_hashes[photo_id] for photo_id in keep if photo_id in content_hashes}
@@ -193,8 +210,15 @@ def select_photos(
             kept_hashes.add(content_hashes[photo_id])
     return [{"photo_id": p["photo_id"], "selected": p["photo_id"] in keep,
              "reject_reason": None if p["photo_id"] in excluded_ids or p["photo_id"] in keep else
-             "similar" if p["photo_id"] in duplicates else "capacity"}
+             "similar" if p["photo_id"] in duplicates else
+             "blur" if pick == "all" and p["photo_id"] in blurry else "capacity"}
             for p in photos]
+
+
+# порог «смазанного» — как в проверке качества (quality.py: sharpness < 100)
+BLUR_SHARPNESS = 100
+# размер фото из вопросов перед сборкой: в среднем и самое большее фото на странице
+SIZE_DENSITY = {"large": (1.5, 2), "medium": (2.5, 4), "small": (3.5, 4)}
 
 
 TEMPLATES = {
@@ -230,8 +254,11 @@ def _chronological(photo: dict) -> tuple:
 def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspect: float = 1,
            trim_px: int | None = None, risk_px: int | None = None, source: str = "picked",
            theme: str | None = None, format: str | None = None,
-           product: str | None = None) -> list[dict]:
-    """Сортирует фото по времени и раскладывает по шаблонам без пустых рамок."""
+           product: str | None = None, size: str | None = None) -> list[dict]:
+    """Сортирует фото по времени и раскладывает по шаблонам без пустых рамок.
+
+    size — ответ перед сборкой: large — крупно (1–2 фото на странице), medium — как раньше (2–3),
+    small — много мелких (3–4). None — как medium."""
     selected = sorted(selected, key=_chronological)
     requested = max(page_count, min_pages)
     groups: dict[str, list[dict]] = {}
@@ -240,9 +267,10 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
         groups.setdefault(chapter, []).append(photo)
     # коллажи: в среднем 2,5 фото на страницу (раньше — не больше 1,6, и почти везде было одно фото);
     # дни, которых больше, чем страниц, сливаются в общие главы, а не дробят книгу по одному фото
-    density_pages = (len(selected) * 2 + 4) // 5
+    avg, most = SIZE_DENSITY.get(size or "medium", SIZE_DENSITY["medium"])
+    density_pages = math.ceil(len(selected) / avg) if size else (len(selected) * 2 + 4) // 5
     page_total = max(min_pages, density_pages,
-                     sum((len(group) + 3) // 4 for group in groups.values()))
+                     sum((len(group) + most - 1) // most for group in groups.values()))
     page_total = min(requested, page_total)
     chunks = []
     chapters = []
@@ -291,6 +319,26 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
                            "warning": crop["warning"]})
         out.append({"position": pos, "chapter": chapters[pos], "frames": frames})
     return out
+
+
+def auto_background(paths: list[str]) -> str:
+    """Фон «ИИ подберёт»: по средней яркости фото книги (до 12 первых). Тёмные кадры — тёмный фон,
+    очень светлые — бежевый (белое на белом теряется), остальное — белый."""
+    from PIL import Image, ImageOps, ImageStat
+
+    values = []
+    for path in paths[:12]:
+        try:
+            with Image.open(path) as im:
+                im = ImageOps.exif_transpose(im).convert("L")
+                im.thumbnail((64, 64))
+                values.append(ImageStat.Stat(im).mean[0] / 255)
+        except Exception:
+            continue
+    if not values:
+        return "white"
+    mean = sum(values) / len(values)
+    return "dark" if mean < 0.35 else "beige" if mean > 0.7 else "white"
 
 
 def captions(theme: str, pages: int) -> list[str]:

@@ -113,9 +113,10 @@ export function collageTariff(n: number): BookTariff | null {
 export function startBook(uris: string[], tariff: BookTariff, title = 'Новая книга') {
   const n = uris.length;
   const pages = fitPages(tariff, Math.round(n / PER_PAGE));
-  // выбранные фото — экрану сборки: он загрузит их на сервер и соберёт книгу по-настоящему
+  // выбранные фото ждут экрана сборки: сначала четыре вопроса (какие фото, размер, фон, украшения — app/options.tsx),
+  // потом экран сборки загрузит их на сервер и соберёт книгу по-настоящему
   setPendingBook({ uris, title, pages, tariff });
-  router.push({ pathname: '/build', params: { title, photos: String(n), pages: String(pages), tariff } });
+  router.push({ pathname: '/options', params: { title, photos: String(n), pages: String(pages), tariff } });
 }
 
 /**

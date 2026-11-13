@@ -61,6 +61,10 @@ async def run_build(job_id: uuid.UUID) -> None:
         project.status = ProjectStatus.building
         await s.commit()
         pages = project.page_count or 24
+        # ответы перед сборкой: какие фото, их размер, фон (None — как раньше)
+        style = dict(project.style or {})
+        pick, size = style.get("pick"), style.get("size")
+        per_page = ai.SIZE_DENSITY.get(size or "medium", ai.SIZE_DENSITY["medium"])[1]
         option = await s.get(ProductOption, project.option_id) if project.option_id else None
         product = await s.get(Product, project.product_id) if project.product_id else None
         format = option.format if option else None
@@ -102,7 +106,8 @@ async def run_build(job_id: uuid.UUID) -> None:
                     hashes, dhashes = {}, {}
                     # Хэширование выполняется вне транзакции, чтобы не блокировать отмену.
                     await asyncio.to_thread(ai.select_photos, photos, pages, hashes=hashes,
-                                            dhashes=dhashes, min_keep=min_pages)
+                                            dhashes=dhashes, min_keep=min_pages, pick=pick,
+                                            capacity=pages * per_page if pick else None)
 
                 project, job = await _lock_project_job(s, job_id, project_id)
                 if job.status != "running":
@@ -125,7 +130,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                     included_ids = {pp.photo_id for pp in pps if pp.user_override and pp.selected}
                     decisions = ai.select_photos(
                         photos, pages, excluded_ids, included_ids, hashes=hashes, dhashes=dhashes,
-                        min_keep=min_pages,
+                        min_keep=min_pages, pick=pick, capacity=pages * per_page if pick else None,
                     )
                     decided = {d["photo_id"]: d for d in decisions}
                     for pp in pps:
@@ -151,7 +156,7 @@ async def run_build(job_id: uuid.UUID) -> None:
                         await s.delete(old)
                     layouts = ai.layout(selected_photos, pages, min_pages, page_aspect,
                                         source=project.source.value, theme=project.theme,
-                                        format=format, product=product_code)
+                                        format=format, product=product_code, size=size)
                     # книга не бывает меньше минимума тарифа: раскладка его держит (лишние страницы — пустые,
                     # их подсветит редактор); фото мало и минимума нет — книга сжимается до разложенного
                     if len(layouts) != pages:
@@ -160,6 +165,11 @@ async def run_build(job_id: uuid.UUID) -> None:
                     for pg in layouts:
                         s.add(ProjectPage(project_id=project.id, position=pg["position"], layout=pg))
                     prog["layout"] = [len(layouts), pages]
+                    # фон «ИИ подберёт» — по яркости фото, которые попали в книгу
+                    if style.get("bg") == "auto":
+                        style["bg"] = await asyncio.to_thread(
+                            ai.auto_background, [ph["path"] for ph in selected_photos if ph.get("path")])
+                        project.style = style
                 elif stage == "faces":
                     by_id = {photo["photo_id"]: photo for photo in photos}
                     layouts = (await s.execute(select(ProjectPage).where(

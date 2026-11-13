@@ -21,7 +21,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDi
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, type ServerPage } from '@/api/book';
+import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, setBookBg, type ServerPage } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { DragUnit, FeedDrag } from '@/components/feedDrag';
@@ -35,7 +35,8 @@ import { TariffSheet } from '@/components/tariffSheet';
 import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { CAPTION_FONTS, captionFontStyle } from '@/data/captionFonts';
-import { BASE_COLORS, CAPTION_STYLES, captionText, DEFAULT_COLOR, lineSize, poorOnWhite, SIZE_MAX, SIZE_MIN, sizeChanged, type CaptionLook, type CaptionStyle } from '@/data/captionLook';
+import { BASE_COLORS, CAPTION_STYLES, captionText, defaultColorOn, isLight, lineSize, poorOn, SIZE_MAX, SIZE_MIN, sizeChanged, type CaptionLook, type CaptionStyle } from '@/data/captionLook';
+import { BGS, PAGE_BG, PageBgContext, usePageBg, type PageBg } from '@/data/bookStyle';
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
@@ -184,6 +185,13 @@ export default function Review() {
   const pushCover = (c: Cover) => {
     if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: c.photo ? String(c.photo) : undefined, title: c.title }).catch(() => {});
   };
+  // фон страниц: из вопросов перед сборкой (сервер), меняется в редакторе для всей книги
+  const [bgEdit, setBgEdit] = useState<PageBg | null>(null);
+  const bg: PageBg = bgEdit ?? fromServer?.bg ?? 'white';
+  const [bgOpen, setBgOpen] = useState(false);
+  const pushBg = (b: PageBg) => {
+    if (params.projectId && serverBook(params.projectId)) setBookBg(params.projectId, b).catch(() => {});
+  };
 
   // откуда ИИ и смена макета берут фото: в своей книге — только фото человека из проекта (сначала те, что ещё не в книге),
   // в демо-книге — демо-снимки
@@ -226,12 +234,12 @@ export default function Review() {
   const [menu, setMenu] = useState<{ page: number; slot: number; x: number; y: number } | null>(null);
   // История правок: ↶ назад и ↷ вперёд в шапке. Снимок — всё, что человек меняет: страницы, обложка, название,
   // тариф, замечания. Перед каждой правкой — record(); новая правка после «назад» стирает «вперёд».
-  type Snap = { book: Page[] | null; cover: Cover | null; title: string; tariff: Tariff['id']; pins: Pin[] };
+  type Snap = { book: Page[] | null; cover: Cover | null; title: string; tariff: Tariff['id']; pins: Pin[]; bg: PageBg | null };
   // после удаления фото или страницы — плашка «Отменить» рядом с пальцем (это тот же шаг «назад»)
   const [undo, setUndo] = useState<{ what: string } | null>(null);
   const [past, setPast] = useState<Snap[]>([]);
   const [future, setFuture] = useState<Snap[]>([]);
-  const snap = (): Snap => ({ book, cover: coverEdit, title, tariff, pins });
+  const snap = (): Snap => ({ book, cover: coverEdit, title, tariff, pins, bg: bgEdit });
   const record = () => {
     setPast((p) => [...p.slice(-(HISTORY_MAX - 1)), snap()]);
     setFuture([]);
@@ -241,6 +249,10 @@ export default function Review() {
     setBook(x.book);
     setTariff(x.tariff);
     setPins(x.pins);
+    if (x.bg !== bgEdit) {
+      setBgEdit(x.bg);
+      pushBg(x.bg ?? fromServer?.bg ?? 'white');
+    }
     if (x.cover !== coverEdit) {
       setCoverEdit(x.cover);
       pushCover(x.cover ?? (fromServer?.cover as Cover | undefined) ?? { title: true });
@@ -286,6 +298,13 @@ export default function Review() {
     record();
     setCoverEdit(next);
     pushCover(next);
+  };
+  const changeBg = (b: PageBg) => {
+    Haptics.selectionAsync().catch(() => {});
+    if (b === bg) return;
+    record();
+    setBgEdit(b);
+    pushBg(b);
   };
   const changeTariff = (x: Tariff['id']) => {
     Haptics.selectionAsync().catch(() => {});
@@ -643,6 +662,8 @@ export default function Review() {
   };
 
   return (
+    // фон страниц — всем PageView и подписям (лента, сетка порядка, окно размеров)
+    <PageBgContext.Provider value={PAGE_BG[bg]}>
     <View style={[s.screen, { paddingTop: insets.top + 6 }]}>
       <StatusBar style="dark" />
       <View style={s.head}>
@@ -712,6 +733,10 @@ export default function Review() {
         <View style={s.tip}>
           <HandTapIcon size={16} color={colors.mut} weight="bold" />
           <Text style={s.tipText} numberOfLines={1}>Нажмите на фото, чтобы изменить</Text>
+          {/* фон страниц всей книги */}
+          <Tap onPress={() => setBgOpen(true)} hitSlop={8} style={s.tipOrder} accessibilityRole="button" accessibilityLabel="Фон страниц">
+            <View style={[s.bgDot, { backgroundColor: PAGE_BG[bg] }]} />
+          </Tap>
           {/* сетка всех страниц — удобнее ленты в толстой книге */}
           <Tap onPress={openOrder} hitSlop={8} style={s.tipOrder} accessibilityRole="button" accessibilityLabel="Порядок страниц: все страницы сеткой">
             <SquaresFourIcon size={16} color={colors.fg} weight="bold" />
@@ -937,6 +962,34 @@ export default function Review() {
         />
       ) : null}
 
+      {bgOpen ? (
+        <>
+          <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setBgOpen(false)} accessibilityRole="button" accessibilityLabel="Закрыть" />
+          </Animated.View>
+          <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, s.sheetAbs, { bottom: -SHEET_TAIL, paddingBottom: insets.bottom + 12 + SHEET_TAIL }]}>
+            <View style={s.sheetHead}>
+              <Text style={[s.sheetTitle, { flex: 1 }]}>Фон страниц</Text>
+              <Tap style={s.close} onPress={() => setBgOpen(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Закрыть">
+                <XIcon size={16} color={colors.fg} weight="bold" />
+              </Tap>
+            </View>
+            <Text style={s.sheetSub}>Для всей книги. Подписи сами станут светлыми на тёмном фоне.</Text>
+            <View style={s.bgRow} accessibilityRole="radiogroup">
+              {BGS.filter((b) => b.id !== 'auto').map((b) => {
+                const on = b.id === bg;
+                return (
+                  <Tap key={b.id} style={[s.bgPick, on && s.bgPickOn]} onPress={() => changeBg(b.id as PageBg)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Фон: ${b.name}`}>
+                    <View style={[s.bgSwatch, { backgroundColor: PAGE_BG[b.id as PageBg] }]} />
+                    <Text style={s.bgPickName}>{b.name}</Text>
+                  </Tap>
+                );
+              })}
+            </View>
+          </Animated.View>
+        </>
+      ) : null}
+
       {coverOpen ? (
         <CoverSheet
           cover={cover}
@@ -1080,6 +1133,7 @@ export default function Review() {
         }}
       />
     </View>
+    </PageBgContext.Provider>
   );
 }
 
@@ -1126,8 +1180,10 @@ function slotBox(def: LayoutDef, r: Rect, w: number, h: number) {
 function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h: number; dim?: boolean; picked?: number; seam?: boolean }) {
   const def = layoutOf(page.layout);
   const box = (r: Rect) => slotBox(def, r, w, h);
+  // фон листа — из вопросов перед сборкой или выбранный в редакторе (контекст PageBgContext)
+  const bg = usePageBg();
   return (
-    <View style={[s.page, { width: w, height: h }, def.bleed && { padding: 0, overflow: 'hidden' }, dim && { opacity: 0.55 }]}>
+    <View style={[s.page, { width: w, height: h, backgroundColor: bg }, def.bleed && { padding: 0, overflow: 'hidden' }, dim && { opacity: 0.55 }]}>
       {(page.slots ?? def.slots).map((r, i) => {
         const k = page.photos[i];
         const fx = page.fx?.[i] ?? [];
@@ -1260,16 +1316,18 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
  * Светлый цвет на белой странице не читается — подкладываем полупрозрачную тёмную плашку.
  */
 function CaptionView({ page, at, w }: { page: Page; at?: CaptionAt; w: number }) {
+  const bg = usePageBg();
   const side = at === 'left' || at === 'right';
   const look = page.captionLook;
   if (!page.caption) {
     return <Text style={[s.caption, side && { textAlign: at === 'left' ? 'right' : 'left', fontSize: 12 }, { color: colors.mut2 }]} numberOfLines={2}>Нажмите, чтобы подписать</Text>;
   }
-  const color = look?.color ?? DEFAULT_COLOR;
-  const plate = poorOnWhite(look?.color);
+  const color = look?.color ?? defaultColorOn(bg);
+  // цвет сливается с фоном страницы — плашка: под светлый текст тёмная, под тёмный — светлая
+  const plate = poorOn(look?.color, bg) ? (isLight(color) ? s.captionPlate : s.captionPlateLight) : null;
   const lines = captionText(page.caption, look).split('\n');
   return (
-    <View style={[plate && s.captionPlate, side ? { alignSelf: 'stretch' } : { alignSelf: 'center', maxWidth: '100%' }]}>
+    <View style={[plate, side ? { alignSelf: 'stretch' } : { alignSelf: 'center', maxWidth: '100%' }]}>
       <Text style={[s.caption, captionFontStyle(page.captionFont), side && { textAlign: at === 'left' ? 'right' : 'left' }, { color }]} numberOfLines={side ? 6 : 2}>
         {lines.map((ln, i) => {
           const fs = lineSize(look, i, w, side);
@@ -1422,6 +1480,7 @@ const NOTE_MAX = 200;
  */
 function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; pageN: number; bottom: number; onSave: (text: string, layout: string, font: string, look: CaptionLook) => void; onClose: () => void }) {
   const { width: winW, height: winH } = useWindowDimensions();
+  const pageBg = usePageBg();
   const [text, setText] = useState(page.caption ?? '');
   const [font, setFont] = useState<string>(page.captionFont ?? 'classic');
   // вид подписи: новая подпись — «Заголовок + подпись» (первая строка крупнее)
@@ -1534,7 +1593,7 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
           {!typing && text ? (
             <ScrollView style={{ maxHeight: winH * 0.42, marginHorizontal: -16 }} contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
               {/* как будет на странице: размер строк и цвет видно сразу */}
-              <View style={[s.capPreview, poorOnWhite(look.color) && { paddingVertical: 10 }]}>
+              <View style={[s.capPreview, { backgroundColor: pageBg }, poorOn(look.color, pageBg) && { paddingVertical: 10 }]}>
                 <CaptionView page={{ ...page, caption: text, captionFont: font, captionLook: look }} at={at === 'left' || at === 'right' ? undefined : at} w={winW - 64} />
               </View>
 
@@ -1587,7 +1646,7 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
                   <Text style={s.colorNote}>с фото</Text>
                 </View>
               ) : null}
-              {poorOnWhite(look.color) ? <Text style={s.colorWarn}>На белой странице светлый текст не читается — подложили полупрозрачную плашку</Text> : null}
+              {poorOn(look.color, pageBg) ? <Text style={s.colorWarn}>Этот цвет почти сливается с фоном страницы — подложили полупрозрачную плашку</Text> : null}
             </ScrollView>
           ) : null}
 
@@ -1890,6 +1949,12 @@ const s = StyleSheet.create({
   coverTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14 },
   coverTitleLabel: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   tipOrder: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  bgDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(0,0,0,0.18)' },
+  bgRow: { flexDirection: 'row', gap: 8 },
+  bgPick: { flex: 1, alignItems: 'center', gap: 6, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 12, borderWidth: 2, borderColor: 'transparent' },
+  bgPickOn: { borderColor: colors.coralAction },
+  bgSwatch: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+  bgPickName: { fontSize: 13, fontFamily: fonts.semibold, color: colors.fg },
   dragTip: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', boxShadow: '0 6px 18px rgba(40,28,20,0.10)' },
   dragTipTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   dragTipText: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
@@ -1955,6 +2020,7 @@ const s = StyleSheet.create({
   colorFill: { width: 26, height: 26, borderRadius: 13 },
   colorNote: { fontSize: 12, fontFamily: fonts.medium, color: colors.mut },
   colorWarn: { fontSize: 12, lineHeight: 16, fontFamily: fonts.medium, color: colors.peachInk },
+  captionPlateLight: { backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 8, paddingVertical: 4 },
   captionPlate: { backgroundColor: 'rgba(29,33,32,0.62)', borderRadius: 8, paddingVertical: 4 },
   // уведомление «… · Отменить/Вернуть» — светлое, как карточки приложения: белое, мягкая тень, коралловая ссылка
   toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', paddingHorizontal: 16, paddingVertical: 12, boxShadow: '0 8px 24px rgba(40,28,20,0.14)' },
