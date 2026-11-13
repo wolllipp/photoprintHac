@@ -187,3 +187,25 @@ async def test_cover_one_photo_wrap(client):
     r = await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[0], "title": True, "wrap": True})
     assert r.status_code == 200 and r.json()["wrap"] is True
     assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]["wrap"] is True
+
+
+def test_series_by_time_and_relative_blur():
+    """Серия одной сцены (dHash до 20, снято рядом по времени) — один самый резкий кадр; разные сцены
+    с той же «похожестью», снятые в разное время, остаются; заметно мутное фото не берём."""
+    import uuid as _uuid
+    from datetime import datetime, timedelta
+
+    from app import ai
+    t0 = datetime(2026, 7, 1, 12, 0)
+    def ph(sharp, minute, h):
+        return {"photo_id": _uuid.uuid4(), "path": "", "sharpness": sharp, "taken_at": t0 + timedelta(minutes=minute), "_h": h}
+    a1, a2, a3 = ph(300, 0, 0), ph(500, 1, 0b1111), ph(250, 2, 0b11111111)     # серия: d ≤ 8 между ними, рядом по времени
+    far = ph(400, 120, ((1 << 18) - 1) << 40)                                  # d = 18 до a1, но через 2 часа — другая сцена
+    blur = ph(60, 300, 0xAAAAAAAAAAAAAAAA)                                     # совсем другое и мутное (типичная ~300)
+    photos = [a1, a2, a3, far, blur]
+    hashes = {p["photo_id"]: bytes([i]) for i, p in enumerate(photos)}
+    dh = {p["photo_id"]: p["_h"] for p in photos}
+    out = {d["photo_id"]: d for d in ai.select_photos(photos, 4, hashes=hashes, dhashes=dh, pick="most", capacity=16)}
+    assert out[a2["photo_id"]]["selected"] and not out[a1["photo_id"]]["selected"] and not out[a3["photo_id"]]["selected"]
+    assert out[far["photo_id"]]["selected"]
+    assert not out[blur["photo_id"]]["selected"] and out[blur["photo_id"]]["reject_reason"] == "blur"

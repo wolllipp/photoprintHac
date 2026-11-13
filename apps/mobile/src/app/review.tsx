@@ -1122,22 +1122,6 @@ export default function Review() {
       ) : null}
 
       {/* подсказка без действия: например, фото уже есть в книге */}
-      {notice && !undo ? (
-        <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: insets.bottom + 92 }]}>
-          <Text style={[s.toastText, { flex: 1 }]}>{notice}</Text>
-        </Animated.View>
-      ) : null}
-
-      {/* отмена последней прямой правки */}
-      {undo ? (
-        <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: insets.bottom + 92 }]}>
-          <Text style={s.toastText}>{undo.what}</Text>
-          <Tap onPress={undoLast} hitSlop={10} accessibilityRole="button">
-            <Text style={s.toastLink}>Отменить</Text>
-          </Tap>
-        </Animated.View>
-      ) : null}
-
       {menu ? (
         <PhotoMenu
           page={pages[menu.page]}
@@ -1382,6 +1366,23 @@ export default function Review() {
           setGesturesSeen(true);
         }}
       />
+
+      {/* уведомления — последними, поверх меню и листов: раньше открытое меню фото их закрывало
+          (например, «макеты на разворот — только в Classic и Premium» было не видно) */}
+      {notice && !undo ? (
+        <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)} style={[s.toast, s.toastTop, { top: insets.top + 8 }]} pointerEvents="none">
+          <Text style={[s.toastText, { flex: 1 }]}>{notice}</Text>
+        </Animated.View>
+      ) : null}
+      {/* отмена последней прямой правки */}
+      {undo ? (
+        <Animated.View entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)} style={[s.toast, s.toastTop, { bottom: insets.bottom + 92 }]}>
+          <Text style={s.toastText}>{undo.what}</Text>
+          <Tap onPress={undoLast} hitSlop={10} accessibilityRole="button">
+            <Text style={s.toastLink}>Отменить</Text>
+          </Tap>
+        </Animated.View>
+      ) : null}
     </View>
     </PageDecoContext.Provider>
     </PageBgContext.Provider>
@@ -2395,6 +2396,8 @@ const s = StyleSheet.create({
   captionPlateLight: { backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 8, paddingVertical: 4 },
   captionPlate: { backgroundColor: 'rgba(29,33,32,0.62)', borderRadius: 8, paddingVertical: 4 },
   // уведомление «… · Отменить/Вернуть» — светлое, как карточки приложения: белое, мягкая тень, коралловая ссылка
+  // уведомление поверх всего: над меню фото и листами (они внизу) — поэтому сообщения встают сверху экрана
+  toastTop: { zIndex: 50, elevation: 50 },
   toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', paddingHorizontal: 16, paddingVertical: 12, boxShadow: '0 8px 24px rgba(40,28,20,0.14)' },
   toastText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   toastLink: { fontSize: 15, fontFamily: fonts.bold, color: colors.coralLink },

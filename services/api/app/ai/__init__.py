@@ -177,12 +177,34 @@ def select_photos(
             photo_id = parents[photo_id]
         return photo_id
 
+    taken = {p["photo_id"]: p.get("taken_at") for p in available}
+
+    def same_series(a, b) -> bool:
+        """Одна серия кадров. dHash грубый (64 бита): на настоящих альбомах серия одной сцены — расстояние
+        до ~20, а раньше похожими считались только ≤ 8, и серии целиком шли в книгу. Чтобы не склеить разные
+        снимки на одном фоне, большое расстояние прощаем только кадрам, снятым в пределах нескольких минут."""
+        d = dhash_distance(visual_hashes[a], visual_hashes[b])
+        if pick is None:
+            return d <= 8  # как раньше (книги без ответов перед сборкой)
+        if d <= SERIES_ANY_TIME:
+            return True
+        ta, tb = taken.get(a), taken.get(b)
+        if ta and tb:
+            try:
+                gap = abs((ta - tb).total_seconds())
+            except TypeError:  # одно время с поясом, другое без — сравниваем без пояса
+                gap = abs((ta.replace(tzinfo=None) - tb.replace(tzinfo=None)).total_seconds())
+            near, window = (SERIES_BEST, SERIES_WINDOW_BEST_S) if pick == "best" else (SERIES_NEAR, SERIES_WINDOW_S)
+            # очень похожие — в пределах четверти часа; просто похожие — в пределах нескольких минут
+            return (d <= SERIES_CLOSE and gap <= SERIES_CLOSE_WINDOW_S) or (d <= near and gap <= window)
+        return d <= SERIES_NO_TIME
+
     ids = list(content_hashes)
     for index, photo_id in enumerate(ids):
         for other in ids[index + 1:]:
             # «все» — похожие кадры остаются, склеиваем только точные копии файла
             if (content_hashes[photo_id] == content_hashes[other]
-                    or (pick != "all" and dhash_distance(visual_hashes[photo_id], visual_hashes[other]) <= 8)):
+                    or (pick != "all" and same_series(photo_id, other))):
                 parents[root(other)] = root(photo_id)
     groups: dict[uuid.UUID, list[uuid.UUID]] = {}
     for photo_id in ids:
@@ -190,18 +212,26 @@ def select_photos(
     duplicates = {photo_id for group in groups.values() if len(group) > 1
                   for photo_id in sorted(group, key=rank)[1:]}
     unique_ids = [p["photo_id"] for p in available if p["photo_id"] not in duplicates]
-    blurry = {pid for pid in unique_ids if sharpness[pid] and sharpness[pid] < BLUR_SHARPNESS and pid not in included_ids}
+    # Смазанное — заметно мутнее остальных фото этой книги или совсем мутное. Абсолютный порог для селфи
+    # ненадёжен: гладкое лицо крупным планом даёт низкую оценку, хотя резкое. Смазанные дубли и так уходят
+    # с серией (в серии остаётся самый резкий кадр).
+    known = sorted(v for v in sharpness.values() if v)
+    typical = known[len(known) // 2] if known else 0
+    blur_line = max(BLUR_FLOOR, typical * BLUR_SHARE) if pick is not None else BLUR_SHARPNESS
+    blurry = {pid for pid in unique_ids if sharpness[pid] and sharpness[pid] < blur_line and pid not in included_ids}
     if pick is None:
         target = min(len(unique_ids), max(len(included_ids), round(pages * 1.6)))
     else:
-        if pick == "all":
-            unique_ids = [pid for pid in unique_ids if pid not in blurry]
+        # смазанные не берём ни в одном режиме (раньше — только во «Все»); не хватит на минимум — вернутся ниже
+        unique_ids = [pid for pid in unique_ids if pid not in blurry]
         want = len(unique_ids) if pick != "best" else max(min_keep, round(len(unique_ids) * 0.6))
         target = min(len(unique_ids), max(len(included_ids), want, min_keep), capacity or len(unique_ids))
     keep = set(sorted(unique_ids, key=rank)[:target]) | (included_ids & set(content_hashes))
     if min_keep and len(keep) < min_keep:
         kept_hashes = {content_hashes[photo_id] for photo_id in keep if photo_id in content_hashes}
-        for photo_id in sorted(duplicates, key=rank):
+        # фото не хватает на минимум тарифа — сначала возвращаем похожие (лучшие первыми), потом смазанные
+        back = sorted(duplicates, key=rank) + (sorted(blurry, key=rank) if pick is not None else [])
+        for photo_id in back:
             if len(keep) >= min_keep:
                 break
             if content_hashes[photo_id] in kept_hashes:
@@ -211,12 +241,22 @@ def select_photos(
     return [{"photo_id": p["photo_id"], "selected": p["photo_id"] in keep,
              "reject_reason": None if p["photo_id"] in excluded_ids or p["photo_id"] in keep else
              "similar" if p["photo_id"] in duplicates else
-             "blur" if pick == "all" and p["photo_id"] in blurry else "capacity"}
+             "blur" if pick is not None and p["photo_id"] in blurry else "capacity"}
             for p in photos]
 
 
-# порог «смазанного» — как в проверке качества (quality.py: sharpness < 100)
+# порог «смазанного» — как в проверке качества (quality.py: sharpness < 100); книги без ответов перед сборкой
 BLUR_SHARPNESS = 100
+# с ответами перед сборкой: смазанное — меньше трети типичной резкости фото этой книги, и всегда ниже 40
+BLUR_SHARE = 0.33
+BLUR_FLOOR = 40
+# серия кадров (dHash, 64 бита): почти одинаковые — в любое время; похожие — если сняты рядом по времени.
+# Подобрано на настоящих альбомах: серия одной сцены — расстояние до ~20.
+SERIES_ANY_TIME = 10
+SERIES_CLOSE, SERIES_CLOSE_WINDOW_S = 14, 900
+SERIES_NEAR, SERIES_WINDOW_S = 20, 180
+SERIES_BEST, SERIES_WINDOW_BEST_S = 24, 600  # «лучшие» — строже к повторам
+SERIES_NO_TIME = 14  # времени съёмки нет — осторожнее
 # размер фото из вопросов перед сборкой: в среднем и самое большее фото на странице
 SIZE_DENSITY = {"large": (1.5, 2), "medium": (2.5, 4), "small": (3.5, 4)}
 
