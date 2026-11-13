@@ -125,3 +125,13 @@ async def test_change_background_keeps_other_answers(client):
     r = await client.patch(f"/projects/{pid}", headers=gh, json={"bg": "dark"})
     assert r.status_code == 200 and r.json()["style"] == {"pick": "best", "size": "small", "bg": "dark", "deco": "few"}
     assert (await client.patch(f"/projects/{pid}", headers=gh, json={"bg": "pink"})).status_code == 422
+
+
+async def test_page_frame_saved(client):
+    gh, pid, ids = await _book(client)
+    pages = [{**page(ids[0]), "frame": "polaroid"}, page(ids[1])]
+    assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": pages})).status_code == 200
+    out = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["pages"]
+    assert out[0]["frame"] == "polaroid" and out[1]["frame"] is None
+    bad = [{**page(ids[0]), "frame": "gold"}]
+    assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": bad})).status_code == 422

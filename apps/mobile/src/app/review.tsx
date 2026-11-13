@@ -37,6 +37,7 @@ import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tari
 import { CAPTION_FONTS, captionFontStyle } from '@/data/captionFonts';
 import { BASE_COLORS, CAPTION_STYLES, captionText, defaultColorOn, isLight, lineSize, poorOn, SIZE_MAX, SIZE_MIN, sizeChanged, type CaptionLook, type CaptionStyle } from '@/data/captionLook';
 import { BGS, PAGE_BG, PageBgContext, usePageBg, type PageBg } from '@/data/bookStyle';
+import { FRAMES, frameGeometry, type FrameId } from '@/data/frames';
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
@@ -50,7 +51,7 @@ import { colors, fonts } from '@/theme';
 type Fx = 'light' | 'crop' | 'sharp' | 'horizon' | 'warm' | 'bg' | 'restore' | 'bw';
 /** crop — кадр, который человек выставил вручную: фото → центр и увеличение (по фото, а не по месту — переживает смену макета). */
 /** slots — размеры фото, которые человек поменял сам (components/sizeEditor.tsx); нет — как в макете. */
-type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; captionLook?: CaptionLook; crop?: Record<string, Crop>; slots?: Rect[] };
+type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; captionLook?: CaptionLook; crop?: Record<string, Crop>; slots?: Rect[]; frame?: FrameId };
 const slotsOf = (id: string) => layoutOf(id).slots.length;
 /** Самый простой макет на n фото — когда фото убрали. */
 const SIMPLE: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' };
@@ -508,7 +509,17 @@ export default function Review() {
     if (!r) return 1;
     const spread = isSpread(p.layout);
     const b = slotBox(def, r, pageW, spread ? pageW / 2 : pageH);
-    return b.width / b.height;
+    // фото внутри рамки (у полароида поле снизу шире) — пропорции без полей
+    const { inset } = frameGeometry(p.frame, b.width, b.height, def.bleed);
+    return (b.width - inset.left - inset.right) / (b.height - inset.top - inset.bottom);
+  };
+  // рамка фото: для этой страницы или «ко всем страницам» (один шаг истории)
+  const setFrame = (page: number, frame: FrameId, all: boolean) => {
+    Haptics.selectionAsync().catch(() => {});
+    record();
+    setMenu(null);
+    mutate((list) => list.map((p, k) => (all || k === page ? { ...p, frame: frame === 'none' ? undefined : frame } : p)));
+    setNotice(all ? `Рамка «${FRAMES.find((f) => f.id === frame)?.name}» — на всех страницах` : null);
   };
   const setLayout = (id: string) => {
     if (!menu) return;
@@ -944,6 +955,7 @@ export default function Review() {
           // после сквозного фото новая страница встаёт за обеими его страницами
           onInsertAfter={() => insertPage(menu.page + (isSpread(pages[menu.page].layout) ? 2 : 1))}
           onDeletePage={() => deletePage(menu.page)}
+          onFrame={(fr, all) => setFrame(menu.page, fr, all)}
           canDelete={pagesN - (isSpread(pages[menu.page].layout) ? 2 : 1) >= minPages}
           onClose={() => setMenu(null)}
         />
@@ -1189,10 +1201,15 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
         const fx = page.fx?.[i] ?? [];
         const b = box(r);
         const crop = k ? page.crop?.[String(k)] : undefined;
+        // рамка: внешний слой — поля, линия или скругление; фото — внутри с отступом (data/frames.ts)
+        const fr = frameGeometry(page.frame, b.width, b.height, def.bleed);
+        const iw = b.width - fr.inset.left - fr.inset.right;
+        const ih = b.height - fr.inset.top - fr.inset.bottom;
         return (
-          <View key={`${i}-${String(k)}`} style={[{ position: 'absolute', borderRadius: def.bleed ? 0 : 4, overflow: 'hidden', backgroundColor: colors.card2 }, b]}>
+          <View key={`${i}-${String(k)}`} style={[{ position: 'absolute' }, b, fr.outer]}>
+          <View style={{ position: 'absolute', left: fr.inset.left, top: fr.inset.top, width: iw, height: ih, borderRadius: fr.radius, overflow: 'hidden', backgroundColor: colors.card2 }}>
             {/* кадр, выставленный вручную, важнее «кадра по лицам» от ИИ */}
-            {k && crop ? <CroppedImage k={k} crop={crop} w={b.width} h={b.height} /> : k ? (
+            {k && crop ? <CroppedImage k={k} crop={crop} w={iw} h={ih} /> : k ? (
               <Image
                 source={pic(k)}
                 style={[StyleSheet.absoluteFill, (fx.includes('crop') || fx.includes('horizon')) && { transform: [{ scale: fx.includes('crop') ? 1.22 : 1.08 }, { rotate: fx.includes('horizon') ? '-2deg' : '0deg' }] }]}
@@ -1209,6 +1226,7 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
               </View>
             ) : null}
             {picked === i ? <Animated.View entering={FadeIn.duration(120)} pointerEvents="none" style={[StyleSheet.absoluteFill, s.picked]} /> : null}
+          </View>
           </View>
         );
       })}
@@ -1247,7 +1265,9 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  * Нажали на фото — что с ним сделать: заменить своим из галереи, убрать, оставить замечание;
  * выбрать макет страницы из библиотеки. Улучшения ИИ (свет, горизонт, чёткость…) — в «Замечании для ИИ».
  */
-function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onInsertAfter, onDeletePage, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; canDelete: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onInsertAfter: () => void; onDeletePage: () => void; onClose: () => void }) {
+function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onInsertAfter, onDeletePage, onFrame, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; canDelete: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onInsertAfter: () => void; onDeletePage: () => void; onFrame: (frame: FrameId, all: boolean) => void; onClose: () => void }) {
+  const [frameAll, setFrameAll] = useState(false);
+  const { height: winH } = useWindowDimensions();
   const n = slotsOf(page.layout);
   const k = page.photos[slot];
   return (
@@ -1271,6 +1291,8 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
           <MenuBtn icon={<ChatCircleTextIcon size={22} color={colors.fg} weight="bold" />} label="ИИ: исправить или улучшить" onPress={onComment} />
         </View>
 
+        {/* всё ниже прокручивается: меню выросло (макеты, рамки, страница), на маленьком экране не влезало */}
+        <ScrollView style={{ maxHeight: winH * 0.5, marginHorizontal: -16 }} contentContainerStyle={s.menuScroll} showsVerticalScrollIndicator={false}>
         {/* размеры фото на странице — тянуть границы между фото (на одно фото менять нечего) */}
         {n > 1 ? (
           <Tap style={s.sizeBtn} onPress={onSize} accessibilityRole="button">
@@ -1295,6 +1317,28 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
           })}
         </ScrollView>
 
+        {/* рамка фото на этой странице; «Ко всем страницам» — одна рамка на всю книгу */}
+        <View style={s.frameHead}>
+          <Text style={s.menuLabel}>Рамка</Text>
+          <Tap style={[s.frameAll, frameAll && s.placeOn]} onPress={() => setFrameAll((x) => !x)} accessibilityRole="switch" accessibilityState={{ checked: frameAll }}>
+            {frameAll ? <CheckIcon size={12} color="#fff" weight="bold" /> : null}
+            <Text style={[s.frameAllText, frameAll && { color: '#fff' }]}>Ко всем страницам</Text>
+          </Tap>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.layouts}>
+          {FRAMES.map((f) => {
+            const on = (page.frame ?? 'none') === f.id;
+            return (
+              <Tap key={f.id} style={s.layoutBtn} onPress={() => (!on || frameAll) && onFrame(f.id, frameAll)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Рамка: ${f.name}`}>
+                <View style={[s.layoutThumb, on && s.layoutThumbOn]}>
+                  <FrameIcon id={f.id} on={on} />
+                </View>
+                <Text style={[s.layoutName, on && { color: colors.fg, fontFamily: fonts.bold }]} numberOfLines={2}>{f.name}</Text>
+              </Tap>
+            );
+          })}
+        </ScrollView>
+
         {/* сама страница: вставить пустую после неё или удалить (не меньше минимума тарифа) */}
         <View style={s.pageActions}>
           <Tap style={s.pageAction} onPress={onInsertAfter} accessibilityRole="button" accessibilityLabel="Вставить пустую страницу после этой">
@@ -1306,8 +1350,21 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
             <Text style={[s.pageActionText, { color: colors.coralAction }]}>Удалить страницу</Text>
           </Tap>
         </View>
+        </ScrollView>
       </Animated.View>
     </>
+  );
+}
+
+/** Схема рамки: маленькое фото в своей рамке (как в макетах — серым прямоугольником). */
+function FrameIcon({ id, on }: { id: FrameId; on: boolean }) {
+  const W = 34;
+  const H = 40;
+  const fr = frameGeometry(id, W, H);
+  return (
+    <View style={[{ width: W, height: H }, fr.outer, id === 'mat' || id === 'polaroid' ? { backgroundColor: '#fff' } : null]}>
+      <View style={{ position: 'absolute', left: fr.inset.left, top: fr.inset.top, right: fr.inset.right, bottom: fr.inset.bottom, borderRadius: fr.radius, backgroundColor: on ? colors.coralAction : colors.mut2 }} />
+    </View>
   );
 }
 
@@ -1949,6 +2006,10 @@ const s = StyleSheet.create({
   coverTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14 },
   coverTitleLabel: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   tipOrder: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  menuScroll: { gap: 12, paddingHorizontal: 16 },
+  frameHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  frameAll: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.card },
+  frameAllText: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.fg },
   bgDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(0,0,0,0.18)' },
   bgRow: { flexDirection: 'row', gap: 8 },
   bgPick: { flex: 1, alignItems: 'center', gap: 6, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 12, borderWidth: 2, borderColor: 'transparent' },

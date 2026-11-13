@@ -266,6 +266,7 @@ async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user
                        "template": r.layout.get("template"), "caption": r.layout.get("caption"),
                        "caption_font": r.layout.get("caption_font"),
                        "caption_look": r.layout.get("caption_look"),
+                       "frame": r.layout.get("frame"),
                        "fx": r.layout.get("fx") or {},
                        "frames": [{"photo_id": f["photo_id"], "frame": f["frame"]} for f in r.layout.get("frames", [])]}
                       for r in rows]}
@@ -290,6 +291,7 @@ class PageIn(BaseModel):
     caption: str | None = Field(None, max_length=300)
     caption_font: str | None = Field(None, pattern="^(classic|plain|bold|hand)$")  # шрифт подписи в приложении
     caption_look: CaptionLook | None = None
+    frame: str | None = Field(None, pattern="^(none|mat|line|polaroid|round)$")  # рамка фото на странице
     fx: dict[str, list[str]] = Field(default_factory=dict)  # номер рамки → улучшения ИИ
 
 
@@ -309,7 +311,7 @@ async def keep_photos(s: AsyncSession, p: Project, ids: list[uuid.UUID], user: U
 def page_layout(position: int, body: PageIn, chapter: str | None = None) -> dict:
     return {"position": position, "chapter": chapter, "template": body.template,
             "caption": body.caption, "caption_font": body.caption_font,
-            "caption_look": body.caption_look.model_dump(exclude_none=True) if body.caption_look else None, "fx": body.fx,
+            "caption_look": body.caption_look.model_dump(exclude_none=True) if body.caption_look else None, "frame": body.frame, "fx": body.fx,
             "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
 
 

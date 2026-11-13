@@ -154,6 +154,8 @@ export type ServerPage = {
   captionFont?: string;
   /** вид подписи: стиль строк, размер (весь текст и каждая строка), цвет — data/captionLook.ts */
   captionLook?: CaptionLook;
+  /** рамка фото на странице: mat | line | polaroid | round (data/frames.ts); нет — без рамки */
+  frame?: string;
   fx?: Record<number, string[]>;
   crop?: Record<string, { cx: number; cy: number; z: number; a: number }>;
   /** свои размеры фото на странице (components/sizeEditor.tsx); нет — как в макете */
@@ -303,7 +305,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { style?: { bg?: string; deco?: string } | null; cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { style?: { bg?: string; deco?: string } | null; cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -332,6 +334,7 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
       caption: p.caption ?? undefined,
       captionFont: p.caption_font ?? undefined,
       captionLook: p.caption_look ?? undefined,
+      frame: p.frame ?? undefined,
       fx,
       crop: Object.keys(crop).length ? crop : undefined,
       slots: differ ? rects.map((fr) => ({ x: fr.x ?? 0, y: fr.y ?? 0, w: fr.w, h: fr.h ?? 1 })) : undefined,
@@ -353,6 +356,7 @@ function pageBody(page: ServerPage, ids: string[]) {
     caption: page.caption ?? null,
     caption_font: page.caption ? (page.captionFont ?? null) : null,
     caption_look: page.caption ? (page.captionLook ?? null) : null,
+    frame: page.frame ?? null,
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
     // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
     frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),
