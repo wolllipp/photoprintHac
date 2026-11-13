@@ -60,6 +60,8 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
   const [page, setPage] = useState(start);
   const [frame, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
+  // подписи и кнопки спрятаны — только пока держат палец (удержание), а не на любой паузе
+  const [hidden, setHidden] = useState(false);
   // пришли свайпом — обложка и название уже видны (ехали вместе с лентой), второй раз их не проявляем
   const [swiped, setSwiped] = useState(false);
   const item = items[page];
@@ -213,10 +215,12 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
     onActivate: () => {
       'worklet';
       scheduleOnRN(setPaused, true);
+      scheduleOnRN(setHidden, true);
     },
     onFinalize: () => {
       'worklet';
       scheduleOnRN(setPaused, false);
+      scheduleOnRN(setHidden, false);
     },
   });
   // касание: левая треть — назад, остальное — дальше
@@ -238,9 +242,10 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
   const prevItem = page > 0 ? items[page - 1] : null;
   const nextItem = page + 1 < items.length ? items[page + 1] : null;
   const bg = useAnimatedStyle(() => ({ opacity: interpolate(drag.value, [0, 400], [1, 0.35], Extrapolation.CLAMP) }));
-  // на паузе подписи и кнопки прячутся — видно только фото
-  // при удержании подписи и кнопки мягко растворяются (и так же мягко возвращаются)
-  const chrome = useAnimatedStyle(() => ({ opacity: withTiming(paused ? 0 : 1, { duration: paused ? 420 : 320, easing: Easing.bezier(0.33, 0, 0.2, 1) }) }));
+  // при удержании подписи и кнопки мягко растворяются (и так же мягко возвращаются) — видно только фото.
+  // Свайп (вбок или вниз) только ставит паузу и ничего не прячет: у соседа подписи видны, и раньше после
+  // перехода всё мигало — исчезало и появлялось заново.
+  const chrome = useAnimatedStyle(() => ({ opacity: withTiming(hidden ? 0 : 1, { duration: hidden ? 420 : 320, easing: Easing.bezier(0.33, 0, 0.2, 1) }) }));
   const titleSize = Math.max(34, Math.min(48, Math.round(width * 0.112)));
   const f = frames[frame];
 
@@ -254,6 +259,8 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
           {prevItem ? <AlbumPeek item={prevItem} left={-width} /> : null}
           {nextItem ? <AlbumPeek item={nextItem} left={width} /> : null}
           <View style={StyleSheet.absoluteFill}>
+          {/* подложка — обложка альбома, без пересоздания: пока новый кадр рисуется, под ним не чёрный экран */}
+          <Image source={pic(item.photo)} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={0} />
 
           {/* кадр: обложка во весь экран или фото карточкой на размытой обложке */}
           {f === 'cover' ? (
@@ -272,7 +279,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
               ))}
             </View>
             <View style={s.head} pointerEvents="box-none">
-              <Image source={pic(item.photo)} style={s.thumb} contentFit="cover" />
+              <Image source={pic(item.photo)} style={s.thumb} contentFit="cover" cachePolicy="memory-disk" />
               <View style={{ flex: 1 }}>
                 <Text style={s.headTitle} numberOfLines={1}>{item.source === 'phone' ? 'Ваш альбом · с телефона' : 'Идея книги · ещё не заказана'}</Text>
                 <Text style={s.headSub} numberOfLines={1}>{item.meta}</Text>
@@ -328,7 +335,7 @@ function AlbumPeek({ item, left }: { item: Suggestion; left: number }) {
   const titleSize = Math.max(34, Math.min(48, Math.round(width * 0.112)));
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { left, right: -left }]}>
-      <Image source={pic(item.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <Image source={pic(item.photo)} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={0} />
       <LinearGradient colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']} locations={[0, 0.25]} style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.65)']} locations={[0.55, 1]} style={StyleSheet.absoluteFill} />
       <View style={[s.bottom, { bottom: insets.bottom + 16 + 58 + 22 }]}>
@@ -351,7 +358,7 @@ function Cover({ photo, paused, fade = true }: { photo: Pic; paused: boolean; fa
   const a = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
   return (
     <Animated.View entering={fade ? FadeIn.duration(220) : undefined} style={[StyleSheet.absoluteFill, a]}>
-      <Image source={pic(photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <Image source={pic(photo)} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={0} />
     </Animated.View>
   );
 }
@@ -362,11 +369,11 @@ function PhotoCard({ cover, photo, i, width }: { cover: Pic; photo: Pic; i: numb
   const tilt = [-3, 2.5, -1.5, 3][i % 4];
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Image source={pic(cover)} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={40} />
+      <Image source={pic(cover)} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={40} cachePolicy="memory-disk" />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(20,16,14,0.35)' }]} />
       <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', paddingBottom: 60 }]}>
         <Animated.View entering={FadeIn.duration(260)} style={[s.card, { width: w, height: w * 1.22, transform: [{ rotate: `${tilt}deg` }] }]}>
-          <Image source={pic(photo)} style={{ flex: 1, borderRadius: 4 }} contentFit="cover" />
+          <Image source={pic(photo)} style={{ flex: 1, borderRadius: 4 }} contentFit="cover" cachePolicy="memory-disk" />
         </Animated.View>
       </View>
     </View>
