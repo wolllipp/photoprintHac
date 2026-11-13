@@ -12,7 +12,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { CaretRightIcon, XIcon } from 'phosphor-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Modal, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, useLongPressGesture, usePanGesture, useTapGesture, useSimultaneousGestures, useExclusiveGestures } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, Easing, Extrapolation, FadeIn, interpolate, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
@@ -60,6 +60,8 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
   const [page, setPage] = useState(start);
   const [frame, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
+  // пришли свайпом — обложка и название уже видны (ехали вместе с лентой), второй раз их не проявляем
+  const [swiped, setSwiped] = useState(false);
   const item = items[page];
   const frames = framesOf(item);
 
@@ -81,12 +83,14 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
     );
   };
   const next = () => {
+    setSwiped(false);
     if (frame < frames.length - 1) return setFrame((f) => f + 1);
     if (page + 1 >= items.length) return dismiss();
     setPage((p) => p + 1);
     setFrame(0);
   };
   const prev = () => {
+    setSwiped(false);
     if (frame > 0) return setFrame((f) => f - 1);
     if (page > 0) {
       setPage((p) => p - 1);
@@ -154,15 +158,19 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
   });
   // свайп вбок — соседний альбом, как в Instagram: справа налево — следующий, слева направо — предыдущий.
   // Экран едет за пальцем; не дотянули — возвращается. На последнем альбоме свайп дальше закрывает истории.
+  // Соседние альбомы уже лежат за краями экрана (prev — слева, next — справа): тянешь всю ленту, сосед виден сразу.
+  // Доехала — меняем альбом и в тот же кадр возвращаем ленту в ноль: на месте уже нужный альбом, без дубля и рывка.
   const sx = useSharedValue(0);
   const toAlbum = (dir: 1 | -1) => {
-    if (dir > 0 && page + 1 >= items.length) return dismiss();
-    if (dir < 0 && page === 0) return;
     Haptics.selectionAsync().catch(() => {});
+    setSwiped(true);
     setPage((p) => p + dir);
     setFrame(0);
     setPaused(false);
   };
+  useLayoutEffect(() => {
+    sx.set(0);
+  }, [page, sx]);
   const swipe = usePanGesture({
     activeOffsetX: [-14, 14],
     failOffsetY: [-18, 18],
@@ -191,13 +199,10 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
         scheduleOnRN(setPaused, false);
         return;
       }
-      // старый альбом уезжает за край, новый въезжает с другой стороны
+      // лента доезжает до соседа (он уже на экране), потом альбом меняется — без второго въезда
       sx.set(
-        withTiming(-dir * width, { duration: 200, easing: Easing.in(Easing.quad) }, (fin) => {
-          if (!fin) return;
-          scheduleOnRN(toAlbum, dir as 1 | -1);
-          sx.set(dir * width);
-          sx.set(withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) }));
+        withTiming(-dir * width, { duration: 240, easing: Easing.out(Easing.cubic) }, (fin) => {
+          if (fin) scheduleOnRN(toAlbum, dir as 1 | -1);
         }),
       );
     },
@@ -226,9 +231,12 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
 
   // экран сначала просто едет за пальцем; уменьшаться и скругляться начинает чуть позже и плавно
   const sheet = useAnimatedStyle(() => ({
-    transform: [{ translateX: sx.value }, { translateY: drag.value }, { scale: interpolate(drag.value, [0, 60, 400], [1, 1, 0.92], Extrapolation.CLAMP) }],
-    borderRadius: interpolate(Math.max(drag.value, Math.abs(sx.value) / 2), [0, 60, 200], [0, 0, 24], Extrapolation.CLAMP),
+    transform: [{ translateY: drag.value }, { scale: interpolate(drag.value, [0, 60, 400], [1, 1, 0.92], Extrapolation.CLAMP) }],
+    borderRadius: interpolate(drag.value, [0, 60, 200], [0, 0, 24], Extrapolation.CLAMP),
   }));
+  const row = useAnimatedStyle(() => ({ transform: [{ translateX: sx.value }] }));
+  const prevItem = page > 0 ? items[page - 1] : null;
+  const nextItem = page + 1 < items.length ? items[page + 1] : null;
   const bg = useAnimatedStyle(() => ({ opacity: interpolate(drag.value, [0, 400], [1, 0.35], Extrapolation.CLAMP) }));
   // на паузе подписи и кнопки прячутся — видно только фото
   // при удержании подписи и кнопки мягко растворяются (и так же мягко возвращаются)
@@ -242,10 +250,14 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
       <GestureDetector gesture={gestures}>
         <Animated.View style={[s.screen, sheet]}>
           <StatusBar style="light" />
+          <Animated.View style={[StyleSheet.absoluteFill, row]}>
+          {prevItem ? <AlbumPeek item={prevItem} left={-width} /> : null}
+          {nextItem ? <AlbumPeek item={nextItem} left={width} /> : null}
+          <View style={StyleSheet.absoluteFill}>
 
           {/* кадр: обложка во весь экран или фото карточкой на размытой обложке */}
           {f === 'cover' ? (
-            <Cover key={`${item.id}-cover`} photo={item.photo} paused={paused} />
+            <Cover key={`${item.id}-cover`} photo={item.photo} paused={paused} fade={!swiped} />
           ) : (
             <PhotoCard key={`${item.id}-${frame}`} cover={item.photo} photo={f} i={frame} width={width} />
           )}
@@ -276,7 +288,7 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
             <View pointerEvents="none" style={{ alignItems: 'center', gap: 10 }}>
               {f === 'cover' ? (
                 <>
-                  <OverlapTitle key={item.id} text={item.title} size={titleSize} maxWidth={width - 44} enter />
+                  <OverlapTitle key={item.id} text={item.title} size={titleSize} maxWidth={width - 44} enter={!swiped} />
                   <Text style={s.desc}>{item.desc}</Text>
                 </>
               ) : (
@@ -298,14 +310,39 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
               </Glass>
             </Tap>
           </Animated.View>
+          </View>
+          </Animated.View>
         </Animated.View>
       </GestureDetector>
     </View>
   );
 }
 
+/**
+ * Соседний альбом за краем экрана — так же, как его первый кадр (обложка, затемнения, название и описание),
+ * чтобы при свайпе его было видно сразу, а после перехода ничего не прыгало.
+ */
+function AlbumPeek({ item, left }: { item: Suggestion; left: number }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const titleSize = Math.max(34, Math.min(48, Math.round(width * 0.112)));
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { left, right: -left }]}>
+      <Image source={pic(item.photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <LinearGradient colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']} locations={[0, 0.25]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.65)']} locations={[0.55, 1]} style={StyleSheet.absoluteFill} />
+      <View style={[s.bottom, { bottom: insets.bottom + 16 + 58 + 22 }]}>
+        <View style={{ alignItems: 'center', gap: 10 }}>
+          <OverlapTitle text={item.title} size={titleSize} maxWidth={width - 44} />
+          <Text style={s.desc}>{item.desc}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 /** Обложка во весь экран, медленно приближается (на паузе — замирает). */
-function Cover({ photo, paused }: { photo: Pic; paused: boolean }) {
+function Cover({ photo, paused, fade = true }: { photo: Pic; paused: boolean; fade?: boolean }) {
   const zoom = useSharedValue(1);
   useEffect(() => {
     if (paused) return cancelAnimation(zoom);
@@ -313,7 +350,7 @@ function Cover({ photo, paused }: { photo: Pic; paused: boolean }) {
   }, [paused, zoom]);
   const a = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
   return (
-    <Animated.View entering={FadeIn.duration(220)} style={[StyleSheet.absoluteFill, a]}>
+    <Animated.View entering={fade ? FadeIn.duration(220) : undefined} style={[StyleSheet.absoluteFill, a]}>
       <Image source={pic(photo)} style={StyleSheet.absoluteFill} contentFit="cover" />
     </Animated.View>
   );
