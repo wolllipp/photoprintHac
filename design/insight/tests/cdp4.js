@@ -1,7 +1,7 @@
 // Новый пользователь: идёт только по подсказкам, от первого экрана до результата
 const {spawn}=require('child_process');const fs=require('fs'),path=require('path');
-const CHROME='C:/Program Files/Google/Chrome/Application/chrome.exe';
-const URLF='file:///D:/hackathons/Great%20stone%20hackathon/photoprintHac/design/insight/glass.html';
+const CHROME=require('./env').chrome();
+const URLF=require('./env').page('glass.html');
 const OUT=process.argv[2];fs.mkdirSync(OUT,{recursive:true});
 const ch=spawn(CHROME,['--headless=new','--remote-debugging-port=9777','--no-first-run','--user-data-dir='+path.join(OUT,'prof4'),'about:blank'],{stdio:'ignore'});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));

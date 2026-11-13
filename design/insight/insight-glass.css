@@ -84,7 +84,7 @@ h1 { font-size: 30px; line-height: 1.2; letter-spacing: -.025em; }
 .eff-col b { font-size: 24px; letter-spacing: -.025em; }
 .closed-line { font-size: 15px; letter-spacing: -.01em; }
 .btn, .seg button, .tb-btn, .toast-act, .nav-count, .goal-count { font-family: var(--font); font-weight: 600; }
-.brand-sub { font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0; }
+.brand-sub { font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: 0; }
 #nav a { font-weight: 600; }
 @media (max-width: 480px) { h1 { font-size: 24px; } .home-head h1 { font-size: 26px; } .big { font-size: 40px; } .closed-sheet .big { font-size: 44px; } .eff-col b { font-size: 19px; } .kpi-val { font-size: 21px; } }
 .dev-val small, .eff-col small, .eff-col span { font-family: var(--font); font-weight: 500; letter-spacing: 0; }

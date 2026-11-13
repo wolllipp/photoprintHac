@@ -29,7 +29,9 @@ const P_SHARE = [0.21, 0.27, 0.12, 0.16, 0.24]; // книги 60% (35/45/20), п
 const IS_BOOK = [1, 1, 1, 0, 0];
 const LINES = ["Ricoh", "Fuji Frontier", "Noritsu"];
 const LINE_OF = [0, 0, 2, 1, 0];
-const LINE_CAP = [20000, 10000, 5000].map(v => v / 100); // изделий в день, масштаб 1:100
+// изделий в день, масштаб 1:100. Noritsu печатает только Premium (≈ 2–5 книг в день в масштабе): при 5000 загрузка была 2–7 %
+// даже в пик, это читалось как ошибка. 800 даёт ≈ 20 % вне сезона и ≈ 60 % в пиковую неделю, ниже порога дефицита 90 % даже при росте +20 %
+const LINE_CAP = [20000, 10000, 800].map(v => v / 100);
 const SHIFTS = ["День", "Ночь"];
 const CHANNELS = ["Сайт", "Приложение", "Instagram"];
 const OCCASIONS = ["Семья", "Путешествие", "Свадьба", "Выпускной", "Дети"];
@@ -76,6 +78,11 @@ for (let i = 1; i <= 700; i++) customers.push([cid(i), -Math.floor(rnd() * 400) 
 let nextCustomer = 701;
 const ordered = []; // индексы клиентов, у которых уже были заказы
 const lastOrderOf = new Map();
+// Брак набегает по ожидаемой доле, а не случайно: в масштабе 1:100 на линии всего несколько бракованных изделий в неделю,
+// и случайный брак давал недели, где Ricoh после смены партии лучше нормы, а другие линии — хуже. Счётчик идёт отдельно
+// для линии, смены и вида продукта, поэтому недельная доля брака близка к заданной вероятности.
+const defectAcc = new Map();
+const defectsOf = (key, expected, max) => { const a = (defectAcc.get(key) ?? 0.5) + expected, n = Math.min(max, Math.floor(a)); defectAcc.set(key, a - n); return n; };
 
 /* ---------- Заказы (ERP) и оплаты (1С) ---------- */
 const orders = []; // см. ORDER_COLS
@@ -110,11 +117,16 @@ for (let d = 0; d < DAYS; d++) {
     const discount = r2(list * discRate), cost = r2(list * COST_RATE[p]);
     // брак: Ricoh, книги Lite и Classic, ночная смена, после смены партии
     const ricohNightBooks = line === 0 && shift === 1 && book && d >= BATCH;
-    const defects = book ? (rnd() < (ricohNightBooks ? 0.07 : p === 2 ? 0.015 : 0.016) ? 1 : 0) : binom(units, line === 0 && shift === 1 && d >= BATCH ? 0.02 : 0.008);
+    const pDefect = book ? (ricohNightBooks ? 0.07 : p === 2 ? 0.015 : 0.016) : line === 0 && shift === 1 && d >= BATCH ? 0.02 : 0.008;
+    // Случайные числа расходуются ровно как в прежней версии (там брак был случайным), поэтому заказы, клиенты, линии и HR не меняются
+    const rndDefects = book ? (rnd() < pDefect ? 1 : 0) : binom(units, pDefect);
+    const defects = defectsOf(`${line}|${shift}|${book}`, book ? pDefect : units * pDefect, units);
     // сроки: оплачено до 12:00 — отгрузка в тот же день, иначе на следующий
     const promise = hour < 12 ? d : d + 1;
-    const lateP = (SEASON(d) ? 0.07 : 0.03) + (defects && book ? 0.55 : 0) + (ricohNightBooks ? 0.05 : 0);
-    const late = rnd() < lateP ? (rnd() < 0.2 ? 2 : 1) : 0;
+    const lateBase = (SEASON(d) ? 0.07 : 0.03) + (ricohNightBooks ? 0.05 : 0);
+    const lateP = lateBase + (defects && book ? 0.55 : 0), lateP0 = lateBase + (rndDefects && book ? 0.55 : 0);
+    const u1 = rnd(), u2 = u1 < lateP0 ? rnd() : u1 / lateP; // второй вызов — только там, где он был раньше
+    const late = u1 < lateP ? (u2 < 0.2 ? 2 : 1) : 0;
     const ship = promise + late;
     const shipHour = ship === d ? Math.min(22, Math.max(hour + 3, 14) + Math.floor(rnd() * 5)) : 10 + Math.floor(rnd() * 9);
     const moder = Math.min(600, Math.round(Math.exp(normal(Math.log(SEASON(d) ? 45 : 25), 0.55))));
