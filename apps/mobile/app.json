@@ -46,6 +46,12 @@
           "savePhotosPermission": "picPac сохранит готовые страницы книги в ваши фото, если вы попросите.",
           "isAccessMediaLocationEnabled": false
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "picPac запишет вашу фразу, чтобы понять, какую книгу собрать или что поправить. Запись распознаёт сервер picPac и сразу удаляет — она никуда не передаётся."
+        }
       ]
     ],
     "experiments": {

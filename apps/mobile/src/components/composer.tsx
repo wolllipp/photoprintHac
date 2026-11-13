@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui';
 import { VoiceGlow } from '@/components/voiceGlow';
+import { speechToText } from '@/api/book';
+import { useVoice } from '@/data/voice';
 import { features } from '@/data/features';
 import { duration } from '@/motion';
 import { colors, fonts } from '@/theme';
@@ -23,7 +25,6 @@ export function Composer({
   ref,
   placeholder,
   hints,
-  heard: demoHeard,
   busy,
   processing,
   startListening,
@@ -35,8 +36,8 @@ export function Composer({
   ref?: Ref<ComposerHandle>;
   placeholder: string;
   hints?: Hint[];
-  /** что «услышит» диктовка в демо */
-  heard: string;
+  /** раньше — заготовленная фраза для демо-диктовки; теперь голос распознаётся по-настоящему, не используется */
+  heard?: string;
   busy?: boolean;
   /** ИИ думает — свет внизу ходит лучом */
   processing?: boolean;
@@ -48,9 +49,13 @@ export function Composer({
 }) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
-  // голос — только когда есть распознавание речи (features.voice); иначе сразу поле для текста
-  const [listening, setListening] = useState(Boolean(startListening) && features.voice);
-  const [heard, setHeard] = useState('');
+  // голос (features.voice): телефон записывает, наш сервер распознаёт (data/voice.ts, POST /speech)
+  const voice = useVoice();
+  const [listening, setListening] = useState(false);
+  // запись ушла на сервер — ждём текст
+  const [recognizing, setRecognizing] = useState(false);
+  // почему не вышло (нет доступа к микрофону, не расслышали, нет связи) — коротко над полем
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   useImperativeHandle(ref, () => ({ blur: () => input.current?.blur(), focus: () => input.current?.focus() }));
 
@@ -67,30 +72,16 @@ export function Composer({
     };
   }, [autoFocus, startListening]);
 
-  // диктовка: слова появляются по ходу речи, свет внизу поднимается с каждым словом
+  // свет внизу поднимается с настоящей громкостью голоса (уровень с микрофона)
   const level = useSharedValue(0);
   useEffect(() => {
-    if (!listening) {
-      level.value = withTiming(0, { duration: 300 });
-      return;
-    }
-    const words = demoHeard.split(' ');
-    let i = 0;
-    const t = setInterval(() => {
-      i += 1;
-      setHeard(words.slice(0, i).join(' '));
-      if (i >= words.length) clearInterval(t);
-    }, 260);
-    // shortcut: громкость имитируется; в продукте — уровень с микрофона (expo-audio, metering)
-    const m = setInterval(() => {
-      const speaking = i < words.length;
-      level.value = withTiming(speaking ? 0.35 + Math.random() * 0.65 : 0.06 + Math.random() * 0.06, { duration: 110 });
-    }, 110);
-    return () => {
-      clearInterval(t);
-      clearInterval(m);
-    };
-  }, [listening, level, demoHeard]);
+    level.value = withTiming(listening ? 0.06 + voice.level * 0.94 : 0, { duration: listening ? 110 : 300 });
+  }, [listening, voice.level, level]);
+  useEffect(() => {
+    if (!voiceNote) return;
+    const t = setTimeout(() => setVoiceNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [voiceNote]);
 
   const send = (v: string) => {
     if (!v.trim() || busy) return;
@@ -99,24 +90,49 @@ export function Composer({
     setText('');
     input.current?.blur();
   };
-  const startVoice = () => {
+  const startVoice = async () => {
+    if (listening || recognizing) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     input.current?.blur();
-    setHeard('');
+    setVoiceNote(null);
+    const err = await voice.start();
+    if (err) return setVoiceNote(err);
     setListening(true);
   };
-  const stopVoice = (keep: boolean) => {
+  // ✓ — распознать и поставить текст в поле (можно поправить и отправить); ✕ — забыть запись
+  const stopVoice = async (keep: boolean) => {
     setListening(false);
-    if (keep && heard) send(heard);
+    const uri = await voice.stop().catch(() => null);
+    if (!keep || !uri) return;
+    setRecognizing(true);
+    try {
+      const said = await speechToText(uri);
+      if (!said) return setVoiceNote('Не расслышали — попробуйте ещё раз, ближе к телефону');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setText((t) => (t.trim() ? `${t.trim()} ${said}` : said));
+      setTimeout(() => input.current?.focus(), 80);
+    } catch {
+      setVoiceNote('Не получилось распознать — проверьте связь и попробуйте ещё раз');
+    } finally {
+      setRecognizing(false);
+    }
   };
+  // окно открыли с микрофона — сразу слушаем
+  const started = useRef(false);
+  useEffect(() => {
+    if (!startListening || !features.voice || started.current) return;
+    started.current = true;
+    void startVoice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startListening]);
 
   return (
     <>
       {/* свет снизу: поднимается с голосом, пока ИИ думает — ходит лучом */}
-      <VoiceGlow active={listening} processing={!!processing && !listening} level={level} />
+      <VoiceGlow active={listening} processing={(!!processing || recognizing) && !listening} level={level} />
 
       <Animated.View style={[s.wrap, lift]}>
-        {hints?.length && !listening ? (
+        {hints?.length && !listening && !recognizing ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.hintsRow} contentContainerStyle={s.hints}>
             {hints.map((e) => (
               <Tap key={e.label} style={s.hint} onPress={() => send(e.text)} accessibilityRole="button" accessibilityLabel={`Пример: ${e.text}`}>
@@ -125,18 +141,23 @@ export function Composer({
             ))}
           </ScrollView>
         ) : null}
-        <View style={[s.box, listening && s.boxVoice]}>
-          {listening ? (
+        {voiceNote ? (
+          <Animated.Text entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={s.voiceNote} accessibilityLiveRegion="polite">
+            {voiceNote}
+          </Animated.Text>
+        ) : null}
+        <View style={[s.box, (listening || recognizing) && s.boxVoice]}>
+          {listening || recognizing ? (
             <Animated.View key="wave" entering={FadeIn.duration(duration.fast)} exiting={FadeOut.duration(duration.quick)} style={{ gap: 18 }}>
-              <Text style={[s.heard, !heard && { color: colors.mut2 }]} accessibilityLiveRegion="polite">
-                {heard || 'Слушаю…'}
+              <Text style={[s.heard, { color: colors.mut }]} accessibilityLiveRegion="polite">
+                {recognizing ? 'Распознаю…' : 'Слушаю… Скажите и нажмите ✓'}
               </Text>
               <View style={s.bar}>
-                <Tap style={s.ghost} onPress={() => stopVoice(false)} accessibilityRole="button" accessibilityLabel="Отменить запись">
+                <Tap style={[s.ghost, recognizing && { opacity: 0.35 }]} disabled={recognizing} onPress={() => stopVoice(false)} accessibilityRole="button" accessibilityLabel="Отменить запись">
                   <XIcon size={18} color={colors.fg} weight="bold" />
                 </Tap>
-                <Timer />
-                <Tap style={s.send} onPress={() => stopVoice(true)} accessibilityRole="button" accessibilityLabel="Готово, отправить">
+                {recognizing ? <View style={{ flex: 1 }} /> : <Timer />}
+                <Tap style={[s.send, recognizing && { opacity: 0.35 }]} disabled={recognizing} onPress={() => stopVoice(true)} accessibilityRole="button" accessibilityLabel="Готово, распознать">
                   <CheckIcon size={18} color="#fff" weight="bold" />
                 </Tap>
               </View>
@@ -161,7 +182,7 @@ export function Composer({
                 ) : null}
                 <View style={{ flex: 1 }} />
                 {features.voice ? (
-                  <Tap style={s.ghostFlat} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Надиктовать">
+                  <Tap style={s.ghostFlat} onPress={() => void startVoice()} accessibilityRole="button" accessibilityLabel="Надиктовать">
                     <MicrophoneIcon size={20} color={colors.fg} />
                   </Tap>
                 ) : null}
@@ -170,7 +191,7 @@ export function Composer({
                     <ArrowUpIcon size={18} color="#fff" weight="bold" />
                   </Tap>
                 ) : (
-                  <Tap style={s.send} onPress={startVoice} accessibilityRole="button" accessibilityLabel="Голосовой режим">
+                  <Tap style={s.send} onPress={() => void startVoice()} accessibilityRole="button" accessibilityLabel="Голосовой режим">
                     <WaveformIcon size={18} color="#fff" weight="bold" />
                   </Tap>
                 )}
@@ -206,6 +227,7 @@ const s = StyleSheet.create({
   box: { backgroundColor: colors.card, borderRadius: 26, padding: 12, paddingBottom: 10 },
   boxVoice: { backgroundColor: 'transparent', paddingTop: 24 },
   input: { fontSize: 17, lineHeight: 23, fontFamily: fonts.medium, color: colors.fg, minHeight: 28, maxHeight: 120, padding: 0, paddingHorizontal: 4 },
+  voiceNote: { fontSize: 13.5, lineHeight: 18, fontFamily: fonts.medium, color: colors.peachInk, textAlign: 'center', marginBottom: 8, paddingHorizontal: 8 },
   heard: { fontSize: 22, lineHeight: 29, fontFamily: fonts.medium, letterSpacing: -0.3, color: colors.fg, textAlign: 'center', paddingHorizontal: 12, minHeight: 58 },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ghost: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },

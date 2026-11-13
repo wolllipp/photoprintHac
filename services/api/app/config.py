@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:7b-instruct"
     ollama_timeout_s: float = 20
+    # распознавание речи (app/api/speech.py): модель Whisper и папка для её файлов (пусто — storage/_models)
+    whisper_model: str = "small"
+    whisper_dir: str = ""
 
     @field_validator("jwt_secret")
     @classmethod

@@ -409,6 +409,17 @@ export function photoPalette(photo: string) {
   return p;
 }
 
+/**
+ * Голос → текст: запись с телефона распознаёт наш сервер (Whisper). Пустая строка — ничего не расслышали.
+ * Ошибка — нет связи или распознавание недоступно.
+ */
+export async function speechToText(uri: string) {
+  const form = new FormData();
+  form.append('file', await filePart(uri), fileName(uri, 0));
+  const res = await api.upload<{ text: string }>('/speech', form);
+  return res.text.trim();
+}
+
 /** Новое название книги (его меняют в редакторе, нажав на название). */
 export async function renameProject(projectId: string, title: string) {
   await api.patch(`/projects/${projectId}`, { title });

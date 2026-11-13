@@ -21,10 +21,11 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDi
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, setBookBg, type ServerPage } from '@/api/book';
+import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, setBookBg, speechToText, type ServerPage } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { DragUnit, FeedDrag } from '@/components/feedDrag';
+import { useVoice } from '@/data/voice';
 import { PageOrder } from '@/components/pageOrder';
 import { SizeEditor } from '@/components/sizeEditor';
 import { Slider } from '@/components/slider';
@@ -66,8 +67,6 @@ const POOL: PhotoName[] = ['city-sunset', 'night-window', 'roses', 'bouquet', 'c
 const count = (l: PageLayout) => (l === 'one' ? 1 : l === 'two' ? 2 : 3);
 /** Быстрые варианты под полем — чтобы не печатать. */
 const QUICK = ['Заменить фото', 'Сделать крупнее', 'Убрать фото', 'Убрать селфи', 'Больше пейзажей', 'Меньше людей', 'Другое фото этого дня', 'Четыре фото на странице'];
-/** Что «услышала» диктовка в демо (в продукте — распознавание речи в локальном контуре). */
-const HEARD = 'Убери это фото, лучше пейзаж';
 const GAP = 22;
 const DRAG_TIP_KEY = 'picpac.tip.dragPages';
 /** Название книги: на обложке помещается две строки. */
@@ -2008,39 +2007,41 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
     const t = setTimeout(() => input.current?.focus(), 40);
     return () => clearTimeout(t);
   }, [pin.text]);
-  // голос: вокруг поля проступает разноцветная подсветка и «дышит» с речью; слова появляются прямо в том же поле
-  // (поле не подменяется другим элементом — текст не прыгает); закончил говорить — подсветка гаснет
+  // голос: микрофон — запись (вокруг поля проступает подсветка и «дышит» с настоящей громкостью), ещё раз —
+  // распознать на нашем сервере (Whisper) и поставить текст в это же поле, его можно поправить
+  const rec = useVoice();
+  const [recognizing, setRecognizing] = useState(false);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const level = useSharedValue(0);
-  const voice = () => {
-    if (listening) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setText('');
-    setListening(true);
-  };
   useEffect(() => {
+    level.set(withTiming(listening ? 0.08 + rec.level * 0.92 : recognizing ? 0.3 : 0, { duration: listening ? 110 : 300 }));
+  }, [listening, recognizing, rec.level, level]);
+  const voice = async () => {
+    if (recognizing) return;
     if (!listening) {
-      level.set(withTiming(0, { duration: 300 }));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      input.current?.blur();
+      setVoiceNote(null);
+      const err = await rec.start();
+      if (err) return setVoiceNote(err);
+      setListening(true);
       return;
     }
-    const words = HEARD.split(' ');
-    let i = 0;
-    const t = setInterval(() => {
-      i += 1;
-      setText(words.slice(0, i).join(' '));
-      if (i >= words.length) {
-        clearInterval(t);
-        setTimeout(() => setListening(false), 700);
-      }
-    }, 280);
-    // shortcut: громкость имитируется; в продукте — уровень с микрофона
-    const m = setInterval(() => {
-      level.set(withTiming(i < words.length ? 0.35 + Math.random() * 0.65 : 0.08, { duration: 110 }));
-    }, 110);
-    return () => {
-      clearInterval(t);
-      clearInterval(m);
-    };
-  }, [listening, level]);
+    setListening(false);
+    const uri = await rec.stop().catch(() => null);
+    if (!uri) return;
+    setRecognizing(true);
+    try {
+      const said = await speechToText(uri);
+      if (!said) return setVoiceNote('Не расслышали — попробуйте ещё раз');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setText((t) => (t.trim() ? `${t.trim()} ${said}` : said).slice(0, NOTE_MAX));
+    } catch {
+      setVoiceNote('Не получилось распознать — проверьте связь');
+    } finally {
+      setRecognizing(false);
+    }
+  };
   return (
     <>
       <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
@@ -2052,7 +2053,7 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
             <Text style={s.sheetTitle}>Что сделать здесь?</Text>
             <Text style={s.sheetSub}>стр. {pin.page + 1}</Text>
           </View>
-          <VoiceField listening={listening} level={level}>
+          <VoiceField listening={listening || recognizing} level={level}>
               <TextInput
                 accessibilityLiveRegion="polite"
                 value={text}
@@ -2060,19 +2061,20 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
                 onSubmitEditing={() => onSave(text)}
                 ref={input}
                 maxLength={NOTE_MAX}
-                placeholder={listening ? 'Слушаю…' : 'Например: убери это фото'}
+                placeholder={listening ? 'Слушаю… нажмите микрофон, когда закончите' : recognizing ? 'Распознаю…' : 'Например: убери это фото'}
                 placeholderTextColor={colors.mut2}
                 returnKeyType="done"
                 style={s.input}
                 accessibilityLabel="Замечание к этому месту"
               />
-            {/* голос — когда будет распознавание речи (features.voice) */}
+            {/* голос: распознаёт наш сервер (features.voice) */}
             {features.voice ? (
-              <Tap style={[s.mic, listening && s.micOn]} onPress={voice} accessibilityRole="button" accessibilityLabel={listening ? 'Слушаю' : 'Сказать голосом'}>
-                <MicrophoneIcon size={18} color="#fff" weight="fill" />
+              <Tap style={[s.mic, listening && s.micOn, recognizing && { opacity: 0.5 }]} disabled={recognizing} onPress={() => void voice()} accessibilityRole="button" accessibilityLabel={listening ? 'Готово, распознать' : 'Сказать голосом'}>
+                {listening ? <CheckIcon size={18} color="#fff" weight="bold" /> : <MicrophoneIcon size={18} color="#fff" weight="fill" />}
               </Tap>
             ) : null}
           </VoiceField>
+          {voiceNote ? <Text style={s.colorWarn}>{voiceNote}</Text> : null}
           <Text style={s.quickLabel}>Поправить</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow} keyboardShouldPersistTaps="always">
             {QUICK.map((q) => (
