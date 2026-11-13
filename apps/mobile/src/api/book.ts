@@ -167,7 +167,9 @@ export type ServerPage = {
   slots?: { x: number; y: number; w: number; h: number }[];
 };
 /** Обложка: фото на лицевой стороне (адрес на телефоне или srv:id; нет — первое фото книги) и название на ней. */
-export type ServerCover = { photo?: string; back?: string; title: boolean };
+/** frontCrop / backCrop — кадр фото на стороне обложки (как у фото на страницах: центр, увеличение, пропорции). */
+export type CoverCrop = { cx: number; cy: number; z: number; a: number };
+export type ServerCover = { photo?: string; back?: string; title: boolean; frontCrop?: CoverCrop; backCrop?: CoverCrop };
 /** bg — фон страниц после сборки (белый, бежевый, тёмный); deco — украшения из вопросов перед сборкой. */
 export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover; bg?: PageBg; deco?: Deco; pack?: string };
 
@@ -310,7 +312,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { style?: { bg?: string; deco?: string; pack?: string } | null; cover?: { photo_id: string | null; back_photo_id?: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; stickers?: Sticker[] | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { style?: { bg?: string; deco?: string; pack?: string } | null; cover?: { photo_id: string | null; back_photo_id?: string | null; title: boolean; front_crop?: CoverCrop | null; back_crop?: CoverCrop | null } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; stickers?: Sticker[] | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -348,7 +350,7 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
   });
   const c = res.cover;
   const asPic = (pid?: string | null) => (pid ? (uriOfId.get(pid) ?? `srv:${pid}`) : undefined);
-  const cover = c ? { photo: asPic(c.photo_id), back: asPic(c.back_photo_id), title: c.title } : undefined;
+  const cover = c ? { photo: asPic(c.photo_id), back: asPic(c.back_photo_id), title: c.title, frontCrop: c.front_crop ?? undefined, backCrop: c.back_crop ?? undefined } : undefined;
   const st = res.style ?? undefined;
   const book: ServerBook = { projectId, title, pages, cover, bg: (st?.bg as PageBg | undefined) ?? undefined, deco: (st?.deco as Deco | undefined) ?? undefined, pack: st?.pack };
   books.set(projectId, book);
@@ -417,7 +419,7 @@ export async function renameProject(projectId: string, title: string) {
 export async function saveCover(projectId: string, cover: ServerCover) {
   const [id] = cover.photo ? await upload([cover.photo]) : [undefined];
   const [backId] = cover.back ? await upload([cover.back]) : [undefined];
-  await api.put(`/projects/${projectId}/cover`, { photo_id: id ?? null, back_photo_id: backId ?? null, title: cover.title });
+  await api.put(`/projects/${projectId}/cover`, { photo_id: id ?? null, back_photo_id: backId ?? null, title: cover.title, front_crop: cover.frontCrop ?? null, back_crop: cover.backCrop ?? null });
   const book = books.get(projectId);
   if (book) book.cover = cover;
 }

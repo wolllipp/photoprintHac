@@ -376,6 +376,9 @@ async def save_book(project_id: uuid.UUID, body: BookIn, user: User = Depends(cu
 class CoverIn(BaseModel):
     photo_id: uuid.UUID | None = None  # фото на лицевой стороне; нет — первое фото книги
     back_photo_id: uuid.UUID | None = None  # фото на задней стороне; нет — задняя сторона без фото
+    # кадр фото на стороне обложки, как у фото на страницах: центр cx, cy, увеличение z, пропорции a
+    front_crop: dict[str, float] | None = None
+    back_crop: dict[str, float] | None = None
     title: bool = True  # название книги на обложке
 
 
@@ -389,7 +392,8 @@ async def save_cover(project_id: uuid.UUID, body: CoverIn, user: User = Depends(
     if ids:
         await keep_photos(s, p, ids, user)
     p.cover = {"photo_id": str(body.photo_id) if body.photo_id else None,
-               "back_photo_id": str(body.back_photo_id) if body.back_photo_id else None, "title": body.title}
+               "back_photo_id": str(body.back_photo_id) if body.back_photo_id else None, "title": body.title,
+               "front_crop": body.front_crop, "back_crop": body.back_crop}
     await s.commit()
     return p.cover
 

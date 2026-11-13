@@ -190,12 +190,15 @@ export default function Review() {
   const mutate = (fn: (all: Page[]) => Page[]) => setBook((b) => fn([...(b ?? pages)]));
 
   // Обложка — отдельно от страниц, первой; не переставляется и не удаляется. Фото не выбрано — первое фото книги.
-  type Cover = { photo?: Pic; back?: Pic; title: boolean };
+  // frontCrop / backCrop — кадр фото на стороне обложки («Подвинуть и обрезать», как у фото на страницах)
+  type Cover = { photo?: Pic; back?: Pic; title: boolean; frontCrop?: Crop; backCrop?: Crop };
+  // какую сторону обложки сейчас кадрируют
+  const [coverCrop, setCoverCrop] = useState<'front' | 'back' | null>(null);
   const [coverEdit, setCoverEdit] = useState<Cover | null>(null);
   const cover: Cover = coverEdit ?? (fromServer?.cover as Cover | undefined) ?? { title: true };
   const [coverOpen, setCoverOpen] = useState(false);
   const pushCover = (c: Cover) => {
-    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: c.photo ? String(c.photo) : undefined, back: c.back ? String(c.back) : undefined, title: c.title }).catch(() => {});
+    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: c.photo ? String(c.photo) : undefined, back: c.back ? String(c.back) : undefined, title: c.title, frontCrop: c.frontCrop, backCrop: c.backCrop }).catch(() => {});
   };
   // фон страниц: из вопросов перед сборкой (сервер), меняется в редакторе для всей книги
   const [bgEdit, setBgEdit] = useState<PageBg | null>(null);
@@ -848,7 +851,7 @@ export default function Review() {
             <Text style={s.pageNum}>Обложка</Text>
           </View>
           <Tap onPress={() => setCoverOpen(true)} accessibilityRole="button" accessibilityLabel="Обложка. Нажмите, чтобы выбрать фото и надпись">
-            <CoverView photo={front} back={cover.back} title={cover.title ? title : undefined} w={pageW} pageAspect={pageW / pageH} />
+            <CoverView photo={front} back={cover.back} frontCrop={cover.frontCrop} backCrop={cover.backCrop} title={cover.title ? title : undefined} w={pageW} pageAspect={pageW / pageH} />
           </Tap>
         </View>
 
@@ -1101,15 +1104,20 @@ export default function Review() {
           title={title}
           photos={[...new Set(pages.flatMap((p) => p.photos).filter(Boolean))]}
           bottom={insets.bottom}
-          onPick={(photo) => saveCoverNow({ ...cover, photo })}
+          // другое фото — его кадр начинается заново
+          onPick={(photo) => saveCoverNow({ ...cover, photo, frontCrop: undefined })}
+          onCrop={(side) => {
+            setCoverOpen(false);
+            setCoverCrop(side);
+          }}
           onGallery={async () => {
             const picked = await pickPhotos([], { multiple: false });
-            if (picked?.fresh[0]) saveCoverNow({ ...cover, photo: picked.fresh[0] });
+            if (picked?.fresh[0]) saveCoverNow({ ...cover, photo: picked.fresh[0], frontCrop: undefined });
           }}
-          onBack={(p) => saveCoverNow({ ...cover, back: p })}
+          onBack={(p) => saveCoverNow({ ...cover, back: p, backCrop: undefined })}
           onBackGallery={async () => {
             const picked = await pickPhotos([], { multiple: false });
-            if (picked?.fresh[0]) saveCoverNow({ ...cover, back: picked.fresh[0] });
+            if (picked?.fresh[0]) saveCoverNow({ ...cover, back: picked.fresh[0], backCrop: undefined });
           }}
           onTitle={(on) => saveCoverNow({ ...cover, title: on })}
           onClose={() => setCoverOpen(false)}
@@ -1209,6 +1217,20 @@ export default function Review() {
           initial={pages[cropFor.page].crop?.[String(pages[cropFor.page].photos[cropFor.slot])]}
           onDone={saveCrop}
           onClose={() => setCropFor(null)}
+        />
+      ) : null}
+
+      {/* кадр фото на обложке — тот же редактор, что у фото на страницах; пропорции — одна сторона обложки */}
+      {coverCrop && (coverCrop === 'front' ? front : cover.back) ? (
+        <CropEditor
+          k={(coverCrop === 'front' ? front : cover.back) as Pic}
+          aspect={pageW / pageH}
+          initial={coverCrop === 'front' ? cover.frontCrop : cover.backCrop}
+          onDone={(c) => {
+            saveCoverNow(coverCrop === 'front' ? { ...cover, photo: front, frontCrop: c } : { ...cover, backCrop: c });
+            setCoverCrop(null);
+          }}
+          onClose={() => setCoverCrop(null)}
         />
       ) : null}
 
@@ -1524,18 +1546,20 @@ function CaptionView({ page, at, w, over }: { page: Page; at?: CaptionAt; w: num
  * Обложка разворотом, как её печатают: задняя сторона | корешок | лицевая. На лицевой — фото во всю сторону
  * и название внизу (если включено). pageAspect — ширина к высоте одной стороны (как у страниц книги).
  */
-function CoverView({ photo, back, title, w, pageAspect }: { photo?: Pic; back?: Pic; title?: string; w: number; pageAspect: number }) {
+function CoverView({ photo, back, frontCrop, backCrop, title, w, pageAspect }: { photo?: Pic; back?: Pic; frontCrop?: Crop; backCrop?: Crop; title?: string; w: number; pageAspect: number }) {
   const spine = 8;
   const side = (w - spine) / 2;
   const h = side / pageAspect;
+  // фото стороны: свой кадр («Подвинуть и обрезать»), если выставили, — иначе по центру
+  const shot = (k: Pic, crop?: Crop) => (crop ? <CroppedImage k={k} crop={crop} w={side} h={h} /> : <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />);
   return (
     <View style={[s.cover, { width: w, height: h }]}>
-      <View style={[s.coverBack, { width: side }]}>
-        {back ? <Image source={pic(back)} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Text style={s.coverBackText}>задняя сторона</Text>}
+      <View style={[s.coverBack, { width: side, overflow: 'hidden' }]}>
+        {back ? shot(back, backCrop) : <Text style={s.coverBackText}>задняя сторона</Text>}
       </View>
       <View style={[s.coverSpine, { width: spine }]} />
       <View style={{ width: side, height: h, overflow: 'hidden' }}>
-        {photo ? <Image source={pic(photo)} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card2 }]} />}
+        {photo ? shot(photo, frontCrop) : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card2 }]} />}
         {title ? (
           <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)']} style={s.coverShade}>
             <Text style={s.coverTitle} numberOfLines={2}>{title}</Text>
@@ -1577,7 +1601,17 @@ function CoverPicks({ selected, photos, empty, onPick, onGallery }: { selected?:
 }
 
 /** Обложка: фото на лицевой и задней стороне (из книги или из галереи) и название на лицевой. Меняется сразу. */
-function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, onBack, onBackGallery, onTitle, onClose }: { cover: { photo?: Pic; back?: Pic; title: boolean }; front?: Pic; title: string; photos: Pic[]; bottom: number; onPick: (p: Pic) => void; onGallery: () => Promise<void>; onBack: (p: Pic | undefined) => void; onBackGallery: () => Promise<void>; onTitle: (on: boolean) => void; onClose: () => void }) {
+function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, onBack, onBackGallery, onCrop, onTitle, onClose }: { cover: { photo?: Pic; back?: Pic; title: boolean }; front?: Pic; title: string; photos: Pic[]; bottom: number; onPick: (p: Pic) => void; onGallery: () => Promise<void>; onBack: (p: Pic | undefined) => void; onBackGallery: () => Promise<void>; onCrop: (side: 'front' | 'back') => void; onTitle: (on: boolean) => void; onClose: () => void }) {
+  // заголовок стороны и справа — «Подвинуть и обрезать» её фото (у пустой задней стороны — нечего)
+  const head = (label: string, side: 'front' | 'back', has: boolean) => (
+    <View style={s.frameHead}>
+      <Text style={s.menuLabel}>{label}</Text>
+      <Tap style={[s.frameAll, !has && { opacity: 0.4 }]} disabled={!has} onPress={() => onCrop(side)} accessibilityRole="button" accessibilityLabel={`${label}: подвинуть и обрезать фото`}>
+        <CropIcon size={13} color={colors.fg} weight="bold" />
+        <Text style={s.frameAllText}>Подвинуть и обрезать</Text>
+      </Tap>
+    </View>
+  );
   return (
     <>
       <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
@@ -1590,9 +1624,9 @@ function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, on
             <XIcon size={16} color={colors.fg} weight="bold" />
           </Tap>
         </View>
-        <Text style={s.menuLabel}>Лицевая сторона</Text>
+        {head('Лицевая сторона', 'front', !!front)}
         <CoverPicks selected={front} photos={photos} onPick={(p) => p && onPick(p)} onGallery={onGallery} />
-        <Text style={s.menuLabel}>Задняя сторона</Text>
+        {head('Задняя сторона', 'back', !!cover.back)}
         <CoverPicks selected={cover.back} photos={photos} empty onPick={onBack} onGallery={onBackGallery} />
         <View style={s.coverTitleRow}>
           <View style={{ flex: 1 }}>

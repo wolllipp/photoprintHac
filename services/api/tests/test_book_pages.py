@@ -79,7 +79,10 @@ async def test_cover_saved_separately(client):
     r = await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "back_photo_id": ids[2], "title": False})
     assert r.status_code == 200, r.text
     cover = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]
-    assert cover == {"photo_id": ids[1], "back_photo_id": ids[2], "title": False}
+    assert cover == {"photo_id": ids[1], "back_photo_id": ids[2], "title": False, "front_crop": None, "back_crop": None}
+    crop = {"cx": 0.4, "cy": 0.5, "z": 1.6, "a": 0.97}
+    await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "title": True, "front_crop": crop})
+    assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]["front_crop"] == crop
     # задняя сторона снова пустая
     await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "title": False})
     assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]["back_photo_id"] is None
