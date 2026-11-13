@@ -375,6 +375,7 @@ async def save_book(project_id: uuid.UUID, body: BookIn, user: User = Depends(cu
 
 class CoverIn(BaseModel):
     photo_id: uuid.UUID | None = None  # фото на лицевой стороне; нет — первое фото книги
+    back_photo_id: uuid.UUID | None = None  # фото на задней стороне; нет — задняя сторона без фото
     title: bool = True  # название книги на обложке
 
 
@@ -384,9 +385,11 @@ async def save_cover(project_id: uuid.UUID, body: CoverIn, user: User = Depends(
     """Обложка — отдельно от страниц: её не переставляют и не удаляют."""
     p = await locked_owned_project(s, project_id, user)
     ensure_editable(p)
-    if body.photo_id:
-        await keep_photos(s, p, [body.photo_id], user)
-    p.cover = {"photo_id": str(body.photo_id) if body.photo_id else None, "title": body.title}
+    ids = [i for i in (body.photo_id, body.back_photo_id) if i]
+    if ids:
+        await keep_photos(s, p, ids, user)
+    p.cover = {"photo_id": str(body.photo_id) if body.photo_id else None,
+               "back_photo_id": str(body.back_photo_id) if body.back_photo_id else None, "title": body.title}
     await s.commit()
     return p.cover
 

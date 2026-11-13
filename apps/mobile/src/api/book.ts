@@ -167,7 +167,7 @@ export type ServerPage = {
   slots?: { x: number; y: number; w: number; h: number }[];
 };
 /** Обложка: фото на лицевой стороне (адрес на телефоне или srv:id; нет — первое фото книги) и название на ней. */
-export type ServerCover = { photo?: string; title: boolean };
+export type ServerCover = { photo?: string; back?: string; title: boolean };
 /** bg — фон страниц после сборки (белый, бежевый, тёмный); deco — украшения из вопросов перед сборкой. */
 export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover; bg?: PageBg; deco?: Deco; pack?: string };
 
@@ -310,7 +310,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { style?: { bg?: string; deco?: string; pack?: string } | null; cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; stickers?: Sticker[] | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { style?: { bg?: string; deco?: string; pack?: string } | null; cover?: { photo_id: string | null; back_photo_id?: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; frame?: string | null; stickers?: Sticker[] | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -347,7 +347,8 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
     };
   });
   const c = res.cover;
-  const cover = c ? { photo: c.photo_id ? (uriOfId.get(c.photo_id) ?? `srv:${c.photo_id}`) : undefined, title: c.title } : undefined;
+  const asPic = (pid?: string | null) => (pid ? (uriOfId.get(pid) ?? `srv:${pid}`) : undefined);
+  const cover = c ? { photo: asPic(c.photo_id), back: asPic(c.back_photo_id), title: c.title } : undefined;
   const st = res.style ?? undefined;
   const book: ServerBook = { projectId, title, pages, cover, bg: (st?.bg as PageBg | undefined) ?? undefined, deco: (st?.deco as Deco | undefined) ?? undefined, pack: st?.pack };
   books.set(projectId, book);
@@ -355,7 +356,8 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
 }
 
 /** Страница для сервера: фото → id (новые с телефона уже загружены), рамки макета или свои. */
-function pageBody(page: ServerPage, ids: string[]) {
+/** ids — по рамкам, как фото на странице: undefined — рамка пустая (фото ещё не выбрали), её не отправляем. */
+function pageBody(page: ServerPage, ids: (string | undefined)[]) {
   const slots = page.slots ?? layoutOf(page.layout).slots;
   return {
     template: page.layout,
@@ -366,7 +368,8 @@ function pageBody(page: ServerPage, ids: string[]) {
     stickers: page.stickers ?? [],
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
     // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
-    frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),
+    // каждое фото — в свою рамку (раньше пустые рамки выкидывали из списка, и фото съезжали в чужие)
+    frames: slots.flatMap((slot, i) => (ids[i] ? [{ photo_id: ids[i] as string, frame: { ...slot, ...page.crop?.[page.photos[i]] } }] : [])),
   };
 }
 
@@ -377,7 +380,8 @@ function pageBody(page: ServerPage, ids: string[]) {
 export async function savePages(projectId: string, pages: ServerPage[]) {
   const all = pages.flatMap((p) => p.photos.filter(Boolean));
   await upload(all);
-  const body = pages.map((p) => pageBody(p, p.photos.filter(Boolean).map((u) => (u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)!))));
+  const idOf = (u?: string) => (!u ? undefined : u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u));
+  const body = pages.map((p) => pageBody(p, p.photos.map(idOf)));
   await api.put(`/projects/${projectId}/pages`, { pages: body });
   const book = books.get(projectId);
   if (book) book.pages = pages;
@@ -412,14 +416,16 @@ export async function renameProject(projectId: string, title: string) {
 /** Обложка: фото на лицевой стороне и название на ней. */
 export async function saveCover(projectId: string, cover: ServerCover) {
   const [id] = cover.photo ? await upload([cover.photo]) : [undefined];
-  await api.put(`/projects/${projectId}/cover`, { photo_id: id ?? null, title: cover.title });
+  const [backId] = cover.back ? await upload([cover.back]) : [undefined];
+  await api.put(`/projects/${projectId}/cover`, { photo_id: id ?? null, back_photo_id: backId ?? null, title: cover.title });
   const book = books.get(projectId);
   if (book) book.cover = cover;
 }
 
 /** Сохранить правку страницы на сервере: новые фото с телефона сначала загружаются. Ошибку проглатываем — правка уже на экране. */
 export async function savePage(projectId: string, position: number, page: ServerPage) {
-  const ids = await upload(page.photos);
+  await upload(page.photos.filter(Boolean));
+  const ids = page.photos.map((u) => (!u ? undefined : u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)));
   // свои размеры фото, если человек их менял, — иначе рамки макета
   await api.put(`/projects/${projectId}/pages/${position}`, pageBody(page, ids));
   const book = books.get(projectId);

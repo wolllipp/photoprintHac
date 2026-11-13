@@ -190,12 +190,12 @@ export default function Review() {
   const mutate = (fn: (all: Page[]) => Page[]) => setBook((b) => fn([...(b ?? pages)]));
 
   // Обложка — отдельно от страниц, первой; не переставляется и не удаляется. Фото не выбрано — первое фото книги.
-  type Cover = { photo?: Pic; title: boolean };
+  type Cover = { photo?: Pic; back?: Pic; title: boolean };
   const [coverEdit, setCoverEdit] = useState<Cover | null>(null);
   const cover: Cover = coverEdit ?? (fromServer?.cover as Cover | undefined) ?? { title: true };
   const [coverOpen, setCoverOpen] = useState(false);
   const pushCover = (c: Cover) => {
-    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: c.photo ? String(c.photo) : undefined, title: c.title }).catch(() => {});
+    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: c.photo ? String(c.photo) : undefined, back: c.back ? String(c.back) : undefined, title: c.title }).catch(() => {});
   };
   // фон страниц: из вопросов перед сборкой (сервер), меняется в редакторе для всей книги
   const [bgEdit, setBgEdit] = useState<PageBg | null>(null);
@@ -423,7 +423,14 @@ export default function Review() {
       return;
     }
     const p = pages[page];
-    editPage(page, { ...p, photos: p.photos.map((k, i) => (i === slot ? picked.fresh[0] : k)) }, 'Фото заменено');
+    // у пустой страницы (или пустой рамки) фото на этом месте ещё нет — список фото короче числа рамок:
+    // раньше заменяли «по месту в списке», и новое фото терялось. Ставим ровно в нажатую рамку.
+    const photos = Array.from({ length: Math.max(slotsOf(p.layout), p.photos.length) }, (_, i) => p.photos[i]);
+    const had = !!photos[slot];
+    photos[slot] = picked.fresh[0];
+    // пустые места в конце не храним; дырки в середине — пустые рамки (их подсветит проверка перед заказом)
+    while (photos.length && !photos[photos.length - 1]) photos.pop();
+    editPage(page, { ...p, photos: photos as Pic[] }, had ? 'Фото заменено' : 'Фото добавлено');
   };
   const removePhoto = () => {
     if (!menu) return;
@@ -841,7 +848,7 @@ export default function Review() {
             <Text style={s.pageNum}>Обложка</Text>
           </View>
           <Tap onPress={() => setCoverOpen(true)} accessibilityRole="button" accessibilityLabel="Обложка. Нажмите, чтобы выбрать фото и надпись">
-            <CoverView photo={front} title={cover.title ? title : undefined} w={pageW} pageAspect={pageW / pageH} />
+            <CoverView photo={front} back={cover.back} title={cover.title ? title : undefined} w={pageW} pageAspect={pageW / pageH} />
           </Tap>
         </View>
 
@@ -1098,6 +1105,11 @@ export default function Review() {
           onGallery={async () => {
             const picked = await pickPhotos([], { multiple: false });
             if (picked?.fresh[0]) saveCoverNow({ ...cover, photo: picked.fresh[0] });
+          }}
+          onBack={(p) => saveCoverNow({ ...cover, back: p })}
+          onBackGallery={async () => {
+            const picked = await pickPhotos([], { multiple: false });
+            if (picked?.fresh[0]) saveCoverNow({ ...cover, back: picked.fresh[0] });
           }}
           onTitle={(on) => saveCoverNow({ ...cover, title: on })}
           onClose={() => setCoverOpen(false)}
@@ -1377,7 +1389,7 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
         </View>
 
         <View style={s.menuRow}>
-          <MenuBtn icon={<ImagesIcon size={22} color={colors.fg} weight="bold" />} label="Заменить из галереи" onPress={onReplace} />
+          <MenuBtn icon={<ImagesIcon size={22} color={colors.fg} weight="bold" />} label={k ? 'Заменить из галереи' : 'Добавить фото'} onPress={onReplace} />
           <MenuBtn icon={<CropIcon size={22} color={k ? colors.fg : colors.mut2} weight="bold" />} label="Подвинуть и обрезать" onPress={onCrop} off={!k} />
           <MenuBtn icon={<MinusCircleIcon size={22} color={n === 1 ? colors.mut2 : colors.fg} weight="bold" />} label="Убрать фото" onPress={onRemove} off={n === 1} />
           <MenuBtn icon={<ChatCircleTextIcon size={22} color={colors.fg} weight="bold" />} label="ИИ: исправить или улучшить" onPress={onComment} />
@@ -1512,14 +1524,14 @@ function CaptionView({ page, at, w, over }: { page: Page; at?: CaptionAt; w: num
  * Обложка разворотом, как её печатают: задняя сторона | корешок | лицевая. На лицевой — фото во всю сторону
  * и название внизу (если включено). pageAspect — ширина к высоте одной стороны (как у страниц книги).
  */
-function CoverView({ photo, title, w, pageAspect }: { photo?: Pic; title?: string; w: number; pageAspect: number }) {
+function CoverView({ photo, back, title, w, pageAspect }: { photo?: Pic; back?: Pic; title?: string; w: number; pageAspect: number }) {
   const spine = 8;
   const side = (w - spine) / 2;
   const h = side / pageAspect;
   return (
     <View style={[s.cover, { width: w, height: h }]}>
       <View style={[s.coverBack, { width: side }]}>
-        <Text style={s.coverBackText}>задняя сторона</Text>
+        {back ? <Image source={pic(back)} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Text style={s.coverBackText}>задняя сторона</Text>}
       </View>
       <View style={[s.coverSpine, { width: spine }]} />
       <View style={{ width: side, height: h, overflow: 'hidden' }}>
@@ -1534,8 +1546,38 @@ function CoverView({ photo, title, w, pageAspect }: { photo?: Pic; title?: strin
   );
 }
 
-/** Обложка: фото на лицевой стороне (из книги или из галереи) и название на ней. Меняется сразу. */
-function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, onTitle, onClose }: { cover: { photo?: Pic; title: boolean }; front?: Pic; title: string; photos: Pic[]; bottom: number; onPick: (p: Pic) => void; onGallery: () => Promise<void>; onTitle: (on: boolean) => void; onClose: () => void }) {
+/** Ряд выбора фото для стороны обложки: «Галерея», (у задней — «Пустая»), фото книги; выбранное — с галочкой. */
+function CoverPicks({ selected, photos, empty, onPick, onGallery }: { selected?: Pic; photos: Pic[]; empty?: boolean; onPick: (p: Pic | undefined) => void; onGallery: () => Promise<void> }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.coverPicks}>
+      <Tap style={[s.coverPick, s.coverGallery]} onPress={() => onGallery().catch(() => {})} accessibilityRole="button" accessibilityLabel="Выбрать из галереи">
+        <ImagesIcon size={22} color={colors.fg} weight="bold" />
+        <Text style={s.coverGalleryText}>Галерея</Text>
+      </Tap>
+      {empty ? (
+        <Tap style={[s.coverPick, s.coverGallery, !selected && s.coverPickOn]} onPress={() => selected && onPick(undefined)} accessibilityRole="radio" accessibilityState={{ selected: !selected }} accessibilityLabel="Без фото">
+          <Text style={s.coverGalleryText}>Пустая</Text>
+        </Tap>
+      ) : null}
+      {photos.map((k) => {
+        const on = k === selected;
+        return (
+          <Tap key={String(k)} style={[s.coverPick, on && s.coverPickOn]} onPress={() => !on && onPick(k)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel="Фото из книги">
+            <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
+            {on ? (
+              <View style={s.coverPickCheck}>
+                <CheckIcon size={12} color="#fff" weight="bold" />
+              </View>
+            ) : null}
+          </Tap>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+/** Обложка: фото на лицевой и задней стороне (из книги или из галереи) и название на лицевой. Меняется сразу. */
+function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, onBack, onBackGallery, onTitle, onClose }: { cover: { photo?: Pic; back?: Pic; title: boolean }; front?: Pic; title: string; photos: Pic[]; bottom: number; onPick: (p: Pic) => void; onGallery: () => Promise<void>; onBack: (p: Pic | undefined) => void; onBackGallery: () => Promise<void>; onTitle: (on: boolean) => void; onClose: () => void }) {
   return (
     <>
       <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
@@ -1548,26 +1590,10 @@ function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, on
             <XIcon size={16} color={colors.fg} weight="bold" />
           </Tap>
         </View>
-        <Text style={s.menuLabel}>Фото на лицевой стороне</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.coverPicks}>
-          <Tap style={[s.coverPick, s.coverGallery]} onPress={() => onGallery().catch(() => {})} accessibilityRole="button" accessibilityLabel="Выбрать из галереи">
-            <ImagesIcon size={22} color={colors.fg} weight="bold" />
-            <Text style={s.coverGalleryText}>Галерея</Text>
-          </Tap>
-          {photos.map((k) => {
-            const on = k === front;
-            return (
-              <Tap key={String(k)} style={[s.coverPick, on && s.coverPickOn]} onPress={() => !on && onPick(k)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel="Фото из книги">
-                <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
-                {on ? (
-                  <View style={s.coverPickCheck}>
-                    <CheckIcon size={12} color="#fff" weight="bold" />
-                  </View>
-                ) : null}
-              </Tap>
-            );
-          })}
-        </ScrollView>
+        <Text style={s.menuLabel}>Лицевая сторона</Text>
+        <CoverPicks selected={front} photos={photos} onPick={(p) => p && onPick(p)} onGallery={onGallery} />
+        <Text style={s.menuLabel}>Задняя сторона</Text>
+        <CoverPicks selected={cover.back} photos={photos} empty onPick={onBack} onGallery={onBackGallery} />
         <View style={s.coverTitleRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.coverTitleLabel}>Название на обложке</Text>

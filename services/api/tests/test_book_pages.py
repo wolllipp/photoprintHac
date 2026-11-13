@@ -76,10 +76,13 @@ async def test_rename_project(client):
 async def test_cover_saved_separately(client):
     gh, pid, ids = await _book(client)
     assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"] is None
-    r = await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "title": False})
+    r = await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "back_photo_id": ids[2], "title": False})
     assert r.status_code == 200, r.text
     cover = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]
-    assert cover == {"photo_id": ids[1], "title": False}
+    assert cover == {"photo_id": ids[1], "back_photo_id": ids[2], "title": False}
+    # задняя сторона снова пустая
+    await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "title": False})
+    assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]["back_photo_id"] is None
 
 
 async def test_build_options_pick_size_and_auto_background(client):
