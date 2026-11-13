@@ -27,6 +27,7 @@ class Result:
     data: dict = field(default_factory=dict)       # то, что видит модель (числа посчитаны кодом)
     sources: list[dict] = field(default_factory=list)  # {name, kind, detail}
     artifacts: list[dict] = field(default_factory=list)  # {kind: image|file, name, url, title}
+    files: list[dict] = field(default_factory=list)      # файлы, сохранённые в рабочую папку чата; пользователю не показываются, пока модель не вызовет show_files
     proposal: Proposal | None = None
     untrusted: bool = False  # тексты клиентов/коллег: модель получает их как данные
 

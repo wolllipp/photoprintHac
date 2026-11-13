@@ -49,4 +49,4 @@ def make_slides(ctx, name, html):
     data = dict(file=f"{base}.pptx", slides=info["slides"], files=made, summary=f"презентация из {info['slides']} слайдов")
     if issues:
         data |= dict(замечания_по_вёрстке=issues, подсказка="файл создан, но исправьте вёрстку и вызовите make_slides снова с тем же именем")
-    return Result(data=data, sources=[SRC["defects"]], artifacts=arts)
+    return Result(data=data, sources=[SRC["defects"]], files=arts)

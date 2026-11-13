@@ -21,7 +21,8 @@ SYSTEM = """Ты — универсальный ассистент, как ChatG
 7. Просьба «добавь», «поправь», «дополни» относится к уже созданному файлу: сначала list_files и read_file, затем правь тот же файл, а не создавай новый.
 8. Никогда не пиши, что файл создан или отправлен, и не придумывай ссылки: только после реального вызова. Готовые файлы показываются карточкой в чате. Если инструмента для просьбы нет, так и скажи.
 9. О системе Insight и о самом себе узнавай через search_docs, не придумывай. Не называй пользователю имена инструментов и служебных таблиц: говори по-человечески («данные по браку»).
-10. Над большой задачей работай по шагам: считай, строй графики, проверяй результат, затем собирай файл. Отвечай по-русски, коротко: вывод, затем 2–4 факта. /no_think"""
+10. Над большой задачей работай по шагам: считай, строй графики, проверяй результат, затем собирай файл. Отвечай по-русски, коротко: вывод, затем 2–4 факта.
+11. Созданные файлы (презентации, документы, таблицы, картинки из кода) пользователь не видит, пока ты не вызовешь show_files с их именами. Вызывай его один раз, когда файл окончательный: сначала доделай и исправь файл (замечания по вёрстке исправляй сразу), потом покажи, потом коротко ответь. «Готово» пиши только после show_files. Перед вызовом инструмента пиши, что собираешься сделать, а не что уже сделано. /no_think"""
 
 
 def _compact(data: dict) -> str:
@@ -55,10 +56,17 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
 
     sources: list[dict] = []
     evidence: list[str] = []
+    ready: dict[str, dict] = {}  # файлы отдаём один раз и в конце: повторная сборка того же файла заменяет прежнюю
     retries = 0
     for _ in range(MAX_STEPS):
+        streamed = False
         try:
-            m = llm.complete(msgs, schemas)
+            for part in llm.stream(msgs, schemas):  # текст уходит пользователю по мере генерации
+                if "delta" in part:
+                    streamed = True
+                    yield {"type": "delta", "text": part["delta"]}
+                else:
+                    m = part["message"]
         except Exception as e:  # модель недоступна
             hint = "Запустите Ollama: ollama serve." if "localhost" in llm.URL else "Проверьте доступ к API модели (ключ, баланс, лимиты)."
             yield {"type": "error", "text": f"Модель недоступна ({type(e).__name__}). {hint}"}
@@ -69,7 +77,9 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
         if not calls:
             answer = m["content"]
             problems = policy.review(answer, " ".join(evidence), used, question)
-            if problems and retries < 2:  # модель сама исправляет ответ, мы ничего не вырезаем
+            if problems and retries < 2:
+                if streamed and any(policy.is_text_problem(x) for x in problems):
+                    yield {"type": "reset"}  # в показанном тексте ошибка, модель пишет его заново; если не хватает только файла, текст остаётся вступлением  # модель сама исправляет ответ, мы ничего не вырезаем
                 retries += 1
                 msgs.append({"role": "assistant", "content": answer})
                 msgs.append({"role": "user", "content": "Проверка ответа нашла проблемы:\n- " + "\n- ".join(problems) +
@@ -111,17 +121,23 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
                     sources.append(s)
                 nums.append(sources.index(s) + 1)
             payload = {"sources": nums, **res.data}
+            if res.files:
+                for f in res.files:
+                    if not f["url"].startswith("/files/ws/"):
+                        workspace.adopt(sid, f)
+                payload["сохранено_в_рабочей_папке"] = [f["name"] for f in res.files]
+                payload["важно"] = "Пользователь этих файлов пока не видит. Когда файл окончательный, покажи нужные через show_files."
             body = _compact(payload)
             evidence.append(body)
             if res.untrusted:
                 body = policy.untrusted_block(body)
                 flags += [f for f in ["инструкция в данных"] if policy.injection(body) and f not in flags]
             yield {"type": "tool_result", "id": cid, "status": "ok", "summary": str(res.data.get("summary", ""))[:140]}
-            for a in res.artifacts:
+            for a in res.artifacts:  # графики и показанные файлы: уходят пользователю один раз, в конце
                 if not a["url"].startswith("/files/ws/"):
                     workspace.adopt(sid, a)
                     a = workspace.artifact(sid, a["name"], a.get("title", ""))
-                yield {"type": "artifact", **a}
+                ready[a["url"]] = a
             if res.proposal:
                 pid = policy.Pending.add(role, res.proposal, name)
                 yield {"type": "proposal", "id": pid, "title": res.proposal.title, "details": res.proposal.details, "risk": t.risk}
@@ -133,7 +149,7 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
     if not used and re.search(r"скача|где (файл|презентац)|дай (ее|её)\b", question, re.I) and "recent_files" in REGISTRY:
         res = REGISTRY["recent_files"].fn(ctx)  # просьба о файле: возвращаем карточки, а не пересказ
         for a in res.artifacts:
-            yield {"type": "artifact", **a}
+            ready[a["url"]] = a
         used.append("recent_files")
         answer = "Последние готовые файлы ниже, скачать можно из карточки. Ссылок наружу ассистент не создаёт."
     left = policy.review(answer, " ".join(evidence), used, question)  # что не удалось исправить за 2 попытки, показываем пользователю
@@ -141,6 +157,8 @@ def run(role: str, question: str, history: list[dict] | None = None, ctx: dict |
         flags += ["не исправлено: " + x.split(" ")[0] for x in left]
         if any(x.startswith("числа") for x in left):  # остальные замечания служебные, пользователю их не показываем (они в журнале)
             yield {"type": "notice", "text": "Не все числа в ответе подтверждены данными компании."}
+    for a in ready.values():  # готовые файлы появляются после ответа «готово» и всегда в окончательном виде
+        yield {"type": "artifact", **a}
     yield {"type": "answer", "text": answer, "sources": [{"n": i + 1, **s} for i, s in enumerate(sources)]}
     policy.Audit.add(role, question, used, denied, flags, answer, "llm")
     yield {"type": "done"}

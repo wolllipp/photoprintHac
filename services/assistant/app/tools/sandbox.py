@@ -6,6 +6,7 @@ import ast
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from .. import store as S
 from .. import workspace as W
@@ -83,7 +84,7 @@ def run_python(ctx, code):
     made = W.changed(sid, before)
     arts = [W.artifact(sid, n) for n in made]
     return Result(data=dict(printed=out.strip()[-3000:], result=result, files=made, summary=f"выполнено, файлов: {len(made)}" if made else "выполнено"),
-                  sources=[SRC["defects"]], artifacts=arts)
+                  sources=[SRC["defects"]], files=arts)
 
 
 @tool("list_files", "workspace", "Смотрю файлы чата", "Показать файлы в рабочей папке этого чата: созданные ранее графики, презентации, документы.",
@@ -101,3 +102,15 @@ def read_file(ctx, name):
         return Result(data=dict(name=name, content=W.read_text(ctx.get("session", ""), name), summary=f"открыт {name}"))
     except FileNotFoundError as e:
         return Result(data=dict(error=str(e), files=[x["name"] for x in W.listing(ctx.get("session", ""))]))
+
+
+@tool("show_files", "workspace", "Показываю файлы",
+      "Показать пользователю готовые файлы из рабочей папки чата карточками (презентацию, документ, таблицу, картинку). Созданные файлы пользователь не видит, пока ты их не покажешь. Вызывай один раз, когда файл окончательный, после всех правок; затем отвечай.",
+      {"names": {"type": "array", "items": {"type": "string"}, "description": "имена файлов из рабочей папки, например [\"deck.pptx\", \"deck.pdf\"]"}}, required=["names"])
+def show_files(ctx, names):
+    sid = ctx.get("session", "")
+    have = {f["name"] for f in W.listing(sid)}
+    ok = [n for n in dict.fromkeys(Path(x).name for x in names) if n in have]
+    miss = [Path(x).name for x in names if Path(x).name not in have]
+    arts = [W.artifact(sid, n) for n in ok]
+    return Result(data=dict(shown=ok, not_found=miss, summary=f"показано файлов: {len(ok)}"), artifacts=arts)

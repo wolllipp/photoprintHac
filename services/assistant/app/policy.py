@@ -113,6 +113,15 @@ _WANTS_FILE = re.compile(r"презентац|слайд|docx|xlsx|excel|word|с
 _MAKERS = {"make_slides", "run_python", "build_docx", "report_docx", "workbook_xlsx"}
 
 
+_FILE_NOTES = ("пользователь просил файл", "файл создан, но")
+
+
+def is_text_problem(problem: str) -> bool:
+    """Замечание к самому тексту (выдуманная ссылка, число без источника, ложное «выполнено»). Замечание про файл текст не портит:
+    сказанное остаётся вступлением в чате, и показанный текст не стираем."""
+    return not problem.startswith(_FILE_NOTES)
+
+
 def review(answer: str, evidence: str, used: list[str], question: str = "") -> list[str]:
     """Проблемы ответа, которые модель исправляет сама: выдуманные ссылки, действия без инструмента, числа без источника."""
     out = []
@@ -123,6 +132,8 @@ def review(answer: str, evidence: str, used: list[str], question: str = "") -> l
         out.append("в ответе сказано, что действие выполнено, но ни один инструмент не вызывался")
     if _WANTS_FILE.search(question) and not (_MAKERS & set(used)):
         out.append("пользователь просил файл (презентацию или документ), а файл не создан: презентацию сделай инструментом make_slides, документ или таблицу через run_python (по своим знаниям, если тема общая)")
+    elif _WANTS_FILE.search(question) and (_MAKERS & set(used)) and not ({"show_files", "recent_files"} & set(used)):
+        out.append("файл создан, но пользователь его не видит: покажи готовые файлы через show_files (имена из результата инструмента)")
     bad = ungrounded_numbers(answer, evidence) if evidence else []
     if bad:
         out.append("числа " + ", ".join(dict.fromkeys(bad)) + " не подтверждены данными")

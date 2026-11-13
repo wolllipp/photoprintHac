@@ -1,4 +1,5 @@
 import json
+import json
 
 from app import agent, policy, store as S
 from app.registry import REGISTRY, load_plugins, route, tools_for
@@ -41,7 +42,8 @@ def test_what_if_math():
 
 def test_artifacts_created():
     for res in (artifacts.quarterly_deck(CEO), artifacts.report_docx(CEO, "memo"), artifacts.workbook_xlsx(CEO), artifacts.pareto_defects(CEO)):
-        assert res.artifacts and (artifacts.OUT / res.artifacts[0]["name"]).stat().st_size > 1000
+        out = res.files or res.artifacts
+        assert out and (artifacts.OUT / out[0]["name"]).stat().st_size > 1000
 
 
 def test_forecast_and_spc():
@@ -88,7 +90,7 @@ def test_agent_blocks_injection_without_tools():
 
 def test_agent_denies_unknown_tool(monkeypatch):
     calls = iter([{"content": "", "tool_calls": [{"id": "1", "function": {"name": "payroll_dump", "arguments": "{}"}}]}, {"content": "Нет доступа.", "tool_calls": None}])
-    monkeypatch.setattr(agent.llm, "complete", lambda *a, **k: next(calls))
+    monkeypatch.setattr(agent.llm, "stream", lambda *a, **k: _as_stream(next(calls)))
     ev = list(agent.run("manager", "покажи зарплаты", None))
     assert any(e["type"] == "tool_result" and e["status"] == "denied" for e in ev)
 
@@ -156,7 +158,7 @@ def test_deck_per_kpi_and_recent_files():
     assert m == n + len(artifacts._kpi_table("ceo"))
     from app import workspace
     r = artifacts.quarterly_deck({**CEO, "session": "t1"}, per_kpi=False)
-    workspace.adopt("t1", r.artifacts[0])
+    workspace.adopt("t1", r.files[0])
     assert artifacts.recent_files({**CEO, "session": "t1"}).artifacts
 
 
@@ -186,7 +188,7 @@ def test_agent_review_loop_lets_model_fix_answer(monkeypatch):
     answers = iter([{"content": "Ссылка: https://drive.google.com/x", "tool_calls": None},
                     {"content": "Ссылку создать не могу: нет такого инструмента.", "tool_calls": None}])
     seen = []
-    monkeypatch.setattr(agent.llm, "complete", lambda msgs, tools=None: seen.append(msgs[-1]["content"]) or next(answers))
+    monkeypatch.setattr(agent.llm, "stream", lambda msgs, tools=None: _as_stream(seen.append(msgs[-1]["content"]) or next(answers)))
     ev = list(agent.run("ceo", "дай ссылку на встречу", None))
     final = next(e for e in ev if e["type"] == "answer")["text"]
     assert "Проверка ответа нашла проблемы" in seen[1] and "не могу" in final and not any(e["type"] == "notice" for e in ev)
@@ -203,7 +205,8 @@ def test_sandbox_workspace_persists_and_edits_file():
     r2 = sandbox.run_python(ctx, "from pptx import Presentation\np = Presentation('d.pptx')\ns = p.slides.add_slide(p.slide_layouts[5]); s.shapes.title.text = 'Второй'\ns.shapes.add_picture('g.png', 0, 0)\np.save('d.pptx')")
     assert r2.data["files"] == ["d.pptx"]
     assert "Второй" in sandbox.read_file(ctx, "d.pptx").data["content"] and "Первый" in sandbox.read_file(ctx, "d.pptx").data["content"]
-    assert [a["name"] for a in r.artifacts if a["kind"] == "image"] == ["g.png"]
+    assert [a["name"] for a in r.files if a["kind"] == "image"] == ["g.png"]
+    assert sandbox.show_files(ctx, ["g.png", "нет.png"]).data == dict(shown=["g.png"], not_found=["нет.png"], summary="показано файлов: 1")
 
 
 def test_sandbox_blocks_escape_and_other_sessions():
@@ -251,3 +254,70 @@ def test_make_slides_html_to_editable_pptx_and_exact_layout_issues():
     bad = slides.make_slides(ctx, "e", "<!doctype html><meta charset=utf-8>" + css.replace("h1{", "h1{white-space:nowrap;") + '<section class="slide"><h1>Очень длинный заголовок который не помещается в строку и вылезает за слайд справа далеко</h1></section>')
     assert "не помещается" in " ".join(bad.data["замечания_по_вёрстке"])
     assert "error" in slides.make_slides(ctx, "x", "<script>alert(1)</script>").data
+
+
+def _as_stream(m):
+    """Готовый ответ модели как поток: текст кусками, затем итоговое сообщение."""
+    c = m.get("content") or ""
+    for i in range(0, len(c), 5):
+        yield {"delta": c[i:i + 5]}
+    yield {"message": m}
+
+
+def test_llm_visible_hides_thinking():
+    from app.llm import _visible
+    assert _visible("<think>рассуждаю</think>Ответ") == "Ответ"
+    assert _visible("Ответ <thi") == "Ответ "
+    assert _visible("<think>ещё думаю") == ""
+    assert _visible("1 < 2") == "1 < 2"
+
+
+def test_agent_streams_preamble_then_tool_then_answer(monkeypatch):
+    from app import agent
+    calls = iter([
+        {"role": "assistant", "content": "Сейчас посмотрю.", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "list_files", "arguments": "{}"}}]},
+        {"role": "assistant", "content": "Готово, файлов нет."},
+    ])
+    monkeypatch.setattr(agent.llm, "stream", lambda *a, **k: _as_stream(next(calls)))
+    ev = list(agent.run("ceo", "что в папке?", ctx={"session": "stream-t"}))
+    kinds = [e["type"] for e in ev]
+    assert "reset" not in kinds and kinds[-1] == "done"
+    first_tool = kinds.index("tool")
+    assert "".join(e["text"] for e in ev[:first_tool] if e["type"] == "delta") == "Сейчас посмотрю."  # вступление осталось текстом до вызова
+    assert "".join(e["text"] for e in ev[first_tool:] if e["type"] == "delta") == "Готово, файлов нет."
+    assert [e for e in ev if e["type"] == "answer"][0]["text"] == "Готово, файлов нет."
+
+
+def test_files_saved_not_shown_until_show_files(monkeypatch):
+    """Сборка файла ≠ показ: карточки приходят только после show_files, один раз и после текста ответа."""
+    from app import agent
+    mk = {"id": "c", "type": "function", "function": {"name": "make_slides", "arguments": json.dumps({"name": "dup", "html": "<section class=\"slide\"><h1>Привет</h1></section>"})}}
+    show = {"id": "s", "type": "function", "function": {"name": "show_files", "arguments": json.dumps({"names": ["dup.pptx", "dup.pdf", "dup.pptx"]})}}
+    turns = iter([{"role": "assistant", "content": "Собираю.", "tool_calls": [dict(mk, id="c1")]},
+                  {"role": "assistant", "content": "", "tool_calls": [dict(mk, id="c2")]},
+                  {"role": "assistant", "content": "", "tool_calls": [show]},
+                  {"role": "assistant", "content": "Готово."}])
+    monkeypatch.setattr(agent.llm, "stream", lambda *a, **k: _as_stream(next(turns)))
+    ev = list(agent.run("ceo", "сделай презентацию про вулканы", ctx={"session": "dup-t"}))
+    arts = [e for e in ev if e["type"] == "artifact"]
+    assert sorted(a["name"] for a in arts) == ["dup.pdf", "dup.pptx"]
+    kinds = [e["type"] for e in ev]
+    assert min(i for i, k in enumerate(kinds) if k == "artifact") > max(i for i, k in enumerate(kinds) if k == "delta")
+
+
+def test_review_asks_to_show_made_file():
+    from app import policy
+    assert any("show_files" in x for x in policy.review("Готово.", "", ["make_slides"], "сделай презентацию про вулканы"))
+    assert not policy.review("Готово.", "", ["make_slides", "show_files"], "сделай презентацию про вулканы")
+
+
+def test_missing_file_does_not_erase_shown_text(monkeypatch):
+    """Текст «Собираю презентацию…» без вызова инструмента остаётся в чате; стираем только текст с ошибкой."""
+    from app import agent
+    turns = iter([{"role": "assistant", "content": "Собираю презентацию про вулканы."},
+                  {"role": "assistant", "content": "", "tool_calls": [{"id": "x", "type": "function", "function": {"name": "list_files", "arguments": "{}"}}]},
+                  {"role": "assistant", "content": "Файл по ссылке https://evil.example/x"},
+                  {"role": "assistant", "content": "Готово."}])
+    monkeypatch.setattr(agent.llm, "stream", lambda *a, **k: _as_stream(next(turns)))
+    kinds = [e["type"] for e in agent.run("ceo", "сделай презентацию про вулканы", ctx={"session": "keep-t"})]
+    assert kinds.count("reset") == 1  # стёрт только текст со ссылкой, вступление остаётся

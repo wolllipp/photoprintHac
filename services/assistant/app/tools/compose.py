@@ -87,7 +87,7 @@ def build_deck(ctx, title, slides, audience="", append_to=""):
     name = Path(append_to).name if append_to else new_name("deck", "pptx")
     p.save(W.path(sid) / name)
     return Result(data=dict(file=name, slides=len(p.slides), charts=charts, summary=f"презентация из {len(p.slides)} слайдов, графиков: {charts}"),
-                  sources=[SRC["defects"], SRC["finance"]], artifacts=[W.artifact(sid, name, title)])
+                  sources=[SRC["defects"], SRC["finance"]], files=[W.artifact(sid, name, title)])
 
 
 @tool("build_docx", "artifacts", "Составляю документ",
@@ -104,7 +104,7 @@ def build_docx(ctx, title, sections):
         d.add_heading(s["heading"], 2); d.add_paragraph(s["text"])
     d.add_paragraph("Черновик подготовлен ассистентом. Проверьте и утвердите.").runs[0].italic = True
     name = new_name("doc", "docx"); d.save(OUT / name)
-    return Result(data=dict(file=name, sections=len(sections), summary="документ готов"), artifacts=[file_artifact(name, title)])
+    return Result(data=dict(file=name, sections=len(sections), summary="документ готов"), files=[file_artifact(name, title)])
 
 
 @tool("schedule_meeting", "people", "Готовлю приглашение на встречу",
@@ -116,11 +116,11 @@ def schedule_meeting(ctx, title, date, time, duration_min=45, attendees=None, ag
     start = datetime.fromisoformat(f"{date}T{time}")
     end = start + timedelta(minutes=int(duration_min or 45))
     f = lambda d: d.strftime("%Y%m%dT%H%M%S")
-    esc = lambda x: x.replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\;")
+    esc = lambda x: x.replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
     ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//picPac//Assistant//RU", "BEGIN:VEVENT", f"UID:{new_name('m', 'x')}@picpac",
            f"DTSTAMP:{f(datetime.now())}", f"DTSTART:{f(start)}", f"DTEND:{f(end)}", f"SUMMARY:{esc(title)}",
            f"DESCRIPTION:{esc(agenda + chr(10) + 'Участники: ' + ', '.join(attendees or []))}", "END:VEVENT", "END:VCALENDAR"]
     name = new_name("meeting", "ics"); (OUT / name).write_text("\r\n".join(ics), encoding="utf-8")
     return Result(data=dict(file=name, start=start.isoformat(), end=end.isoformat(), attendees=attendees or [],
                             limitation="Ссылка на видеовстречу не создана: календарь (Google, Teams) не подключён. Приглашение сохранено как .ics; приглашённым его нужно отправить отдельно.",
-                            summary="приглашение .ics готово"), artifacts=[file_artifact(name, title + " (.ics)")])
+                            summary="приглашение .ics готово"), files=[file_artifact(name, title + " (.ics)")])

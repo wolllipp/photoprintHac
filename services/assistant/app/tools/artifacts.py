@@ -134,7 +134,7 @@ def quarterly_deck(ctx, title="Итоги периода", audience="совещ�
                 "Проверка эффекта через 14 дней по контрольной линии", "Решения вносит руководитель: ассистент только предлагает"])
     name = new_name("deck", "pptx"); p.save(OUT / name)
     return Result(data=dict(slides=len(p.slides), file=name, summary=f"презентация из {len(p.slides)} слайдов"), sources=[SRC["defects"], SRC["finance"]],
-                  artifacts=[file_artifact(name, title)])
+                  files=[file_artifact(name, title)])
 
 
 @tool("report_docx", "artifacts", "Готовлю документ",
@@ -158,7 +158,7 @@ def report_docx(ctx, kind="memo", addressee="Начальнику произво
         d.add_paragraph("Черновик подготовлен ассистентом. Перед отправкой проверьте условия в справочнике.").runs[0].italic = True
     name = new_name(kind, "docx"); d.save(OUT / name)
     return Result(data=dict(file=name, kind=kind, summary="черновик документа готов"), sources=[SRC["defects"]] if kind == "memo" else [],
-                  artifacts=[file_artifact(name, "Служебная записка" if kind == "memo" else "Ответ по претензии")])
+                  files=[file_artifact(name, "Служебная записка" if kind == "memo" else "Ответ по претензии")])
 
 
 @tool("workbook_xlsx", "artifacts", "Собираю таблицу Excel",
@@ -183,7 +183,7 @@ def workbook_xlsx(ctx, product="Фотокнига Premium"):
     ws.column_dimensions["A"].width, ws.column_dimensions["C"].width = 34, 30
     name = new_name("model", "xlsx"); wb.save(OUT / name)
     return Result(data=dict(file=name, product=product, summary="модель с формулами готова"), sources=[SRC["finance"]],
-                  artifacts=[file_artifact(name, "Модель маржи")])
+                  files=[file_artifact(name, "Модель маржи")])
 
 
 @tool("recent_files", "artifacts", "Нахожу готовые файлы",
