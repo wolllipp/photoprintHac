@@ -728,9 +728,16 @@ export default function Review() {
               accessibilityLabel="Название книги"
             />
           ) : (
-            <Tap onPress={startRename} style={s.titleRow} accessibilityRole="button" accessibilityLabel={`Название: ${title}. Нажмите, чтобы изменить`}>
-              <Text style={[s.title, { flexShrink: 1 }]} numberOfLines={2}>{title}</Text>
-              <PencilSimpleIcon size={16} color={colors.mut} weight="bold" style={{ marginTop: 9 }} />
+            <Tap onPress={startRename} accessibilityRole="button" accessibilityLabel={`Название: ${title}. Нажмите, чтобы изменить`}>
+              {/* карандаш — в строке текста, сразу после последнего слова (отдельным элементом справа он
+                  отрывался от названия, когда оно переносилось на вторую строку) */}
+              <Text style={s.title} numberOfLines={2}>
+                {title}
+                {' '}
+                <View style={s.titlePen}>
+                  <PencilSimpleIcon size={13} color={colors.mut} weight="bold" />
+                </View>
+              </Text>
             </Tap>
           )}
           <Text style={s.sub}>
@@ -2068,7 +2075,7 @@ const s = StyleSheet.create({
   title: { fontSize: 28, lineHeight: 33, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
   sub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, marginTop: 2, fontVariant: ['tabular-nums'] },
   history: { flexDirection: 'row', gap: 6 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  titlePen: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', transform: [{ translateY: 3 }] },
   titleInput: { padding: 0, borderBottomWidth: 2, borderBottomColor: colors.coralAction },
   close: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: 16, gap: GAP },
