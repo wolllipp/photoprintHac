@@ -21,7 +21,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDi
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, setBookBg, speechToText, type ServerPage } from '@/api/book';
+import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, setBookBg, speechToText, facesOf, understandEdit, type EditCommand, type ServerPage } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { DragUnit, FeedDrag } from '@/components/feedDrag';
@@ -86,20 +86,112 @@ function makePages(n: number): Page[] {
   return Array.from({ length: n }, (_, i) => flat[i % flat.length]);
 }
 
-/** Как ИИ правит страницу по замечаниям: крупнее, убрать или заменить кадры (без людей, если просили). */
-function fix(p: Page, notes: string[], seed: number, source: Pic[] = POOL): Page {
-  const all = notes.join(' ');
-  if (/крупн|больше/i.test(all)) return { layout: 'one', photos: [p.photos[0]] };
-  if (/четыре|4 фото/i.test(all)) return withLayout(p, 'four', 0, source);
-  if (/убер|убра|лишн/i.test(all) && !/селф|люд/i.test(all) && slotsOf(p.layout) > 1) {
-    const left = p.photos.slice(0, slotsOf(p.layout) - 1);
-    return { layout: SIMPLE[left.length], photos: left };
+/**
+ * «ИИ: исправить»: замечание понимает сервер (модель или правила — services/api/app/ai/edit.py) и возвращает
+ * ОДНУ команду; выполняет её этот код — точно и только на этой странице, начиная с фото под точкой.
+ * Нет связи с сервером — localCommand (те же основные правила здесь).
+ */
+function localCommand(text: string): EditCommand {
+  const t = ` ${text.toLowerCase()} `;
+  const cap = /подпиш\w*\s*[:—-]?\s*(.+)/i.exec(text);
+  if (cap?.[1]?.trim()) return { action: 'caption', text: cap[1].trim().slice(0, 120) };
+  const f = fxOf(text);
+  if (f) return { action: 'enhance', fx: f };
+  if (/селфи|меньше люд|без люд|без лиц/.test(t)) return { action: 'fewer_people' };
+  if (/больше люд|где мы|вместе/.test(t)) return { action: 'more_people' };
+  if (/пейзаж|природ/.test(t)) return { action: 'more_landscapes' };
+  const m = /\s(одн|дв|тр|четыр|[1-4])\S*\s+(фот|кадр|снимк)/.exec(t);
+  if (m) return { action: 'set_count', count: /\d/.test(m[1]) ? Number(m[1]) : { одн: 1, дв: 2, тр: 3, четыр: 4 }[m[1]] };
+  if (/коллаж/.test(t)) return { action: 'set_count', count: 4 };
+  if (/(по)?меньш|уменьш|скромн|не на всю/.test(t)) return { action: 'shrink' };
+  if (/крупн|увелич|побольш|на всю страниц|больше\s/.test(t)) return { action: 'enlarge' };
+  if (/убер|убра|удал|не надо|лишн/.test(t)) return { action: 'remove_photo' };
+  if (/(замени|поменяй|другие).*(вс[её]|страниц)/.test(t)) return { action: 'replace_page' };
+  if (/замен|поменя|друг(ое|ую|ой)|не то/.test(t)) return { action: 'replace_photo' };
+  return { action: 'unknown' };
+}
+
+/** Чем подменять фото: «any» — любое свободное, «nopeople» — без людей (пейзаж), «people» — с людьми. */
+type Want = 'any' | 'nopeople' | 'people';
+/**
+ * Выполнить команду на странице. slot — фото, на котором стоит точка. take — следующее свободное фото книги
+ * (не стоящее нигде), с людьми или без. hasPeople — есть ли люди на фото. null — не поняли или нечем выполнить
+ * (why — почему, коротко для человека).
+ */
+function applyCommand(p: Page, cmd: EditCommand, slot: number, take: (want: Want) => Pic | undefined, hasPeople: (k: Pic) => boolean | undefined): { page: Page } | { why: string } {
+  const photos = p.photos;
+  const n = Math.max(1, slotsOf(p.layout));
+  const at = Math.min(Math.max(0, slot), Math.max(0, photos.length - 1));
+  switch (cmd.action) {
+    case 'enhance': {
+      const f = cmd.fx as Fx | undefined;
+      if (!f || !photos[at]) return { why: 'на этом месте нет фото' };
+      const had = p.fx?.[at] ?? [];
+      return { page: { ...p, fx: { ...(p.fx ?? {}), [at]: had.includes(f) ? had : [...had, f] } } };
+    }
+    case 'shrink':
+      // одно фото — с полями вокруг; несколько — белые поля у каждого (фото становятся меньше)
+      if (photos.length <= 1) return { page: { ...p, layout: p.layout === 'margin' ? 'small-caption' : 'margin', slots: undefined } };
+      return { page: { ...p, frame: 'mat' } };
+    case 'enlarge': {
+      const k = photos[at];
+      if (!k) return { why: 'на этом месте нет фото' };
+      // уже одно на странице — во всю страницу, без полей
+      return { page: { ...p, layout: p.layout === 'one' ? 'bleed' : 'one', photos: [k], fx: p.fx?.[at] ? { 0: p.fx[at] } : undefined, slots: undefined, frame: undefined } };
+    }
+    case 'remove_photo': {
+      if (!photos[at]) return { why: 'на этом месте нет фото' };
+      const left = photos.filter((_, i) => i !== at);
+      return { page: { ...p, layout: SIMPLE[Math.max(1, left.length)], photos: left, slots: undefined } };
+    }
+    case 'replace_photo': {
+      const k = take('any');
+      if (!k) return { why: 'в книге нет свободных фото — добавьте из галереи' };
+      return { page: { ...p, photos: photos.map((x, i) => (i === at ? k : x)) } };
+    }
+    case 'replace_page': {
+      const next = photos.map((x) => take('any') ?? x);
+      return next.some((k, i) => k !== photos[i]) ? { page: { ...p, photos: next } } : { why: 'в книге нет свободных фото' };
+    }
+    case 'set_count': {
+      const c = Math.min(4, Math.max(1, cmd.count ?? 1));
+      const list = [photos[at], ...photos.filter((_, i) => i !== at)].filter(Boolean) as Pic[];
+      while (list.length < c) {
+        const k = take('any');
+        if (!k) break;
+        list.push(k);
+      }
+      if (list.length < c) return { why: `для ${c} фото не хватает свободных фото в книге` };
+      return { page: { ...p, layout: SIMPLE[c], photos: list.slice(0, c), slots: undefined } };
+    }
+    case 'fewer_people':
+    case 'more_landscapes':
+    case 'more_people': {
+      // «меньше людей» / «пейзажи» — фото с людьми меняем на фото без людей; «больше людей» — наоборот
+      const wantPeople = cmd.action === 'more_people';
+      let changed = false;
+      const next = photos.map((k) => {
+        const people = hasPeople(k);
+        if (people === undefined || people === wantPeople) return k;
+        const other = take(wantPeople ? 'people' : 'nopeople');
+        if (!other) return k;
+        changed = true;
+        return other;
+      });
+      if (changed) return { page: { ...p, photos: next } };
+      const all = photos.every((k) => hasPeople(k) === wantPeople);
+      return { why: all ? (wantPeople ? 'здесь уже фото с людьми' : 'здесь уже нет людей') : 'нет подходящих свободных фото' };
+    }
+    case 'caption': {
+      const text = (cmd.text ?? '').trim();
+      if (!text) return { why: 'не поняла, что написать' };
+      const layout = layoutOf(p.layout).caption ? p.layout : n === 2 ? 'two-caption' : 'caption';
+      const kept = layoutOf(layout).slots.length;
+      return { page: { ...p, layout, photos: photos.slice(0, kept), caption: text, slots: undefined } };
+    }
+    default:
+      return { why: 'не поняла, что сделать' };
   }
-  const noPeople = /селф|люд|лиц/i.test(all);
-  const pool = source.filter((k) => !p.photos.includes(k) && (!noPeople || !PEOPLE.includes(k)));
-  // заменить не на что (в своей книге все фото уже стоят) — страница остаётся как есть
-  if (!pool.length) return p;
-  return { ...p, photos: p.photos.map((_, i) => pool[(seed + i) % pool.length]) };
 }
 
 /** Сменить макет: лишние фото уходят, недостающие — добираем из того же дня; улучшения ИИ остаются у своих фото. */
@@ -657,36 +749,49 @@ export default function Review() {
     record();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setFixing(true);
-    setTimeout(() => {
-      // улучшения («Свет и цвет», «Выровнять горизонт»…) — к тому фото, на котором стоит точка; остальное — правка страницы
-      const byPage = new Map<number, { notes: string[]; fx: { slot: number; f: Fx }[] }>();
-      open.forEach((p) => {
-        const cur = byPage.get(p.page) ?? { notes: [], fx: [] };
-        const f = fxOf(p.text);
-        const slot = slotAt(pages[p.page].layout, p.x, p.y);
-        if (f && slot >= 0) cur.fx.push({ slot, f });
-        else cur.notes.push(p.text);
-        byPage.set(p.page, cur);
+    const todo = [...open];
+    void (async () => {
+      // каждое замечание → одна команда (сервер: модель или правила; нет связи — правила здесь)
+      const cmds = await Promise.all(todo.map(async (pin) => (await understandEdit(pin.text))?.command ?? localCommand(pin.text)));
+      // свободные фото книги (нигде не стоят); взятое одним замечанием второй раз не отдаём
+      const used = new Set(pages.flatMap((pg) => pg.photos).filter(Boolean).map(String));
+      const pool = [...source];
+      // есть ли люди на фото: в своей книге — по лицам, найденным сервером; в демо-книге — по списку
+      const hasPeople = (k: Pic): boolean | undefined => {
+        const n = facesOf(String(k));
+        if (n !== undefined) return n > 0;
+        return params.projectId ? undefined : PEOPLE.includes(k);
+      };
+      const take = (want: Want) => {
+        const i = pool.findIndex((k) => !used.has(String(k)) && (want === 'any' || hasPeople(k) === (want === 'people')));
+        if (i < 0) return undefined;
+        const [k] = pool.splice(i, 1);
+        used.add(String(k));
+        return k;
+      };
+      const next = [...pages];
+      const done = new Set<number>();
+      const notUnderstood: string[] = [];
+      todo.forEach((pin, i) => {
+        const pg = next[pin.page];
+        if (!pg) return;
+        const res = applyCommand(pg, cmds[i], slotAt(pg.layout, pin.x, pin.y, pg.slots), take, hasPeople);
+        if ('page' in res) {
+          next[pin.page] = res.page;
+          done.add(pin.id);
+        } else notUnderstood.push(`«${pin.text}» — ${res.why}`);
       });
-      mutate((next) => {
-        byPage.forEach(({ notes, fx }, page) => {
-          let pg = notes.length ? fix(pages[page], notes, page * 3 + (book ? 2 : 0), source) : pages[page];
-          fx.forEach(({ slot, f }) => {
-            const had = pg.fx?.[slot] ?? [];
-            pg = { ...pg, fx: { ...(pg.fx ?? {}), [slot]: had.includes(f) ? had : [...had, f] } };
-          });
-          next[page] = pg;
-        });
-        return next;
-      });
-      const words = open.map((p) => p.text).join(' ');
-      if (/крупн/i.test(words)) addTaste('крупные фото');
-      if (/селф|люд/i.test(words)) addTaste('меньше селфи');
-      if (/ед[аыу]|еды/i.test(words)) addTaste('меньше еды');
-      setPins((ps) => ps.map((p) => ({ ...p, fixed: true })));
+      setBook(next);
+      // вкус человека для следующих книг (notes/25, раздел 9)
+      if (cmds.some((c) => c.action === 'enlarge')) addTaste('крупные фото');
+      if (cmds.some((c) => c.action === 'fewer_people')) addTaste('меньше селфи');
+      if (cmds.some((c) => c.action === 'more_landscapes')) addTaste('больше пейзажей');
+      // выполненные — «исправлено»; непонятые остаются открытыми, и человек видит почему
+      setPins((ps) => ps.map((p) => (done.has(p.id) ? { ...p, fixed: true } : p)));
       setFixing(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    }, 1400);
+      if (notUnderstood.length) setNotice(notUnderstood.length === 1 ? `Не получилось: ${notUnderstood[0]}` : `Не получилось ${notUnderstood.length} замечаний — нажмите на точку и уточните`);
+      Haptics.notificationAsync(done.size ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    })();
   };
 
   // перед заказом — проверка книги: пустые рамки, разрешение, смаз, скриншоты (сервер отвечает не дольше 3 с)

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import admin, auth, catalog, home, orders, photos, projects, insight, speech
+from app.api import admin, ai, auth, catalog, home, orders, photos, projects, insight, speech
 from app.audit import audit_middleware
 from app.config import settings
 from app.db import engine
@@ -24,7 +24,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="picPac API", lifespan=lifespan)
 # страницы стенда (дашборд, ассистент) читают общие данные из браузера с другого порта: только чтение, без cookies
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["Authorization"])
-for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router, insight.router, admin.router, speech.router):
+for r in (auth.router, catalog.router, photos.router, projects.router, orders.router, home.router, insight.router, admin.router, speech.router, ai.router):
     app.include_router(r)
 # журнал действий (ОТ-04): каждое изменяющее действие
 app.middleware("http")(audit_middleware)

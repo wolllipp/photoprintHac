@@ -26,6 +26,13 @@ docker compose up -d                                   # PostgreSQL + pgvector �
 uv sync && uv run alembic upgrade head && uv run python -m app.seed
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000  # http://localhost:8000/docs
 
+# 1а. Модель для «ИИ: исправить» (понимает замечания в редакторе) — в новом окне. Без неё работают правила.
+#     Ollama: ollama serve, затем ollama pull qwen2.5:3b (EDIT_MODEL; ~2 ГБ, ответ ~1 с на процессоре).
+#     Если ollama pull падает с «resolves to non-public» (VPN с подменой адресов, например Clash в режиме fake-ip):
+#     скачать qwen2.5-3b-instruct-q4_k_m.gguf с huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF и
+#     ollama create qwen2.5:3b -f Modelfile (FROM ./qwen2.5-3b-instruct-q4_k_m.gguf + шаблон ChatML Qwen).
+#     Голос → текст (POST /speech) — Whisper внутри сервера, модель скачается сама при первом запросе (~460 МБ).
+
 # 2. Приложение клиента (трек 2) — в новом окне
 cd apps/mobile && npm install && npx expo start         # отсканировать QR в Expo Go
 # адрес сервера приложение берёт само (тот же компьютер, порт 8000); иначе EXPO_PUBLIC_API_URL=http://<ip>:8000

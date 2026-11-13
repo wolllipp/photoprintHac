@@ -469,9 +469,29 @@ export async function checkOnServer(projectId: string): Promise<Record<string, P
  * Из них «ИИ: исправить» и смена макета берут замену: в книгу человека не попадают чужие демо-снимки.
  */
 export async function projectPhotos(projectId: string): Promise<string[]> {
-  type Sel = { photos: { photo_id: string }[] };
+  type Sel = { photos: { photo_id: string; faces?: number | null }[] };
   const res = await api.get<Sel>(`/projects/${projectId}/selection`);
-  return res.photos.map((p) => uriOfId.get(p.photo_id) ?? `srv:${p.photo_id}`);
+  return res.photos.map((p) => {
+    const k = uriOfId.get(p.photo_id) ?? `srv:${p.photo_id}`;
+    // сколько лиц нашёл сервер — для правок «меньше людей», «больше пейзажей»
+    if (typeof p.faces === 'number') facesOfPhoto.set(k, p.faces);
+    return k;
+  });
+}
+
+const facesOfPhoto = new Map<string, number>();
+/** Сколько лиц на фото (сервер их находит при загрузке); undefined — не знаем. */
+export const facesOf = (photo: string) => facesOfPhoto.get(photo);
+
+/** Команда ИИ для замечания в редакторе (services/api/app/ai/edit.py): что сделать — выполняет приложение. */
+export type EditCommand = { action: string; count?: number | null; fx?: string | null; text?: string | null };
+/** Понять замечание на сервере (модель или правила). Нет связи — null, тогда приложение разберёт само. */
+export async function understandEdit(text: string): Promise<{ command: EditCommand; source: 'llm' | 'rules' } | null> {
+  try {
+    return await api.post<{ command: EditCommand; source: 'llm' | 'rules' }>('/ai/edit', { text });
+  } catch {
+    return null;
+  }
 }
 
 /** Формат печати в приложении → на сервере. */

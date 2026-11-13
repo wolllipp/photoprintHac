@@ -434,6 +434,8 @@ async def selection(project_id: uuid.UUID, user: User = Depends(current_user), s
             "warnings": report["warnings"], "effective_dpi": report["effective_dpi"],
             "quality_level": report["quality_level"],
             "requires_confirmation": report["requires_confirmation"],
+            # сколько лиц на фото — для правок «меньше людей», «больше пейзажей» (null — не проверяли)
+            "faces": len(photo.faces) if photo.faces is not None else None,
         })
     return {"selected": sum(project_photo.selected for project_photo, _ in rows), "total": len(rows),
             "rejected": rejected, "photos": photo_results}

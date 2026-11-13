@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:7b-instruct"
     ollama_timeout_s: float = 20
+    # «ИИ: исправить» (app/ai/edit.py): модель поменьше — на процессоре ответ за пару секунд; пусто — ollama_model
+    edit_model: str = "qwen2.5:3b"
     # распознавание речи (app/api/speech.py): модель Whisper и папка для её файлов (пусто — storage/_models)
     whisper_model: str = "small"
     whisper_dir: str = ""
