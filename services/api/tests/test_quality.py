@@ -182,3 +182,21 @@ def test_manual_zoom_lowers_effective_dpi():
     zoomed = effective_dpi(3000, 3000, "20x20", {"x": 0, "y": 0, "w": 1, "h": 1, "cx": 0.5, "cy": 0.5, "z": 2, "a": 1},
                            book=True, spread=False)
     assert abs(zoomed - base / 2) < 0.01
+
+
+def test_faces_in_parallel_threads_do_not_crash():
+    """Две загрузки фото одновременно: у каждого потока свой каскад (общий ронял процесс сервера)."""
+    import io as _io
+    from concurrent.futures import ThreadPoolExecutor
+
+    import numpy as _np
+    from PIL import Image as _Image
+
+    from app.ai.quality import analyze_image, face_cascade
+    buf = _io.BytesIO()
+    _Image.fromarray(_np.random.default_rng(1).integers(0, 256, (600, 800), dtype=_np.uint8)).save(buf, "JPEG")
+    data = buf.getvalue()
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(lambda _: analyze_image(data), range(24)))
+    assert len(results) == 24
+    assert not face_cascade().empty()

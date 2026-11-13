@@ -1,6 +1,7 @@
 """Локальная оценка качества фотографий и геометрия кадрирования."""
 from functools import lru_cache
 import io
+import threading
 import re
 
 import cv2
@@ -109,18 +110,29 @@ def is_screenshot(data: bytes | None = None, *, path: str | None = None,
 
 
 @lru_cache(maxsize=1)
-def face_cascade():
-    """Загружает локальный Haar-каскад OpenCV.
+def _cascade_xml() -> str:
+    """Текст Haar-каскада OpenCV (читается один раз)."""
+    with open(cv2.data.haarcascades + "haarcascade_frontalface_default.xml", encoding="utf-8") as f:
+        return f.read()
 
+
+_local = threading.local()
+
+
+def face_cascade():
+    """Haar-каскад OpenCV — свой в каждом потоке.
+
+    CascadeClassifier нельзя звать из нескольких потоков сразу: фото анализируются в asyncio.to_thread,
+    и когда две загрузки шли одновременно, общий каскад ронял весь процесс сервера (без ошибки в логе).
     Файл читаем сами и отдаём OpenCV из памяти: на Windows OpenCV не открывает путь с кириллицей
     (например, репозиторий в «D:\\Хакатон\\…»), и каскад молча оказывается пустым.
     """
-    path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    cascade = cv2.CascadeClassifier(path)
-    if cascade.empty():
-        with open(path, encoding="utf-8") as f:
-            storage = cv2.FileStorage(f.read(), cv2.FILE_STORAGE_READ | cv2.FILE_STORAGE_MEMORY)
+    cascade = getattr(_local, "cascade", None)
+    if cascade is None:
+        cascade = cv2.CascadeClassifier()
+        storage = cv2.FileStorage(_cascade_xml(), cv2.FILE_STORAGE_READ | cv2.FILE_STORAGE_MEMORY)
         cascade.read(storage.getFirstTopLevelNode())
+        _local.cascade = cascade
     return cascade
 
 
