@@ -194,3 +194,17 @@ async def test_build_keeps_tariff_minimum_with_real_crop_and_quality_results(cli
                for report in job.progress["quality"].values()) == 3
     assert sum("face_edge" in {warning["code"] for warning in photo["warnings"]}
                for photo in selection["photos"]) == 3
+
+
+def test_layout_never_puts_more_photos_on_a_page_than_templates_allow():
+    """Альбом из историй: 80 фото одного дня на 20 страниц — раньше выходила страница на 6 фото и сборка падала."""
+    from datetime import datetime
+    import uuid as _uuid
+
+    photos = [{"photo_id": _uuid.uuid4(), "width": 3000, "height": 2000, "faces": [],
+               "taken_at": datetime(2026, 7, 1, 10, i % 60)} for i in range(80)]
+    for size in (None, "large", "medium", "small"):
+        pages = layout(photos, page_count=20, min_pages=20, page_aspect=1, trim_px=30, risk_px=60, size=size)
+        assert all(len(p["frames"]) <= 4 for p in pages), size
+        if size == "large":
+            assert all(len(p["frames"]) <= 2 for p in pages)

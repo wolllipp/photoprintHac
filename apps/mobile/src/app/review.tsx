@@ -439,6 +439,11 @@ export default function Review() {
     if (x === tariff) return;
     record();
     setTariff(x);
+    // в Lite разворотов нет: фото на разворот становятся обычными страницами (↶ вернёт вместе с тарифом)
+    if (x === 'lite' && pages.some((p) => isSpread(p.layout))) {
+      mutate((all) => all.map((p) => (isSpread(p.layout) ? { ...p, layout: SIMPLE[Math.min(4, Math.max(1, slotsOf(p.layout)))], slots: undefined } : p)));
+      setNotice('В Lite нет разворотов — эти фото теперь на обычных страницах');
+    }
   };
   const [fixing, setFixing] = useState(false);
   // копии для печати, которые догружаются в фоне (книга собрана по черновым): «Фото для печати: N из M»
@@ -1140,6 +1145,12 @@ export default function Review() {
           slot={menu.slot}
           // сквозной лист: не на последней странице (в Lite будет виден шов — об этом подпись над разворотом)
           canSpread={menu.page < pagesN - 1}
+          // в Lite разворотов нет — макеты видны бледными, нажатие объясняет почему
+          spreadLocked={tariff === 'lite'}
+          onLocked={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+            setNotice('Макеты на разворот — только в Classic и Premium. Сменить тариф можно сверху');
+          }}
           bottom={insets.bottom}
           onReplace={() => replaceFromGallery().catch(() => {})}
           onRemove={removePhoto}
@@ -1497,7 +1508,7 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  * Нажали на фото — что с ним сделать: заменить своим из галереи, убрать, оставить замечание;
  * выбрать макет страницы из библиотеки. Улучшения ИИ (свет, горизонт, чёткость…) — в «Замечании для ИИ».
  */
-function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onInsertAfter, onDeletePage, onFrame, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; canDelete: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onInsertAfter: () => void; onDeletePage: () => void; onFrame: (frame: FrameId, all: boolean) => void; onClose: () => void }) {
+function PhotoMenu({ page, pageN, slot, bottom, canSpread, spreadLocked, onLocked, canDelete, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onInsertAfter, onDeletePage, onFrame, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; spreadLocked: boolean; onLocked: () => void; canDelete: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onInsertAfter: () => void; onDeletePage: () => void; onFrame: (frame: FrameId, all: boolean) => void; onClose: () => void }) {
   const [frameAll, setFrameAll] = useState(false);
   // фильтр макетов по числу фото: null — все
   const [photosN, setPhotosN] = useState<number | null>(null);
@@ -1553,8 +1564,10 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
           {LAYOUTS.filter((l) => !l.hidden && (canSpread || l.span !== 2) && (photosN === null || l.slots.length === photosN)).map((l) => {
             const cur = layoutOf(page.layout);
             const on = l.id === page.layout || (!!cur.hidden && !!l.caption && l.slots.length === cur.slots.length);
+            // макеты на разворот в Lite видны, но бледные: нажатие объясняет, что они только в Classic и Premium
+            const locked = spreadLocked && l.span === 2;
             return (
-              <Tap key={l.id} style={s.layoutBtn} onPress={() => !on && onLayout(l.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`Макет: ${l.name}, фото: ${l.slots.length}`}>
+              <Tap key={l.id} style={[s.layoutBtn, locked && { opacity: 0.38 }]} onPress={() => (locked ? onLocked() : !on && onLayout(l.id))} accessibilityRole="radio" accessibilityState={{ selected: on, disabled: locked }} accessibilityLabel={`Макет: ${l.name}, фото: ${l.slots.length}${locked ? '. Только в Classic и Premium' : ''}`}>
                 <View style={[s.layoutThumb, on && s.layoutThumbOn]}>
                   <LayoutIcon def={l} on={on} />
                 </View>
@@ -2220,7 +2233,8 @@ function TariffBar({ tariff, format, pagesN, onTariff }: { tariff: Tariff['id'];
       {tariffs.map((t) => {
         const on = t.id === tariff;
         const p = bookPrice(t.id, fitFormat(t.id, format), pagesN, 'Глянец');
-        const note = t.id === 'lite' ? 'шов по центру' : 'без шва';
+        // главное отличие для раскладки: в Lite нет фото на разворот, в Classic и Premium — разворот без шва
+        const note = t.id === 'lite' ? 'без разворотов' : 'разворот без шва';
         return (
           <Tap key={t.id} style={[s.tbarItem, on && s.tbarOn]} onPress={() => !on && onTariff(t.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${t.name}, ${rub(p)}, ${note}`}>
             <Text style={[s.tbarName, on && { color: '#fff' }]} numberOfLines={1}>

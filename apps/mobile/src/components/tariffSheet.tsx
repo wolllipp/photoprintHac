@@ -78,7 +78,7 @@ export function TariffSheet({
                   <Text style={s.what}>{WHAT[t.id]}</Text>
                   <Text style={s.meta}>
                     {fmt} · {p} стр. · от {BOOK[t.id].min} до {BOOK[t.id].max}
-                    {hasSpreads ? (t.id === 'lite' ? ' · шов по центру' : ' · разворот без шва') : ''}
+                    {hasSpreads ? (t.id === 'lite' ? ' · без разворотов' : ' · разворот без шва') : ''}
                   </Text>
                 </View>
                 <Text style={[s.price, on && { color: colors.coralAction }]}>{rub(price)}</Text>

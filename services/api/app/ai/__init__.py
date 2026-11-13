@@ -302,6 +302,17 @@ def layout(selected: list[dict], page_count: int, min_pages: int = 1, page_aspec
     while len(chunks) < page_total:
         chunks.append([])
         chapters.append("Без даты")
+    # На странице не больше фото, чем есть шаблонов (TEMPLATES — до 4) и чем просили размером фото.
+    # Много фото одного дня (альбом из историй) при немногих страницах давало страницу на 6 фото —
+    # и сборка падала (KeyError). Лишние едут дальше по порядку, где есть место; совсем некуда — в запас.
+    cap = min(most, max(TEMPLATES))
+    carry: list[dict] = []
+    for i, chunk in enumerate(chunks):
+        cur = carry + chunk
+        chunks[i], carry = cur[:cap], cur[cap:]
+    for i in range(len(chunks) - 1, -1, -1):
+        while carry and len(chunks[i]) < cap:
+            chunks[i].append(carry.pop(0))
     out = []
     for pos, photos in enumerate(chunks):
         positions = TEMPLATES[len(photos)] if photos else ()
