@@ -1,7 +1,8 @@
 /**
  * Идея книги на весь экран — как истории: сначала обложка с названием, потом несколько фото,
  * которые примерно войдут в книгу (карточками), затем — следующая идея.
- *  • касание справа — дальше, слева — назад;
+ *  • касание справа — следующее фото альбома, слева — назад;
+ *  • свайп вбок — соседний альбом (справа налево — следующий, слева направо — предыдущий), как в Instagram;
  *  • удержание — пауза: полоска замирает и продолжает с того же места, подписи прячутся, чтобы рассмотреть фото;
  *  • свайп вниз — закрыть (экран едет за пальцем и уменьшается).
  * Внизу всегда «Собрать эту книгу».
@@ -151,6 +152,56 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
       }
     },
   });
+  // свайп вбок — соседний альбом, как в Instagram: справа налево — следующий, слева направо — предыдущий.
+  // Экран едет за пальцем; не дотянули — возвращается. На последнем альбоме свайп дальше закрывает истории.
+  const sx = useSharedValue(0);
+  const toAlbum = (dir: 1 | -1) => {
+    if (dir > 0 && page + 1 >= items.length) return dismiss();
+    if (dir < 0 && page === 0) return;
+    Haptics.selectionAsync().catch(() => {});
+    setPage((p) => p + dir);
+    setFrame(0);
+    setPaused(false);
+  };
+  const swipe = usePanGesture({
+    activeOffsetX: [-14, 14],
+    failOffsetY: [-18, 18],
+    onActivate: () => {
+      'worklet';
+      scheduleOnRN(setPaused, true);
+    },
+    onUpdate: (e) => {
+      'worklet';
+      // у первого альбома назад не листается — только лёгкое сопротивление
+      const atStart = page === 0 && e.translationX > 0;
+      sx.set(atStart ? e.translationX * 0.25 : e.translationX);
+    },
+    onDeactivate: (e) => {
+      'worklet';
+      const dir = e.translationX < -width * 0.25 || e.velocityX < -700 ? 1 : e.translationX > width * 0.25 || e.velocityX > 700 ? -1 : 0;
+      // последний альбом и листают дальше — истории закрываются (как в Instagram)
+      if (dir === 1 && page + 1 >= items.length) {
+        sx.set(withTiming(0, { duration: 160 }));
+        scheduleOnRN(dismiss);
+        return;
+      }
+      const can = dir === 1 || (dir === -1 && page > 0);
+      if (!can) {
+        sx.set(withTiming(0, { duration: 240, easing: Easing.bezier(0.32, 0.72, 0, 1) }));
+        scheduleOnRN(setPaused, false);
+        return;
+      }
+      // старый альбом уезжает за край, новый въезжает с другой стороны
+      sx.set(
+        withTiming(-dir * width, { duration: 200, easing: Easing.in(Easing.quad) }, (fin) => {
+          if (!fin) return;
+          scheduleOnRN(toAlbum, dir as 1 | -1);
+          sx.set(dir * width);
+          sx.set(withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) }));
+        }),
+      );
+    },
+  });
   // удержание — пауза; отпустил — дальше
   const hold = useLongPressGesture({
     minDuration: 180,
@@ -171,12 +222,12 @@ function Viewer({ items, start, onClose, onSeen, onOpenBook }: { items: Suggesti
       else scheduleOnRN(next);
     },
   });
-  const gestures = useSimultaneousGestures(pan, useExclusiveGestures(hold, tap));
+  const gestures = useSimultaneousGestures(pan, swipe, useExclusiveGestures(hold, tap));
 
   // экран сначала просто едет за пальцем; уменьшаться и скругляться начинает чуть позже и плавно
   const sheet = useAnimatedStyle(() => ({
-    transform: [{ translateY: drag.value }, { scale: interpolate(drag.value, [0, 60, 400], [1, 1, 0.92], Extrapolation.CLAMP) }],
-    borderRadius: interpolate(drag.value, [0, 60, 200], [0, 0, 24], Extrapolation.CLAMP),
+    transform: [{ translateX: sx.value }, { translateY: drag.value }, { scale: interpolate(drag.value, [0, 60, 400], [1, 1, 0.92], Extrapolation.CLAMP) }],
+    borderRadius: interpolate(Math.max(drag.value, Math.abs(sx.value) / 2), [0, 60, 200], [0, 0, 24], Extrapolation.CLAMP),
   }));
   const bg = useAnimatedStyle(() => ({ opacity: interpolate(drag.value, [0, 400], [1, 0.35], Extrapolation.CLAMP) }));
   // на паузе подписи и кнопки прячутся — видно только фото
