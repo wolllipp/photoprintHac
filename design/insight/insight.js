@@ -178,6 +178,10 @@ function restoreState() {
 
 /* ---------- Формат ---------- */
 const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+/* Адрес ссылки из состояния (уведомления, календарь, задачи) — только внутренний маршрут #/…: состояние восстанавливается из localStorage,
+   и подменённый адрес вроде javascript: или с кавычкой не должен попасть в разметку. Файлы — только blob: из этой вкладки */
+const safeHref = h => typeof h === "string" && /^#\/[\w\-./%]*$/.test(h) ? h : "#/overview";
+const safeBlob = u => typeof u === "string" && /^blob:/.test(u) ? u : null;
 const NF0 = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 const NF1 = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fInt = v => NF0.format(v);
@@ -235,7 +239,7 @@ function tasksOf(C) {
 }
 /* Задачи по своим вопросам встречи не привязаны к отклонению: dev = null, meet = id встречи */
 const allTasks = () => caseIds().flatMap(id => tasksOf(caseOf(id))).concat(S.freeTasks);
-const taskHome = t => t.dev ? "#/deviations/" + t.dev : "#/meetings/" + t.meet;
+const taskHome = t => safeHref(t.dev ? "#/deviations/" + t.dev : "#/meetings/" + t.meet);
 const taskCtx = t => { if (t.dev) return devName(t.dev); const m = findMeet(t.meet); return `Встреча ${m ? dueShort(m.date) : ""}: ${t.topic}`; };
 const findTask = tid => allTasks().find(t => t.id === tid);
 const taskRef = t => `${t.id}${t.dev ? ` (${t.dev})` : ""}: ${t.title}, исполнитель ${t.owner}`;
@@ -252,7 +256,7 @@ function afterTasks(dev) {
   return false;
 }
 const fSize = n => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} КБ` : `${NF1.format(n / 1048576)} МБ`;
-const filesHtml = (files, tid) => files.length ? `<ul class="files">${files.map((f, i) => { const ext = (f.name.split(".").pop() || "").slice(0, 4); return `<li>${f.url ? `<a href="${f.url}" download="${esc(f.name)}">` : "<span>"}<span class="f-ext">${esc(ext)}</span><span class="f-name">${esc(f.name)}</span><span class="f-size">${fSize(f.size)}</span>${f.url ? "</a>" : "</span>"}${tid ? `<button class="f-x" data-act="fileRemove" data-arg="${esc(tid)}:${i}" aria-label="Убрать файл ${esc(f.name)}">×</button>` : ""}</li>`; }).join("")}</ul>` : "";
+const filesHtml = (files, tid) => files.length ? `<ul class="files">${files.map((f, i) => { const ext = (f.name.split(".").pop() || "").slice(0, 4); return `<li>${safeBlob(f.url) ? `<a href="${esc(safeBlob(f.url))}" download="${esc(f.name)}">` : "<span>"}<span class="f-ext">${esc(ext)}</span><span class="f-name">${esc(f.name)}</span><span class="f-size">${fSize(f.size)}</span>${safeBlob(f.url) ? "</a>" : "</span>"}${tid ? `<button class="f-x" data-act="fileRemove" data-arg="${esc(tid)}:${i}" aria-label="Убрать файл ${esc(f.name)}">×</button>` : ""}</li>`; }).join("")}</ul>` : "";
 /* Прикрепление файлов: одна функция для отчёта, материалов к задаче и замечаний при возврате */
 const fileInputId = key => key === "form" ? "fa-f" : key === "add" ? "na-f" : key.startsWith("rv-") ? "rvf-" + key.slice(3) : "rp-f";
 function filePick(key, label) {
@@ -396,6 +400,8 @@ function sliceNote(k) {
   if (k.dim !== "product") return tag("вся компания", "Не делится по продукту — показано по всей компании");
   return "";
 }
+/* Источник показателя давно не выгружался (сценарий аналитика, ТЗ 5.2.5): метка на плитке и в таблице, подробности — на «Качестве данных» */
+const staleNote = k => k.stale && k.stale.length ? `<span class="kpi-scope stale" title="${esc(`Последняя выгрузка ${k.stale.map(s => `${s.short}: ${fmtLoad(s.lastLoad)}`).join(", ")}. Делать выводы рано`)}">данные от ${esc(fmtLoad(k.stale[0].lastLoad))}<span class="sr">: источник ${esc(k.stale.map(s => s.short).join(", "))} устарел</span></span>` : "";
 /* Главные плитки для выбранного подразделения; все 17 — в «Все показатели» */
 /* «Пульс компании» по ТЗ 5.3: оборот, маржа, в срок, брак, клиенты, SLA, загрузка, обеспеченность (+ критические отклонения над плитками) */
 const HEADLINE = { all: ["turnover", "margin", "ontime", "defect", "clients", "sla", "load", "staffing"], prod: ["ontime", "sameday", "defect", "load"], sales: ["turnover", "check", "discount", "conversion"],
@@ -415,7 +421,7 @@ function kpiTileHtml(id, r) {
   const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
   const lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null, st = k.statusOf(r.a, r.b, cur, prev);
   return `<div class="kpi-tile kt st-${st}"><div class="kt-head"><span class="lg-label">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}</span>${kpiHowHtml(k, r.a, r.b, true)}</div>
-    <span class="kpi-val num">${esc(k.f(cur))}</span><div class="kt-foot">${kpiStatusHtml(k, r.a, r.b, cur, prev, true)}${deltaHtml(k, cur, prev, true)}</div>${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}</div>`;
+    <span class="kpi-val num">${esc(k.f(cur))}</span><div class="kt-foot">${kpiStatusHtml(k, r.a, r.b, cur, prev, true)}${deltaHtml(k, cur, prev, true)}</div>${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}${staleNote(k)}</div>`;
 }
 /* Фильтры главной — тонкая строка под заголовком. Управляют «Пульсом», «Всеми показателями» и прогнозом (УП-03),
    поэтому остаются наверху, даже когда «Пульс» убран вниз или скрыт в настройке */
@@ -706,7 +712,7 @@ function calendarHtml() {
   }).join("");
   return `<div class="cal-head"><button class="round-sm" data-act="calMove" data-arg="-7" aria-label="Предыдущая неделя">‹</button><h2>${RU_MONTHS[mid.getUTCMonth()]} ${mid.getUTCFullYear()}</h2><button class="round-sm" data-act="calMove" data-arg="7" aria-label="Следующая неделя">›</button></div>
   <div class="cal-week">${days}</div>
-  <div class="cal-events">${dayList.length ? dayList.map(e => e.href ? `<a href="${e.href}">${esc(e.title)}</a>` : `<span>${esc(e.title)}</span>`).join("") : `<p class="muted small">Событий нет</p>`}</div>`;
+  <div class="cal-events">${dayList.length ? dayList.map(e => e.href ? `<a href="${esc(safeHref(e.href))}">${esc(e.title)}</a>` : `<span>${esc(e.title)}</span>`).join("") : `<p class="muted small">Событий нет</p>`}</div>`;
 }
 const openTasks = () => DEMO.tasks.concat(S.tasks);
 /* Детали месяца рядом со столбцами: все показатели выбранного месяца и изменение к прошлому */
@@ -875,7 +881,7 @@ const WIDGETS = {
     const r = homeRange();
     const row = k => { if (!kpiOpen(k)) return `<tr><th scope="row">${esc(k.label)}</th><td colspan="3" class="muted small">${esc(closedText(k))}</td><td></td></tr>`;
       const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null, lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null;
-      return `<tr><th scope="row">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}${sliceNote(k)}</th><td class="r num kv">${esc(k.f(cur))}</td><td class="r">${deltaHtml(k, cur, prev, true)}</td><td>${kpiStatusHtml(k, r.a, r.b, cur, prev, true)}</td><td class="r">${kpiHowHtml(k, r.a, r.b, true)}</td></tr>`; };
+      return `<tr><th scope="row">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}${sliceNote(k)}${staleNote(k)}</th><td class="r num kv">${esc(k.f(cur))}</td><td class="r">${deltaHtml(k, cur, prev, true)}</td><td>${kpiStatusHtml(k, r.a, r.b, cur, prev, true)}</td><td class="r">${kpiHowHtml(k, r.a, r.b, true)}</td></tr>`; };
     const groups = KPI.filter(g => !S.fDept || g.dept === S.fDept);
     return `<div class="sheet"><div class="w-head"><h2>Все показатели</h2><span class="muted small">${esc(r.label)} · ${KPI_ALL.length} KPI</span></div>
       <div class="table-wrap"><table class="kpi-table"><thead><tr><th>Показатель</th><th class="r">Значение</th><th class="r">К прошлому периоду</th><th>Статус</th><th class="r"><span class="sr">Как считается</span></th></tr></thead>
@@ -1454,10 +1460,17 @@ function qualitySourcesHtml() {
   const rows = Q.sources.map(s => `<tr><td><b>${esc(s.name)}</b><span class="muted small src-keys">${esc(s.keys.join(", "))}</span></td><td>${esc(s.cadence)}</td>
     <td>${esc(fmtLoad(s.lastLoad))} <span class="badge ${s.fresh ? "b-done" : "b-open"}">${s.fresh ? "свежие" : "устарели"}</span></td>
     <td class="r num">${fInt(s.rows)}</td><td class="r num">${n(s.gaps)}</td><td class="r num">${n(s.dups)}</td><td class="r num">${n(s.orphans)}${s.orphans ? `<span class="muted small src-note">${esc(s.orphanText)}</span>` : ""}</td></tr>`).join("");
-  const recon = Math.abs(Q.recon.diff);
+  const recon = Math.abs(Q.recon.diff), P = Q.recon.parts, p2 = v => NF2.format(v * 100) + " %";
+  /* Устаревшие источники: сколько без выгрузки и какие показатели на них стоят — аналитик видит, каким цифрам пока не верить */
+  const stale = Q.sources.filter(s => !s.fresh), hrs = s => Math.round(s.ageMin / 60);
+  const staleHtml = stale.length ? `<div class="note coral small stale-note" role="status"><b>${stale.length === 1 ? "Источник устарел" : "Источники устарели"}.</b> ${stale.map(s => {
+    const ks = KPI_ALL.filter(k => k.sources.includes(s.id)).map(k => `«${k.label}»`).join(", ");
+    return `${esc(s.short)}: ${hrs(s)} ${plural(hrs(s), "час", "часа", "часов")} без выгрузки при обновлении ${esc(s.cadence)}, последняя — ${esc(fmtLoad(s.lastLoad))}.${ks ? ` Показатели на нём: ${esc(ks)} — выводы по ним рано делать, на плитках стоит метка.` : ""}`; }).join(" ")} Что делать: проверить выгрузку у владельца источника и повторить загрузку.</div>` : "";
   return `<section class="sheet"><h2>Источники</h2><p class="muted small">Общие ключи связывают системы между собой. Данные синтетические: ${esc(Q.period)}, пересобираются генератором <code>data/generate.mjs</code>.</p>
+    ${staleHtml}
     <div class="table-wrap"><table><thead><tr><th>Источник и ключи</th><th>Обновление</th><th>Последняя загрузка</th><th class="r">Строк</th><th class="r">Пропуски</th><th class="r">Дубли</th><th class="r">Без связи</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="recon"><span class="badge ${recon <= 0.005 ? "b-done" : "b-work"}">${recon <= 0.005 ? "Сходится" : "Расхождение"}</span><span>Сверка финансов: оплаты в 1С против заказов в ERP — расхождение <b>${fPct(Q.recon.diff)}</b>, допустимо до 0,5 %. Причина: ${esc(Q.recon.explain)}.</span></p></section>
+    <div class="recon"><span class="badge ${recon <= 0.005 && Q.recon.explained ? "b-done" : "b-work"}">${recon <= 0.005 && Q.recon.explained ? "Сходится" : "Расхождение"}</span><div><p>Сверка финансов: оплаты в 1С против заказов в ERP — расхождение <b>${p2(Q.recon.diff)}</b>, допустимо до 0,5 %.</p>
+      <p class="muted small">Из чего складывается: дубли заказов в ERP ${p2(P.dups)} + заказы, оплаты которых ещё нет в 1С ${p2(P.unpaid)} + остаток ${p2(P.rest)} (${NF2.format(P.restRub)} руб.). ${Q.recon.explained ? "Расхождение объяснено полностью." : "Остаток не объяснён — нужна ручная сверка."} Строки дублей и неоплаченных заказов — в проверках ниже.</p></div></div></section>
   <section class="sheet"><h2>Контракт события</h2><p class="muted small">Сначала договорённость о данных, потом интеграция. Так выглядят события, из которых считаются показатели.</p>
     <div class="contract"><pre class="code">${esc(JSON.stringify(C.events[0], null, 2))}</pre><dl class="rules">${C.rules.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join("")}</dl></div></section>`;
 }
@@ -1892,7 +1905,7 @@ function pickStaff() {
 function renderTop() {
   const n = deviationRows().filter(r => r.status !== "done").length, biz = S.role !== "admin";
   const mine = S.notices.map((x, i) => ({ ...x, i })).filter(x => x.role === S.role && (!x.to || S.role !== "manager" || x.to === S.me)).reverse(), unread = mine.filter(x => !x.read).length;
-  const bell = `<details class="menu bell-menu"><summary class="round" aria-label="Уведомления, новых: ${unread}">${icon("bell")}${unread ? '<i class="round-dot"></i>' : ""}</summary><div class="menu-pop right notices">${mine.length ? mine.map(x => `<a href="${x.href}" class="${x.read ? "" : "unread"}" data-act="noticeGo" data-arg="${x.i}">${esc(x.text)}</a>`).join("") : '<p class="muted small">Уведомлений нет</p>'}</div></details>`;
+  const bell = `<details class="menu bell-menu"><summary class="round" aria-label="Уведомления, новых: ${unread}">${icon("bell")}${unread ? '<i class="round-dot"></i>' : ""}</summary><div class="menu-pop right notices">${mine.length ? mine.map(x => `<a href="${esc(safeHref(x.href))}" class="${x.read ? "" : "unread"}" data-act="noticeGo" data-arg="${x.i}">${esc(x.text)}</a>`).join("") : '<p class="muted small">Уведомлений нет</p>'}</div></details>`;
   /* Демо: кто сейчас вошёл. В продукте здесь профиль, а каждый сотрудник входит под своим логином */
   const who = S.role === "manager" ? S.me : S.role === "head" ? deptOf(S.dept).head : roleName();
   const person = (arg, name, on, sub) => `<button data-act="switchTo" data-arg="${esc(arg)}" aria-pressed="${on}"><span class="sw-name">${esc(name)}</span>${sub ? `<span class="sw-n">${sub}</span>` : ""}</button>`;
@@ -2396,7 +2409,22 @@ document.addEventListener("click", ev => {
   if (FADE_ACTS[name]) fadeIn(FADE_ACTS[name]);
   if (!document.activeElement || document.activeElement === document.body) focusHeading();
 });
-function setPath(path, v) { const p = path.split("."); let o = S; for (let i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = v; }
+/* Запись значения поля формы в состояние по пути из data-bind. Путь задаёт наша разметка, но защищаемся и от подмены:
+   служебные имена (__proto__, constructor, prototype) запрещены, промежуточные узлы должны уже быть собственными полями состояния —
+   новую ветку или запись в прототип объекта так не создать */
+const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+function setPath(path, v) {
+  const p = String(path).split(".");
+  if (p.some(k => !k || BAD_KEYS.has(k))) return false;
+  let o = S;
+  for (let i = 0; i < p.length - 1; i++) {
+    if (!o || typeof o !== "object" || !Object.prototype.hasOwnProperty.call(o, p[i])) return false;
+    o = o[p[i]];
+  }
+  if (!o || typeof o !== "object") return false;
+  o[p[p.length - 1]] = v;
+  return true;
+}
 document.addEventListener("input", ev => {
   const t = ev.target;
   if (t.dataset.bind) { setPath(t.dataset.bind, t.value); if (/^(draftText|reviewText|answerText|askText|newTask|editDraft)\./.test(t.dataset.bind)) S.taskErr = {}; if (t.dataset.bind.startsWith("out.")) S.outErr = {}; if (t.dataset.bind === "rec.text") S.rec.err = ""; else

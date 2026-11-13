@@ -1,6 +1,6 @@
 const {spawn}=require('child_process');const fs=require('fs'),path=require('path');
-const URLF='file:///D:/hackathons/Great%20stone%20hackathon/photoprintHac/design/insight/glass.html';const OUT=process.argv[2];
-const ch=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--remote-debugging-port=9946','--no-first-run','--user-data-dir='+path.join(OUT,'prof22'),'about:blank'],{stdio:'ignore'});
+const URLF=require('./env').page('glass.html');const OUT=process.argv[2];
+const ch=spawn(require('./env').chrome(),['--headless=new','--remote-debugging-port=9946','--no-first-run','--user-data-dir='+path.join(OUT,'prof22'),'about:blank'],{stdio:'ignore'});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{let tgt;for(let i=0;i<40&&!tgt;i++){await sleep(300);try{const l=await (await fetch('http://127.0.0.1:9946/json')).json();tgt=l.find(t=>t.type==='page')}catch{}}
 const ws=new WebSocket(tgt.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={},errs=[];

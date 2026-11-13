@@ -1,8 +1,8 @@
 // Этапы 1–2: данные, паспорта KPI, слой доступа, фильтры, роли. Запуск: node cdp23.js <папка для скриншотов> [dark|light]
 const {spawn}=require('child_process');const fs=require('fs'),path=require('path');
 const OUT=process.argv[2];const THEME=process.argv[3]||'dark';fs.mkdirSync(OUT,{recursive:true});
-const URLF='file:///D:/hackathons/Great%20stone%20hackathon/photoprintHac/design/insight/glass.html';
-const ch=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--remote-debugging-port=9951','--no-first-run','--user-data-dir='+path.join(OUT,'prof23'),'about:blank'],{stdio:'ignore'});
+const URLF=require('./env').page('glass.html');
+const ch=spawn(require('./env').chrome(),['--headless=new','--remote-debugging-port=9951','--no-first-run','--user-data-dir='+path.join(OUT,'prof23'),'about:blank'],{stdio:'ignore'});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{let tgt;for(let i=0;i<40&&!tgt;i++){await sleep(300);try{const l=await (await fetch('http://127.0.0.1:9951/json')).json();tgt=l.find(t=>t.type==='page')}catch{}}
 const ws=new WebSocket(tgt.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={},errs=[];

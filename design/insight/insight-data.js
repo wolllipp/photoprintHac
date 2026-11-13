@@ -164,7 +164,9 @@ const InsightData = (() => {
     { id: "erp", name: "ERP · производство", short: "ERP", icon: "box", about: "Заказы, линии, смены, брак, отгрузка. Отсюда сроки, брак и загрузка.", entity: "orders, lines", keys: ["order_id", "customer_id", "line_id", "shift_id"], cadence: "каждые 15 минут", cadenceMin: 15, lastLoad: "2026-11-09T08:45:00+03:00" },
     { id: "ledger", name: "1С · финансы", short: "1С", icon: "ledger", about: "Оплаты, скидки, себестоимость, план. Отсюда оборот, маржа и скидка.", entity: "payments, plan", keys: ["order_id"], cadence: "ежедневно в 06:00", cadenceMin: 1440, lastLoad: "2026-11-09T06:00:00+03:00" },
     { id: "hr", name: "HR · персонал", short: "HR", icon: "team", about: "Штат по плану, вакансии, отсутствие, без ФИО. Отсюда обеспеченность персоналом.", entity: "hr", keys: ["shift_id", "dept_id"], cadence: "каждую смену, 08:00 и 20:00", cadenceMin: 720, lastLoad: "2026-11-09T08:00:00+03:00" },
-    { id: "app", name: "Приложение picPac", short: "Приложение", icon: "phone", about: "Начатые проекты и заказы из приложения. Отсюда конверсия.", entity: "app", keys: ["customer_id", "order_id"], cadence: "каждый час", cadenceMin: 60, lastLoad: "2026-11-09T08:00:00+03:00" },
+    // Сценарий аналитика (ТЗ 5.2.5): выгрузка приложения застряла вечером 08.11 — 12 часов без обновления при выгрузке каждый час.
+    // Экран «Качество данных» помечает источник как устаревший, плитки KPI из этого источника — тоже
+    { id: "app", name: "Приложение picPac", short: "Приложение", icon: "phone", about: "Начатые проекты и заказы из приложения. Отсюда конверсия.", entity: "app", keys: ["customer_id", "order_id"], cadence: "каждый час", cadenceMin: 60, lastLoad: "2026-11-08T21:00:00+03:00" },
   ];
   const srcName = id => SOURCES.find(s => s.id === id).short;
   const freshness = s => { const age = (NOW - Date.parse(s.lastLoad)) / 60000; return { ageMin: age, fresh: age <= s.cadenceMin * 2 }; };
@@ -232,6 +234,8 @@ const InsightData = (() => {
   /* Публичный вид KPI: всё, что нужно плитке и подсказке «Как считается». o — срез из ctx() */
   const kpis = () => K.map(k => ({
     ...k, deptName: DEPTS.find(d => d.id === k.dept).name, sourceNames: k.sources.map(srcName), lastLoad: k.sources.map(id => SOURCES.find(s => s.id === id).lastLoad).sort()[0],
+    // Источник показателя устарел — плитка предупреждает: делать выводы по ней рано
+    stale: k.sources.map(id => SOURCES.find(s => s.id === id)).filter(s => !freshness(s).fresh).map(s => ({ short: s.short, lastLoad: s.lastLoad })),
     status: (v, prev, a, b, o) => status(k, v, prev, a, b, o), detail: k.detail ? (a, b, o) => k.detail(a, b, k, o) : null,
   }));
 
@@ -274,7 +278,13 @@ const InsightData = (() => {
     };
     // Сверка финансов: сумма оплат в 1С против суммы заказов в ERP (как пришло, с дублями), расхождение в %
     const erpNet = D.ordersRaw.reduce((s, o) => s + o.list_price - o.discount, 0), ledgerNet = D.payments.reduce((s, p) => s + p.net, 0);
-    const recon = { diff: erpNet ? (erpNet - ledgerNet) / erpNet : 0, explain: "в ERP есть дубли заказов, а часть оплат ещё не дошла до 1С" };
+    // Разложение расхождения: лишние строки-дубли в ERP + заказы, оплаты которых ещё нет в 1С + остаток (округление).
+    // Если остаток не ноль — расхождение не объяснено, это повод разбираться
+    const seenIds = new Set(); let dupNet = 0, unpaidNet = 0;
+    D.ordersRaw.forEach(o => { const n = o.list_price - o.discount; if (seenIds.has(o.order_id)) { dupNet += n; return; } seenIds.add(o.order_id); if (!paidIds.has(o.order_id)) unpaidNet += n; });
+    const rest = erpNet - ledgerNet - dupNet - unpaidNet;
+    const recon = { diff: erpNet ? (erpNet - ledgerNet) / erpNet : 0, explain: "в ERP есть дубли заказов, а часть оплат ещё не дошла до 1С",
+      parts: { dups: div(dupNet, erpNet), unpaid: div(unpaidNet, erpNet), rest: div(rest, erpNet), restRub: Math.round(rest * 100) / 100 }, explained: Math.abs(rest) < 0.01 };
     // Те же находки построчно — для блока «Проверки последней выгрузки». Числа совпадают с таблицей источников выше
     const dupIds = (rs, key) => { const n = new Map(); rs.forEach(r => n.set(r[key], (n.get(r[key]) || 0) + 1)); return [...n].filter(([, c]) => c > 1); };
     const topics = D.dicts.topics;

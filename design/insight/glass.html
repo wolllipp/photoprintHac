@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>picPac Insight — макет управленческого контура</title>
-<!-- ДОПУЩЕНИЕ: шрифт Insight не утверждён, взят Jost как на сайте. Загрузка не блокирует страницу: без сети работает системный стек из --font. При переносе подключить локально, внешних запросов в контуре быть не должно. -->
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700&family=Pacifico&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<!-- Шрифты лежат в проекте (fonts/, SIL OFL 1.1): внешних запросов нет, без сети страница выглядит так же. Manrope и Unbounded — как в приложении picPac -->
+<link rel="stylesheet" href="fonts/fonts.css">
 <!-- Тема до первой отрисовки, чтобы страница не мигала. По умолчанию тёмная; выбор запоминается в браузере, без хранилища работает тоже -->
 <script>(function () { var t = "dark"; try { t = localStorage.getItem("insight-theme") === "light" ? "light" : "dark"; } catch (e) {} document.documentElement.dataset.theme = t; })();</script>
 <link rel="stylesheet" href="insight.css">

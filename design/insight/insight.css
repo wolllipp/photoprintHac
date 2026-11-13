@@ -1288,3 +1288,8 @@ html[data-theme="light"] .stv.st-bad { color: var(--coral-act); }
 /* Пункт «Светлая / Тёмная тема» в меню пользователя */
 .menu-pop .theme-item { display: flex; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; }
 .menu-pop .theme-item svg { width: 18px; height: 18px; flex: none; }
+/* Источник показателя устарел: метка на плитке и предупреждение на «Качестве данных» */
+.kpi-scope.stale { color: var(--warn); background: var(--warn-tint); box-shadow: inset 0 0 0 1px rgba(242, 201, 168, .35); }
+html[data-theme="light"] .kpi-scope.stale { box-shadow: inset 0 0 0 1px rgba(168, 79, 0, .25); }
+.recon > div { display: flex; flex-direction: column; gap: 4px; }
+.recon { align-items: flex-start; flex-wrap: nowrap; }
