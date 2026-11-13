@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 
 import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
 import { layoutOf } from '@/data/layouts';
-import { takenAt, uploadCopy } from '@/data/picked';
+import { draftCopy, takenAt, uploadCopy } from '@/data/picked';
 import { setRemoteSource } from '@/data/photos';
 
 // фото, которое есть только на сервере, показываем по его адресу с токеном в заголовке
@@ -25,29 +25,49 @@ const remember = (id: string, uri: string) => {
 /** Сколько фото в одном запросе и сколько запросов сразу: копии для печати — около 1 МБ, два потока заметно быстрее одного. */
 const BATCH = 2;
 const PARALLEL = 2;
+/** Черновые копии (1200 px) лёгкие — 200–300 КБ: пачки крупнее, потоков больше. */
+const DRAFT_BATCH = 4;
+const DRAFT_PARALLEL = 3;
 
-/** Загрузить фото с телефона на сервер (пачками), вернуть их id. Уже загруженные не грузим. onProgress — сколько из скольких. */
-async function upload(uris: string[], onProgress?: (done: number, total: number) => void) {
+/** Часть формы: файл на телефоне — File из expo-file-system (это Blob), в вебе — Blob по адресу картинки. */
+async function filePart(file: string) {
+  // fetch в Expo SDK 58 не принимает старую часть формы { uri, name, type } («Unsupported FormDataPart implementation»)
+  return (Platform.OS === 'web' ? await (await fetch(file)).blob() : new FsFile(file)) as Blob;
+}
+const fileName = (file: string, k: number) => file.split('/').pop()?.split('?')[0] || `photo-${k}.jpg`;
+
+/**
+ * Загрузить фото с телефона на сервер (пачками), вернуть их id. Уже загруженные не грузим. onProgress — сколько из скольких.
+ * draft — для быстрой сборки: вместо копии для печати (3000 px, ~1 МБ) уходит копия 1200 px и размер будущей копии
+ * для печати; саму копию для печати потом догружает uploadPrints. Без draft — сразу копия для печати.
+ */
+async function upload(uris: string[], onProgress?: (done: number, total: number) => void, draft = false, drafted: string[] = []) {
   const todo = uris.filter((u) => !idOfUri.has(u) && !u.startsWith('srv:'));
   let done = 0;
   onProgress?.(0, todo.length);
+  const size = draft ? DRAFT_BATCH : BATCH;
   const batches: string[][] = [];
-  for (let i = 0; i < todo.length; i += BATCH) batches.push(todo.slice(i, i + BATCH));
+  for (let i = 0; i < todo.length; i += size) batches.push(todo.slice(i, i + size));
   const send = async (batch: string[]) => {
     const form = new FormData();
+    const mine: string[] = [];
     for (const [k, uri] of batch.entries()) {
+      const d = draft ? await draftCopy(uri) : null;
       // на сервер — копия 3000 px (для печати хватает с запасом), а не оригинал 3–10 МБ
-      const file = await uploadCopy(uri);
-      const name = file.split('/').pop()?.split('?')[0] || `photo-${k}.jpg`;
-      // fetch в Expo SDK 58 не принимает старую часть формы { uri, name, type } («Unsupported FormDataPart implementation»):
-      // на телефоне файл — File из expo-file-system (это Blob), в вебе — Blob по адресу картинки
-      const part = Platform.OS === 'web' ? await (await fetch(file)).blob() : new FsFile(file);
-      form.append('files', part as Blob, name);
+      const file = d?.file ?? (await uploadCopy(uri));
+      form.append('files', await filePart(file), fileName(file, k));
       // дата съёмки: в сжатой копии EXIF нет, а книга раскладывается по дням
       form.append('taken_at', takenAt(uri) ?? '');
+      if (draft) {
+        // пусто — фото уже целиком (небольшое), догружать нечего
+        form.append('print_w', d ? String(d.printW) : '');
+        form.append('print_h', d ? String(d.printH) : '');
+        if (d) mine.push(uri);
+      }
     }
     const res = await api.upload<{ id: string }[]>('/photos', form);
     res.forEach((p, k) => remember(p.id, batch[k]));
+    drafted.push(...mine);
     done += batch.length;
     onProgress?.(done, todo.length);
   };
@@ -55,8 +75,71 @@ async function upload(uris: string[], onProgress?: (done: number, total: number)
   const worker = async () => {
     for (let b = queue.shift(); b; b = queue.shift()) await send(b);
   };
-  await Promise.all(Array.from({ length: Math.min(PARALLEL, queue.length) }, worker));
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: Math.min(draft ? DRAFT_PARALLEL : PARALLEL, queue.length) }, worker));
+  if (todo.length) console.log(`[загрузка] ${todo.length} фото (${draft ? 'черновые' : 'для печати'}) за ${((Date.now() - t0) / 1000).toFixed(1)} с`);
+  // drafted — какие фото ушли черновыми: копии для печати догружает тот, кто вызвал, когда книга уже собрана
+  // (иначе замена файла на сервере шла бы одновременно со сборкой, которая читает черновики)
   return uris.map((u) => (u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)!));
+}
+
+/**
+ * Копии для печати, которые ещё не на сервере (книга собрана по черновым). Догружаются в фоне, пока человек
+ * смотрит книгу; заказ ждёт их (waitPrints), а сервер без них заказ не примет.
+ */
+const printQueue: string[] = [];
+let printTotal = 0;
+let printDone = 0;
+let printRun: Promise<void> | null = null;
+const printListeners = new Set<() => void>();
+const notifyPrints = () => printListeners.forEach((f) => f());
+
+/** Сколько копий для печати догружено: { done, total }; total 0 — догружать нечего. */
+export const printUploads = () => ({ done: printDone, total: printTotal });
+export function onPrintUploads(f: () => void) {
+  printListeners.add(f);
+  return () => {
+    printListeners.delete(f);
+  };
+}
+
+function queuePrints(uris: string[]) {
+  printQueue.push(...uris);
+  printTotal += uris.length;
+  notifyPrints();
+  if (!printRun) printRun = runPrints().finally(() => (printRun = null));
+}
+
+async function runPrints() {
+  const t0 = Date.now();
+  const worker = async () => {
+    for (let uri = printQueue.shift(); uri; uri = printQueue.shift()) {
+      const id = idOfUri.get(uri);
+      if (!id) continue;
+      // сеть моргнула — пробуем ещё два раза, потом оставляем (сервер не примет заказ, человек увидит причину)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const file = await uploadCopy(uri);
+          const form = new FormData();
+          form.append('file', await filePart(file), fileName(file, 0));
+          await api.uploadPut(`/photos/${id}/file`, form);
+          break;
+        } catch (e) {
+          if (attempt === 2) console.warn('[печать] не догрузили копию для печати:', e instanceof Error ? e.message : String(e));
+          else await sleep(1500);
+        }
+      }
+      printDone += 1;
+      notifyPrints();
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  console.log(`[загрузка] копии для печати: ${printDone} из ${printTotal} за ${((Date.now() - t0) / 1000).toFixed(1)} с`);
+}
+
+/** Дождаться копий для печати (перед заказом). */
+export async function waitPrints() {
+  while (printRun) await printRun;
 }
 
 /** Книга, собранная на сервере: id проекта и страницы — какие фото (локальные адреса на телефоне) в каком макете. */
@@ -72,7 +155,9 @@ export type ServerPage = {
   /** свои размеры фото на странице (components/sizeEditor.tsx); нет — как в макете */
   slots?: { x: number; y: number; w: number; h: number }[];
 };
-export type ServerBook = { projectId: string; title: string; pages: ServerPage[] };
+/** Обложка: фото на лицевой стороне (адрес на телефоне или srv:id; нет — первое фото книги) и название на ней. */
+export type ServerCover = { photo?: string; title: boolean };
+export type ServerBook = { projectId: string; title: string; pages: ServerPage[]; cover?: ServerCover };
 
 /** Фото, выбранные в галерее, ждут экрана сборки (параметры навигации для длинного списка не годятся). */
 /** tariff — на каком тарифе собрать (по умолчанию Lite; мало фото — человек мог выбрать Classic или Premium). */
@@ -169,9 +254,11 @@ async function buildOnce(input: PendingBook, onStep: BuildStep): Promise<ServerB
 
 async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string | null; stopped: boolean }): Promise<ServerBook> {
 
-  // 1. загрузка — пачками, чтобы не держать в памяти все снимки сразу
+  // 1. загрузка — черновые копии 1200 px: книга собирается за секунды, копии для печати догружаются в фоне
+  const t0 = Date.now();
   onStep(0);
-  const photoIds = await upload(input.uris, (done, total) => onStep(0, { done, total }));
+  const drafted: string[] = [];
+  const photoIds = await upload(input.uris, (done, total) => onStep(0, { done, total }), true, drafted);
 
   // 2. проект на Lite 20×20 — у тарифа минимум 24 страницы, сборка его держит
   const products = await api.get<{ code: string; options: { id: string; format: string }[] }[]>('/catalog/products');
@@ -202,11 +289,14 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
 
   // 4. страницы: фото — по локальным адресам (сервер отдаёт id), макет — по числу фото
   const book = await loadServerBook(project.id, input.title);
+  // книга собрана — теперь можно менять черновые файлы на копии для печати
+  if (drafted.length) queuePrints(drafted);
+  console.log(`[сборка] ${input.uris.length} фото: книга готова за ${((Date.now() - t0) / 1000).toFixed(1)} с`);
   onStep(4);
   return book;
 }
 
-type PagesOut = { pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -239,24 +329,59 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
       slots: differ ? rects.map((fr) => ({ x: fr.x ?? 0, y: fr.y ?? 0, w: fr.w, h: fr.h ?? 1 })) : undefined,
     };
   });
-  const book = { projectId, title, pages };
+  const c = res.cover;
+  const cover = c ? { photo: c.photo_id ? (uriOfId.get(c.photo_id) ?? `srv:${c.photo_id}`) : undefined, title: c.title } : undefined;
+  const book = { projectId, title, pages, cover };
   books.set(projectId, book);
   return book;
 }
 
-/** Сохранить правку страницы на сервере: новые фото с телефона сначала загружаются. Ошибку проглатываем — правка уже на экране. */
-export async function savePage(projectId: string, position: number, page: ServerPage) {
-  const ids = await upload(page.photos);
-  // свои размеры фото, если человек их менял, — иначе рамки макета
+/** Страница для сервера: фото → id (новые с телефона уже загружены), рамки макета или свои. */
+function pageBody(page: ServerPage, ids: string[]) {
   const slots = page.slots ?? layoutOf(page.layout).slots;
-  await api.put(`/projects/${projectId}/pages/${position}`, {
+  return {
     template: page.layout,
     caption: page.caption ?? null,
     caption_font: page.caption ? (page.captionFont ?? null) : null,
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
     // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
     frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),
-  });
+  };
+}
+
+/**
+ * Вся книга разом — после добавления, вставки, удаления или перестановки страниц (номера следующих сдвигаются,
+ * по одной странице не сохранить). Пустые места в рамках (фото ещё не выбрано) на сервер не уходят.
+ */
+export async function savePages(projectId: string, pages: ServerPage[]) {
+  const all = pages.flatMap((p) => p.photos.filter(Boolean));
+  await upload(all);
+  const body = pages.map((p) => pageBody(p, p.photos.filter(Boolean).map((u) => (u.startsWith('srv:') ? u.slice(4) : idOfUri.get(u)!))));
+  await api.put(`/projects/${projectId}/pages`, { pages: body });
+  const book = books.get(projectId);
+  if (book) book.pages = pages;
+}
+
+/** Новое название книги (его меняют в редакторе, нажав на название). */
+export async function renameProject(projectId: string, title: string) {
+  await api.patch(`/projects/${projectId}`, { title });
+  const book = books.get(projectId);
+  if (book) book.title = title;
+}
+
+/** Обложка: фото на лицевой стороне и название на ней. */
+export async function saveCover(projectId: string, cover: ServerCover) {
+  const [id] = cover.photo ? await upload([cover.photo]) : [undefined];
+  await api.put(`/projects/${projectId}/cover`, { photo_id: id ?? null, title: cover.title });
+  const book = books.get(projectId);
+  if (book) book.cover = cover;
+}
+
+/** Сохранить правку страницы на сервере: новые фото с телефона сначала загружаются. Ошибку проглатываем — правка уже на экране. */
+export async function savePage(projectId: string, position: number, page: ServerPage) {
+  const ids = await upload(page.photos);
+  // свои размеры фото, если человек их менял, — иначе рамки макета
+  await api.put(`/projects/${projectId}/pages/${position}`, pageBody(page, ids));
   const book = books.get(projectId);
   if (book) book.pages[position] = page;
 }
@@ -353,6 +478,8 @@ export async function orderOnServer(o: {
   key?: string;
 }) {
   await ensureRegistered();
+  // книга собиралась по черновым копиям — в печать идут копии для печати, ждём, пока догрузятся
+  await waitPrints();
   // пики списывает сервер со своего баланса (GET /me); приложение их не начисляет
   const body = {
     project_id: o.projectId,

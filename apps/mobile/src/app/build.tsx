@@ -179,7 +179,8 @@ export default function Build() {
         <View style={s.status} accessibilityLiveRegion="polite">
           <View style={s.statusRow}>
             {error ? (
-              <Animated.Text key="error" entering={FadeIn.duration(duration.fast)} style={[s.statusText, { color: colors.coralAction }]}>
+              // ошибка — на всю ширину строки (счётчик шагов при ошибке не показываем): длинная фраза обрезалась в конце
+              <Animated.Text key="error" entering={FadeIn.duration(duration.fast)} style={[s.statusText, { flex: 1, color: colors.coralAction }]}>
                 {ERROR_TEXT[error]}
               </Animated.Text>
             ) : done ? (
@@ -189,7 +190,7 @@ export default function Build() {
             ) : (
               <ThinkingLine key={step} text={step === 0 && up && up.total > 0 && up.done < up.total ? `Загружаем фото: ${up.done} из ${up.total}` : STEPS[step].now} style={s.statusText} />
             )}
-            <Text style={s.statusStep}>{Math.min(step + 1, STEPS.length)} из {STEPS.length}</Text>
+            {error ? null : <Text style={s.statusStep}>{Math.min(step + 1, STEPS.length)} из {STEPS.length}</Text>}
           </View>
           <View style={s.track}>
             <Animated.View layout={LinearTransition.duration(STEP_MS * 0.8)} style={[s.trackFill, { width: `${(Math.min(step + 1, STEPS.length) / STEPS.length) * 100}%` }]} />

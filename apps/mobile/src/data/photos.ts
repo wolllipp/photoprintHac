@@ -29,6 +29,8 @@ export const setRemoteSource = (fn: typeof remote) => {
  */
 const previewOf = new Map<string, string>();
 export const setPreview = (uri: string, preview: string) => previewOf.set(uri, preview);
+/** Готовая копия для экрана (файл на телефоне) — её же шлём на сервер для быстрой сборки. */
+export const previewFile = (uri: string) => previewOf.get(uri);
 
 export const pic = (k: Pic) => {
   if (k in photos) return photos[k as PhotoName];

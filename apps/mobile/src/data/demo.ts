@@ -77,16 +77,16 @@ export type Tariff = {
 /** Цены за 24 страницы формата 20×20 — по таблице super.picpac.by (notes/23-super-alignment.md). */
 export const tariffs: Tariff[] = [
   { id: 'lite', name: 'Lite', price: 70, readyBy: '14 ноя', about: 'Lite — тонкие листы, как в журнале', cover: ['#ECC097', '#C8806B'] },
-  { id: 'classic', name: 'Classic', price: 87, readyBy: '14 ноя', about: 'Classic — плотные листы, раскрытие на 180°', cover: ['#A9CDD2', '#5C8A88'] },
-  { id: 'premium', name: 'Premium', price: 149.5, readyBy: '14 ноя', about: 'Premium — фотобумага 1 мм, без шва по центру', cover: ['#DF948A', '#A9443F'], tall: true },
+  { id: 'classic', name: 'Classic', price: 84, readyBy: '14 ноя', about: 'Classic — плотные листы, раскрытие на 180°', cover: ['#A9CDD2', '#5C8A88'] },
+  { id: 'premium', name: 'Premium', price: 125, readyBy: '14 ноя', about: 'Premium — фотобумага 1 мм, без шва по центру', cover: ['#DF948A', '#A9443F'], tall: true },
 ];
 
 export type Draft = { title: string; pages: number; format: string; photos: number; cover: PhotoName };
 /**
  * Цена книги: тариф × формат × страницы. Источник — каталог сервера (GET /catalog/products, api/catalog.ts);
  * значения ниже — те же цены с super.picpac.by на случай, если сервер ещё не ответил:
- * Lite 24–160 стр., от 70,00 за 24, +2,00 за 2 стр.; Classic 20–60, от 81,00 за 20, +3,00 за 2 стр.;
- * Premium 10–60, от 100,50 за 10, +7,00 за 2 стр. Печать книги — 3 дня с оплаты.
+ * Lite 24–160 стр., от 70,00 за 24, +0,90 за разворот; Classic 20–60, от 81,00 за 20, +1,50 за разворот;
+ * Premium 10–60, от 100,50 за 10, +3,50 за разворот. Печать книги — 3 дня с оплаты.
  * Надбавок за формат и ламинацию на сайте нет — и у нас нет, чтобы цена в приложении совпадала с заказом.
  */
 export const FORMATS_BY_TARIFF: Record<Tariff['id'], string[]> = {
@@ -96,9 +96,9 @@ export const FORMATS_BY_TARIFF: Record<Tariff['id'], string[]> = {
 };
 /** price — за min страниц; step — доплата за каждые 2 страницы сверх min. */
 export const BOOK: Record<Tariff['id'], { price: number; min: number; max: number; step: number }> = {
-  lite: { price: 70, min: 24, max: 160, step: 2 },
-  classic: { price: 81, min: 20, max: 60, step: 3 },
-  premium: { price: 100.5, min: 10, max: 60, step: 7 },
+  lite: { price: 70, min: 24, max: 160, step: 0.9 },
+  classic: { price: 81, min: 20, max: 60, step: 1.5 },
+  premium: { price: 100.5, min: 10, max: 60, step: 3.5 },
 };
 /** Цена у конкретного формата, если каталог сервера отдал её отдельно. */
 export const BOOK_BY_FORMAT: Partial<Record<Tariff['id'], Record<string, { price: number; step: number }>>> = {};

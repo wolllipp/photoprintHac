@@ -26,18 +26,18 @@ DEMO_MANAGER_PHONE = "+375297000001"
 # (code, title, line, {format: ...}, min_p, base_p, base_price, step_price, max_p, days, assumed)
 BOOKS = [
     # Цены, диапазоны и шаг — с super.picpac.by (notes/23-super-alignment.md): цена за минимальный объём,
-    # дальше — доплата за каждые 2 страницы. Книга не бывает меньше минимума (Lite — 24 страницы).
+    # дальше — доплата за каждый разворот (2 страницы): Lite +0,90, Classic +1,50, Premium +3,50 (уточнение 13.11). Книга не бывает меньше минимума (Lite — 24 страницы).
     dict(code="lite", title="Lite", line="Ricoh", days=3, min_pages=24, base_pages=24, max_pages=160,
-         base_price=D("70.00"), step_price=D("2.00"),
+         base_price=D("70.00"), step_price=D("0.90"),
          formats=["20x20", "26x26", "21x30"],
          assumed=["production_days: на сайте «книги за 3 дня» без разбивки по тарифам",
                   "надбавки за формат на сайте не указаны — цена одна для всех форматов"]),
     dict(code="classic", title="Classic", line="Ricoh", days=3, min_pages=20, base_pages=20, max_pages=60,
-         base_price=D("81.00"), step_price=D("3.00"),
+         base_price=D("81.00"), step_price=D("1.50"),
          formats=["20x20", "21x30"],
          assumed=["production_days", "надбавки за формат на сайте не указаны"]),
     dict(code="premium", title="Premium", line="Noritsu", days=3, min_pages=10, base_pages=10, max_pages=60,
-         base_price=D("100.50"), step_price=D("7.00"),
+         base_price=D("100.50"), step_price=D("3.50"),
          formats=["20x20", "30x20", "25x25", "30x30", "21x30"],
          assumed=["production_days", "надбавки за формат на сайте не указаны"]),
 ]

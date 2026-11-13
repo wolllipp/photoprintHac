@@ -201,8 +201,9 @@ def quality_report(photo, dpi_limit: tuple[int, int] | None = None, *, format: s
               < dpi * edge_mm / 25.4)(_head(face)) for face in faces):
             warnings.append({"code": "face_edge", "text": WARNING_TEXT["face_edge"]})
         dims = _format_dimensions(format)
-        # зона загиба — по центру разворота: есть только у рамок, заданных в долях разворота
-        if book and spread and product in {"lite", "classic"} and dims and frame:
+        # зона загиба — по центру разворота: есть только у рамок, заданных в долях разворота,
+        # и только в Lite (у Classic и Premium разворот раскрывается плоско, без шва — уточнение 13.11)
+        if book and spread and product == "lite" and dims and frame:
             gutter_half = 0.6 / (2 * dims[0])
             crop = crop or {"x": 0, "y": 0, "w": 1, "h": 1}
             for face in faces:

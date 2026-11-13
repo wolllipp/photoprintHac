@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import points_balance
+from app.api.photos import is_draft
 from app.api.projects import locked_owned_project
 from app.config import settings
 from app.db import get_session
@@ -111,6 +112,11 @@ async def create_order(body: OrderIn, user: User = Depends(registered_user), s: 
                                                                  ProjectPhoto.selected.is_(True)))).scalars().all()
         if not n_selected:
             raise HTTPException(422, "в книге нет отобранных фото")
+        # в печать — только копии для печати: черновые (быстрая сборка) приложение догружает в фоне
+        paths = (await s.execute(select(Photo.path).join(ProjectPhoto, ProjectPhoto.photo_id == Photo.id)
+                                 .where(ProjectPhoto.project_id == project.id))).scalars().all()
+        if any(is_draft(p) for p in paths):
+            raise HTTPException(409, "фото для печати ещё загружаются — подождите немного и повторите")
     else:
         # фотопечать: только свои фото; цена — за штуку формата × копии
         if not body.prints:

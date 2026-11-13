@@ -2,8 +2,8 @@ async def test_quote_matches_site_prices(client):
     r = await client.get("/catalog/quote", params={"pages": 24, "format": "20x20"})
     t = {x["code"]: x for x in r.json()["tariffs"]}
     # super.picpac.by: цена за минимум страниц + шаг за каждые 2 страницы
-    assert t["premium"]["price"] == "149.50"     # 100,50 за 10 стр. + 7 × 7,00
-    assert t["classic"]["price"] == "87.00"      # 81,00 за 20 стр. + 2 × 3,00
+    assert t["premium"]["price"] == "125.00"     # 100,50 за 10 стр. + 7 × 3,50
+    assert t["classic"]["price"] == "84.00"      # 81,00 за 20 стр. + 2 × 1,50
     assert t["lite"]["price"] == "70.00"         # 70,00 за 24 стр.
     assert t["lite"]["ready_date"] <= t["classic"]["ready_date"] <= t["premium"]["ready_date"]
 

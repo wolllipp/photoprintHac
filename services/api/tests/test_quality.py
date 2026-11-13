@@ -77,15 +77,16 @@ def test_face_edge_margin_is_measured_in_print_millimeters_at_effective_dpi():
     assert "face_edge" in {w["code"] for w in quality_report(risky, format="20x20", frame=frame)["warnings"]}
 
 
-def test_lite_and_classic_face_crossing_center_gutter_warns_but_premium_does_not():
+def test_only_lite_face_crossing_center_gutter_warns():
+    """Шов по центру разворота — только у Lite; Classic и Premium раскрываются без шва."""
     photo = {"width": 2000, "height": 1000, "sharpness": 500,
              "faces": [{"x": 0.4, "y": 0.3, "w": 0.2, "h": 0.3}]}
     frame = {"x": 0, "y": 0, "w": 1, "h": 1}
 
-    lite = quality_report(photo, format="20x20", frame=frame, product="lite")
-    premium = quality_report(photo, format="20x20", frame=frame, product="premium")
-    assert "gutter" in {warning["code"] for warning in lite["warnings"]}
-    assert "gutter" not in {warning["code"] for warning in premium["warnings"]}
+    codes = {p: {w["code"] for w in quality_report(photo, format="20x20", frame=frame, product=p)["warnings"]}
+             for p in ("lite", "classic", "premium")}
+    assert "gutter" in codes["lite"]
+    assert "gutter" not in codes["classic"] and "gutter" not in codes["premium"]
 
 
 def test_crop_rect_accepts_legacy_px_arguments_and_reports_unfit_face():

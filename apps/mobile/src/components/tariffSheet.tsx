@@ -19,7 +19,7 @@ import { colors, fonts } from '@/theme';
 /** Чем тарифы отличаются — одной строкой, без маркетинга. */
 const WHAT: Record<Tariff['id'], string> = {
   lite: 'Тонкие листы, как в журнале',
-  classic: 'Плотные листы, раскрытие на 180°',
+  classic: 'Плотные листы, раскрытие на 180°, без шва',
   premium: 'Фотобумага 1 мм, разворот без шва',
 };
 
@@ -78,7 +78,7 @@ export function TariffSheet({
                   <Text style={s.what}>{WHAT[t.id]}</Text>
                   <Text style={s.meta}>
                     {fmt} · {p} стр. · от {BOOK[t.id].min} до {BOOK[t.id].max}
-                    {hasSpreads ? (t.id === 'premium' ? ' · разворот без шва' : ' · шов по центру') : ''}
+                    {hasSpreads ? (t.id === 'lite' ? ' · шов по центру' : ' · разворот без шва') : ''}
                   </Text>
                 </View>
                 <Text style={[s.price, on && { color: colors.coralAction }]}>{rub(price)}</Text>

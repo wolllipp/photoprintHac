@@ -171,6 +171,8 @@ export const api = {
   get: <T>(path: string) => raw<T>('GET', path),
   /** загрузка фото: снимки с телефона по 3–10 МБ — ждём дольше обычного запроса, иначе на Wi-Fi обрывается */
   upload: <T>(path: string, form: FormData) => raw<T>('POST', path, form, true, undefined, UPLOAD_TIMEOUT_MS),
+  /** заменить файл фото (копия для печати вместо черновой) — так же долго, как загрузка */
+  uploadPut: <T>(path: string, form: FormData) => raw<T>('PUT', path, form, true, undefined, UPLOAD_TIMEOUT_MS),
   /** headers — например, Idempotency-Key заказа */
   post: <T>(path: string, body?: unknown, headers?: Record<string, string>) => raw<T>('POST', path, body ?? {}, true, headers),
   patch: <T>(path: string, body?: unknown) => raw<T>('PATCH', path, body ?? {}),

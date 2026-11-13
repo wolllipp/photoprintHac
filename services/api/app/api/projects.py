@@ -158,6 +158,21 @@ async def get_project(project_id: uuid.UUID, user: User = Depends(current_user),
     return {**project_out(p), "photo_count": n}
 
 
+class ProjectPatch(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+@router.patch("/projects/{project_id}")
+async def rename_project(project_id: uuid.UUID, body: ProjectPatch, user: User = Depends(current_user),
+                         s: AsyncSession = Depends(get_session)):
+    """Название книги — его меняют прямо в редакторе (оно же на обложке и в «Черновиках»)."""
+    p = await locked_owned_project(s, project_id, user)
+    ensure_editable(p)
+    p.title = body.title.strip() or p.title
+    await s.commit()
+    return project_out(p)
+
+
 @router.post("/projects/{project_id}/photos")
 async def add_photos(project_id: uuid.UUID, body: PhotosIn, user: User = Depends(current_user),
                      s: AsyncSession = Depends(get_session)):
@@ -231,7 +246,7 @@ async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user
     p = await own_project(s, project_id, user)
     rows = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id)
                             .order_by(ProjectPage.position))).scalars().all()
-    return {"project_id": str(p.id), "page_count": p.page_count, "status": p.status.value,
+    return {"project_id": str(p.id), "page_count": p.page_count, "status": p.status.value, "cover": p.cover,
             "pages": [{"position": r.position, "chapter": r.layout.get("chapter"),
                        "template": r.layout.get("template"), "caption": r.layout.get("caption"),
                        "caption_font": r.layout.get("caption_font"),
@@ -253,6 +268,25 @@ class PageIn(BaseModel):
     fx: dict[str, list[str]] = Field(default_factory=dict)  # номер рамки → улучшения ИИ
 
 
+async def keep_photos(s: AsyncSession, p: Project, ids: list[uuid.UUID], user: User) -> None:
+    """Фото, поставленные руками, — свои (чужие не примем), выбраны, и пересборка их не уберёт."""
+    if not ids:
+        return
+    await attach(s, p, ids, user)
+    await s.flush()
+    rows = {r.photo_id: r for r in (await s.execute(
+        select(ProjectPhoto).where(ProjectPhoto.project_id == p.id, ProjectPhoto.photo_id.in_(ids))
+    )).scalars()}
+    for pid in set(ids):
+        rows[pid].selected, rows[pid].reject_reason, rows[pid].user_override = True, None, True
+
+
+def page_layout(position: int, body: PageIn, chapter: str | None = None) -> dict:
+    return {"position": position, "chapter": chapter, "template": body.template,
+            "caption": body.caption, "caption_font": body.caption_font, "fx": body.fx,
+            "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
+
+
 @router.put("/projects/{project_id}/pages/{position}")
 async def save_page(project_id: uuid.UUID, position: int, body: PageIn, user: User = Depends(current_user),
                     s: AsyncSession = Depends(get_session)):
@@ -265,27 +299,56 @@ async def save_page(project_id: uuid.UUID, position: int, body: PageIn, user: Us
     # правят страницу за концом книги (в приложении книга длиннее: тариф с бо́льшим минимумом) — книга растёт до неё
     if p.page_count is not None and position >= p.page_count:
         p.page_count = position + 1
-    ids = [f.photo_id for f in body.frames]
-    if ids:
-        await attach(s, p, ids, user)
-        await s.flush()
-        rows = {r.photo_id: r for r in (await s.execute(
-            select(ProjectPhoto).where(ProjectPhoto.project_id == p.id, ProjectPhoto.photo_id.in_(ids))
-        )).scalars()}
-        for pid in ids:  # фото, поставленное руками, — выбрано, и пересборка его не уберёт
-            rows[pid].selected, rows[pid].reject_reason, rows[pid].user_override = True, None, True
+    await keep_photos(s, p, [f.photo_id for f in body.frames], user)
     page = (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id,
                                                       ProjectPage.position == position))).scalar_one_or_none()
-    old = page.layout if page else {}
-    layout = {"position": position, "chapter": old.get("chapter"), "template": body.template,
-              "caption": body.caption, "caption_font": body.caption_font, "fx": body.fx,
-              "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
+    layout = page_layout(position, body, (page.layout if page else {}).get("chapter"))
     if page is None:
         s.add(ProjectPage(project_id=p.id, position=position, layout=layout))
     else:
         page.layout = layout
     await s.commit()
     return layout
+
+
+class BookIn(BaseModel):
+    pages: list[PageIn] = Field(min_length=MIN_PAGES, max_length=MAX_PAGES)
+
+
+@router.put("/projects/{project_id}/pages")
+async def save_book(project_id: uuid.UUID, body: BookIn, user: User = Depends(current_user),
+                    s: AsyncSession = Depends(get_session)):
+    """Все страницы разом, по порядку: человек добавил, вставил, удалил или переставил страницы —
+    номера всех следующих сдвинулись, и сохранять по одной странице нельзя. Объём книги = число страниц."""
+    p = await locked_owned_project(s, project_id, user)
+    ensure_editable(p)
+    await keep_photos(s, p, [f.photo_id for pg in body.pages for f in pg.frames], user)
+    for old in (await s.execute(select(ProjectPage).where(ProjectPage.project_id == p.id))).scalars():
+        await s.delete(old)
+    await s.flush()
+    for k, pg in enumerate(body.pages):
+        s.add(ProjectPage(project_id=p.id, position=k, layout=page_layout(k, pg)))
+    p.page_count = len(body.pages)
+    await s.commit()
+    return {"page_count": p.page_count}
+
+
+class CoverIn(BaseModel):
+    photo_id: uuid.UUID | None = None  # фото на лицевой стороне; нет — первое фото книги
+    title: bool = True  # название книги на обложке
+
+
+@router.put("/projects/{project_id}/cover")
+async def save_cover(project_id: uuid.UUID, body: CoverIn, user: User = Depends(current_user),
+                     s: AsyncSession = Depends(get_session)):
+    """Обложка — отдельно от страниц: её не переставляют и не удаляют."""
+    p = await locked_owned_project(s, project_id, user)
+    ensure_editable(p)
+    if body.photo_id:
+        await keep_photos(s, p, [body.photo_id], user)
+    p.cover = {"photo_id": str(body.photo_id) if body.photo_id else None, "title": body.title}
+    await s.commit()
+    return p.cover
 
 
 @router.get("/projects/{project_id}/selection")

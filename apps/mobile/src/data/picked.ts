@@ -5,7 +5,7 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
-import { setPreview } from '@/data/photos';
+import { previewFile, setPreview } from '@/data/photos';
 
 /** Длинная сторона копии для экрана: страница книги на телефоне — около 1200 точек. */
 const PREVIEW_PX = 1200;
@@ -59,7 +59,8 @@ const uploadOfUri = new Map<string, string>();
 export async function uploadCopy(uri: string) {
   const ready = uploadOfUri.get(uri);
   if (ready) return ready;
-  const size = sizeOfUri.get(uri);
+  // размер неизвестен (фото не из галереи, а, например, из «Файлов») — узнаём, а не шлём оригинал на 10 МБ
+  const size = sizeOfUri.get(uri) ?? (await measure(uri));
   const long = size ? Math.max(size.w, size.h) : 0;
   if (!size || long <= UPLOAD_PX * 1.1) return uri;
   try {
@@ -72,6 +73,39 @@ export async function uploadCopy(uri: string) {
   } catch {
     return uri;
   }
+}
+
+/** Размер снимка, если галерея его не дала: открываем файл и запоминаем. Не вышло — undefined. */
+async function measure(uri: string) {
+  try {
+    const img = await ImageManipulator.manipulate(uri).renderAsync();
+    const size = { w: img.width, h: img.height };
+    if (size.w && size.h) sizeOfUri.set(uri, size);
+    return size.w && size.h ? size : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Черновая загрузка для быстрой сборки: копия 1200 px для экрана (она уже готова — makePreviews) и размер,
+ * который будет у копии для печати. Сервер считает по нему качество под рамку, а саму копию для печати
+ * приложение догружает в фоне (api/book.ts, uploadPrints). null — фото и так небольшое, грузим сразу целиком.
+ */
+export async function draftCopy(uri: string): Promise<{ file: string; printW: number; printH: number } | null> {
+  const size = sizeOfUri.get(uri) ?? (await measure(uri));
+  if (!size) return null;
+  const long = Math.max(size.w, size.h);
+  if (long <= PREVIEW_PX * 1.2) return null;
+  let file = previewFile(uri);
+  if (!file) {
+    await makePreview({ uri, width: size.w, height: size.h });
+    file = previewFile(uri);
+  }
+  if (!file) return null;
+  // копия для печати — не больше 3000 px по длинной стороне (uploadCopy), пропорции те же
+  const k = long > UPLOAD_PX * 1.1 ? UPLOAD_PX / long : 1;
+  return { file, printW: Math.round(size.w * k), printH: Math.round(size.h * k) };
 }
 
 /** Копии по 3 за раз: первые ждём (их сразу видно на экране сборки), остальные доделываются, пока фото грузятся. */

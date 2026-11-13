@@ -9,20 +9,22 @@
  * Место запоминается: из «Черновиков» открываемся на той же странице.
  * Что человек просил поменять — копится во «вкус» (notes/25, раздел 9) и учитывается в следующей книге.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowsOutLineHorizontalIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, TrashIcon, XIcon } from 'phosphor-react-native';
+import { ArrowsOutLineHorizontalIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, FilePlusIcon, HandGrabbingIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, PencilSimpleIcon, PlusIcon, SquaresFourIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { checkOnServer, loadServerBook, projectPhotos, savePage, serverBook } from '@/api/book';
+import { checkOnServer, loadServerBook, onPrintUploads, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, type ServerPage } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
+import { DragUnit, FeedDrag } from '@/components/feedDrag';
 import { PageOrder } from '@/components/pageOrder';
 import { SizeEditor } from '@/components/sizeEditor';
 import { features } from '@/data/features';
@@ -62,6 +64,9 @@ const QUICK = ['Заменить фото', 'Сделать крупнее', 'У
 /** Что «услышала» диктовка в демо (в продукте — распознавание речи в локальном контуре). */
 const HEARD = 'Убери это фото, лучше пейзаж';
 const GAP = 22;
+const DRAG_TIP_KEY = 'picpac.tip.dragPages';
+/** Название книги: на обложке помещается две строки. */
+const TITLE_MAX = 60;
 
 /** Страницы книги из демо-разворотов: левая и правая страница каждого разворота по очереди. */
 function makePages(n: number): Page[] {
@@ -106,21 +111,48 @@ export default function Review() {
   const { width } = useWindowDimensions();
   const { orderNow, setLastBook, startDraft, gesturesSeen, setGesturesSeen, addTaste, saveServerDraft } = useStore();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  // прокрутка ленты — для перетаскивания страниц (страница едет вместе с прокруткой у края)
+  const scrollY = useSharedValue(0);
+  const [dragging, setDragging] = useState(false);
+  // подсказка «зажмите и перетащите» — один раз, пока не закроют или не переставят страницу сами
+  const [dragTip, setDragTip] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(DRAG_TIP_KEY)
+      .then((v) => setDragTip(!v))
+      .catch(() => {});
+  }, []);
+  const closeDragTip = () => {
+    setDragTip(false);
+    AsyncStorage.setItem(DRAG_TIP_KEY, '1').catch(() => {});
+  };
+  const { height: winH } = useWindowDimensions();
   const nextPin = useRef(1);
 
   const id = params.id ?? 'karelia';
   const d = drafts[id];
-  const title = params.title ?? d?.title ?? 'Новая книга';
+  // название меняют прямо здесь: нажали на него — поле ввода (оно же на обложке и в «Черновиках»)
+  const [title, setTitle] = useState(params.title ?? d?.title ?? 'Новая книга');
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(title);
+  const startRename = () => {
+    Haptics.selectionAsync().catch(() => {});
+    setTitleDraft(title);
+    setRenaming(true);
+  };
+  const finishRename = () => {
+    setRenaming(false);
+    const v = titleDraft.trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX);
+    if (!v || v === title) return;
+    setTitle(v);
+    if (params.projectId && serverBook(params.projectId)) renameProject(params.projectId, v).catch(() => {});
+  };
   const format = params.format ?? d?.format ?? '20×20';
   const total = Math.max(2, Number(params.pages ?? d?.pages ?? 24));
   const [tariff, setTariff] = useState<Tariff['id']>((params.tariff as Tariff['id']) ?? 'lite');
   // книга с сервера — столько страниц, сколько собрал сервер (а не сколько просили): иначе правки «лишних» страниц
   // сервер не принимал; меньше минимума тарифа всё равно не бывает
   const serverPages = serverBook(params.projectId)?.pages.length;
-  const pagesN = fitPages(tariff, serverPages || total);
-  // правки поверх собранной ИИ книги: номер страницы → новая страница
-  const [edits, setEdits] = useState<Record<number, Page>>({});
-  // книга с сервера — её страницы с сохранёнными правками (недостающие до объёма тарифа — пустые листы); иначе — демо-книга.
+  const builtN = fitPages(tariff, serverPages || total);
   // Открыли книгу с сервера, которой нет в памяти (например, из «Черновиков» после перезапуска), — подгружаем.
   const [loadedTick, setLoadedTick] = useState(0);
   const fromServer = serverBook(params.projectId);
@@ -130,15 +162,38 @@ export default function Review() {
       .then(() => setLoadedTick((x) => x + 1))
       .catch(() => {});
   }, [params.projectId, title]);
-  const pages = useMemo(() => {
-    const base: Page[] = fromServer
-      ? Array.from({ length: pagesN }, (_, k) => (fromServer.pages[k] as Page | undefined) ?? { layout: 'one', photos: [] })
-      : makePages(pagesN);
-    // в Lite сквозных листов нет: фото на весь разворот встаёт на свою страницу, следующая — снова своя
-    return base.map((x, k) => edits[k] ?? x).map((x) => (tariff === 'lite' && isSpread(x.layout) ? { ...x, layout: SIMPLE[Math.min(4, slotsOf(x.layout))] } : x));
+  // книга, как её собрал ИИ: с сервера (недостающие до объёма тарифа — пустые листы) или демо
+  const built = useMemo<Page[]>(
+    () => (fromServer ? Array.from({ length: builtN }, (_, k) => (fromServer.pages[k] as Page | undefined) ?? { layout: 'one', photos: [] }) : makePages(builtN)),
     // loadedTick — книга догрузилась с сервера
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagesN, edits, fromServer, loadedTick, tariff]);
+    [builtN, fromServer, loadedTick],
+  );
+  // Книга после правок — все страницы по порядку. Пока человек ничего не менял — null, книга как собрал ИИ.
+  // Целиком, а не «номер страницы → правка»: страницы добавляют, вставляют, удаляют и переставляют, номера сдвигаются.
+  const [book, setBook] = useState<Page[] | null>(null);
+  const raw = book ?? built;
+  // меньше минимума тарифа книги не бывает (сменили Lite → Classic и т. п.): недостающие — пустые страницы в конце
+  const minPages = BOOK[tariff].min;
+  const pagesN = Math.max(raw.length, minPages);
+  // фото на весь разворот — во всех тарифах; в Lite по центру шов (его показываем), в Classic и Premium — нет
+  const pages = useMemo(
+    () => (raw.length >= minPages ? raw : [...raw, ...Array.from({ length: minPages - raw.length }, () => ({ layout: 'one', photos: [] }) as Page)]),
+    [raw, minPages],
+  );
+  /** Правка книги: fn получает все страницы и возвращает новые. */
+  const mutate = (fn: (all: Page[]) => Page[]) => setBook((b) => fn([...(b ?? pages)]));
+
+  // Обложка — отдельно от страниц, первой; не переставляется и не удаляется. Фото не выбрано — первое фото книги.
+  type Cover = { photo?: Pic; title: boolean };
+  const [coverEdit, setCoverEdit] = useState<Cover | null>(null);
+  const cover: Cover = coverEdit ?? (fromServer?.cover as Cover | undefined) ?? { title: true };
+  const [coverOpen, setCoverOpen] = useState(false);
+  const saveCoverNow = (next: Cover) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setCoverEdit(next);
+    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: next.photo ? String(next.photo) : undefined, title: next.title }).catch(() => {});
+  };
 
   // откуда ИИ и смена макета берут фото: в своей книге — только фото человека из проекта (сначала те, что ещё не в книге),
   // в демо-книге — демо-снимки
@@ -158,28 +213,33 @@ export default function Review() {
   // макет на больше фото, чем есть свободных: не дублируем, а спрашиваем — добавить из галереи или оставить рамки пустыми
   const [needPhotos, setNeedPhotos] = useState<{ page: number; layout: string; slot: number; need: number } | null>(null);
 
-  // каждая правка страницы (замена фото, макет, подпись, «Исправить») сохраняется на сервере — книга не теряется
-  const synced = useRef<Record<number, string>>({});
+  // каждая правка (фото, макет, подпись, «Исправить», новые и переставленные страницы) сохраняется на сервере —
+  // вся книга разом, через секунду после последней правки (подряд идущие правки — одним запросом)
+  const synced = useRef('');
   useEffect(() => {
     const pid = params.projectId;
-    if (!pid || !serverBook(pid)) return;
-    Object.entries(edits).forEach(([k, page]) => {
-      const key = JSON.stringify(page);
-      if (synced.current[Number(k)] === key) return;
-      synced.current[Number(k)] = key;
-      savePage(pid, Number(k), page).catch(() => {
-        delete synced.current[Number(k)];
+    if (!pid || !book || !serverBook(pid)) return;
+    const key = JSON.stringify(book);
+    if (synced.current === key) return;
+    const t = setTimeout(() => {
+      synced.current = key;
+      savePages(pid, book as ServerPage[]).catch(() => {
+        synced.current = '';
       });
-    });
-  }, [edits, params.projectId]);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [book, params.projectId]);
   const [pins, setPins] = useState<Pin[]>([]);
   // точка, к которой сейчас пишут замечание (новая или уже стоящая)
   const [draft, setDraft] = useState<Pin | null>(null);
   // нажали на фото — меню: заменить из галереи, убрать, раскладка 1–4, комментарий
   const [menu, setMenu] = useState<{ page: number; slot: number; x: number; y: number } | null>(null);
   // последняя прямая правка — можно отменить
-  const [undo, setUndo] = useState<{ page: number; prev: Page | undefined; what: string } | null>(null);
+  const [undo, setUndo] = useState<{ prev: Page[] | null; what: string } | null>(null);
   const [fixing, setFixing] = useState(false);
+  // копии для печати, которые догружаются в фоне (книга собрана по черновым): «Фото для печати: N из M»
+  const [prints, setPrints] = useState(printUploads);
+  useEffect(() => onPrintUploads(() => setPrints(printUploads())), []);
   const [at, setAt] = useState(() => Number(params.start ?? 0));
   const [hint, setHint] = useState(!gesturesSeen);
   // свежая книга (не продолжение черновика) — показываем, что вкус учтён
@@ -194,21 +254,24 @@ export default function Review() {
   const pageH = fmt === '21×30' ? pageW / 0.7 : pageW;
   const step = pageH + GAP + 22; // страница + подпись над ней + зазор
 
+  const firstPhoto = pages.find((p) => p.photos[0])?.photos[0];
+  // лицевая сторона обложки: выбранное фото или первое фото книги
+  const front = cover.photo ?? firstPhoto;
   // книга стала черновиком; место запоминаем, когда прокрутка остановилась (а не на каждой странице — это дёргало экран)
   const remember = (page: number) =>
-    setLastBook({ title, cover: pages[0]?.photos[0] ?? 'night-window', params: { ...params, id, title, format, pages: String(pagesN), start: String(Math.min(page, pagesN - 1)), tariff }, at: Date.now() });
+    setLastBook({ title, cover: front ?? 'night-window', params: { ...params, id, title, format, pages: String(pagesN), start: String(Math.min(page, pagesN - 1)), tariff }, at: Date.now() });
   useEffect(() => {
     startDraft(id);
     remember(at);
+    // title — переименовали книгу: карточка «продолжить» на главной с новым названием
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tariff]);
+  }, [tariff, title]);
   // книга с сервера — карточка для «Черновиков» (у демо-книг она уже есть в данных)
-  const firstPhoto = pages.find((p) => p.photos[0])?.photos[0];
   useEffect(() => {
-    if (!params.projectId || !firstPhoto) return;
-    saveServerDraft(params.projectId, { title, cover: firstPhoto, pages: pagesN, format: fmt, photos: pages.reduce((a, p) => a + p.photos.length, 0) });
+    if (!params.projectId || !front) return;
+    saveServerDraft(params.projectId, { title, cover: front, pages: pagesN, format: fmt, photos: pages.reduce((a, p) => a + p.photos.length, 0) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.projectId, firstPhoto, pagesN, fmt, title]);
+  }, [params.projectId, front, pagesN, fmt, title]);
 
   const tapPage = (page: number, e: GestureResponderEvent, cw = pageW, ch = pageH) => {
     if (fixing) return;
@@ -223,18 +286,16 @@ export default function Review() {
   // прямая правка страницы — сразу, с возможностью отменить
   const editPage = (page: number, next: Page, what: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setUndo({ page, prev: edits[page], what });
-    setEdits((e) => ({ ...e, [page]: next }));
+    setUndo({ prev: book, what });
+    mutate((all) => {
+      all[page] = next;
+      return all;
+    });
     setMenu(null);
   };
   const undoLast = () => {
     if (!undo) return;
-    setEdits((e) => {
-      const next = { ...e };
-      if (undo.prev) next[undo.page] = undo.prev;
-      else delete next[undo.page];
-      return next;
-    });
+    setBook(undo.prev);
     setUndo(null);
   };
   const replaceFromGallery = async () => {
@@ -309,18 +370,55 @@ export default function Review() {
     const flat = order.flatMap((u) => units[u]);
     if (flat.every((old, pos) => old === pos)) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setEdits((e) => {
-      const next = { ...e };
-      flat.forEach((old, pos) => {
-        if (old !== pos) next[pos] = pages[old];
-      });
-      return next;
-    });
+    setBook(flat.map((old) => pages[old]));
     // замечания переезжают вместе со своими страницами
     setPins((ps) => ps.map((p) => ({ ...p, page: Math.max(0, flat.indexOf(p.page)) })));
-    setUndo(null);
-    setNotice('Порядок страниц изменён');
+    setUndo({ prev: book, what: 'Порядок страниц изменён' });
+    // переставил сам — подсказка больше не нужна
+    if (dragTip) closeDragTip();
   };
+  // Добавить, вставить и удалить страницы. Цена — за разворот: при нечётном числе страниц у последнего разворота
+  // есть оплаченное пустое место, новая страница встаёт туда бесплатно. Новая страница — пустая, «Добавить фото».
+  const stepPrice = BOOK[tariff].step;
+  const addPrice = pagesN % 2 ? 'бесплатно, на развороте есть место' : `+${rub(stepPrice)}`;
+  // вставка или удаление одной страницы сдвигает все следующие на другую сторону листа — фото «на разворот»
+  // после этого места разъехалось бы на два листа: спрашиваем, как быть
+  const [spreadAsk, setSpreadAsk] = useState<{ kind: 'insert' | 'delete'; at: number } | null>(null);
+  const spreadsFrom = (at: number) => pages.slice(at).some((p) => isSpread(p.layout));
+  const flatten = (p: Page): Page => (isSpread(p.layout) ? { ...p, layout: SIMPLE[Math.min(4, Math.max(1, slotsOf(p.layout)))], slots: undefined } : p);
+  // замечания едут со своими страницами; у удалённых страниц (by < 0: [from + by, from)) — пропадают
+  const shiftPins = (from: number, by: number) =>
+    setPins((ps) => ps.filter((p) => by > 0 || p.page < from + by || p.page >= from).map((p) => (p.page >= from ? { ...p, page: p.page + by } : p)));
+  const insertPages = (at: number, n: number, opts: { flattenAfter?: boolean } = {}) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setUndo({ prev: book, what: n === 1 ? 'Страница добавлена' : `Добавлено страниц: ${n}` });
+    mutate((all) => {
+      const tail = all.slice(at).map((p) => (opts.flattenAfter ? flatten(p) : p));
+      return [...all.slice(0, at), ...Array.from({ length: n }, () => ({ layout: 'one', photos: [] }) as Page), ...tail];
+    });
+    shiftPins(at, n);
+    setMenu(null);
+  };
+  /** Вставить пустую страницу на место at (в конец — at = число страниц). */
+  const insertPage = (at: number) => {
+    setMenu(null);
+    if (pagesN + 1 > BOOK[tariff].max) return setNotice(`В ${t.name} не больше ${BOOK[tariff].max} страниц`);
+    if (spreadsFrom(at)) return setSpreadAsk({ kind: 'insert', at });
+    insertPages(at, 1);
+    if (at >= pagesN) setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 120);
+  };
+  /** Удалить страницу k (фото на весь разворот — обе его страницы). */
+  const deletePage = (k: number, opts: { flattenAfter?: boolean } = {}) => {
+    setMenu(null);
+    const n = isSpread(pages[k].layout) ? 2 : 1;
+    if (pagesN - n < minPages) return setNotice(`В ${t.name} не меньше ${minPages} страниц`);
+    if (n === 1 && !opts.flattenAfter && spreadsFrom(k + 1)) return setSpreadAsk({ kind: 'delete', at: k });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setUndo({ prev: book, what: 'Страница удалена' });
+    mutate((all) => [...all.slice(0, k), ...all.slice(k + n).map((p) => (opts.flattenAfter ? flatten(p) : p))]);
+    shiftPins(k + n, -n);
+  };
+
   // пропорции места на странице — рамка в окне кадрирования такая же
   const cropAspect = (page: number, slot: number) => {
     const p = pages[page];
@@ -432,10 +530,9 @@ export default function Review() {
         else cur.notes.push(p.text);
         byPage.set(p.page, cur);
       });
-      setEdits((e) => {
-        const next = { ...e };
+      mutate((next) => {
         byPage.forEach(({ notes, fx }, page) => {
-          let pg = notes.length ? fix(pages[page], notes, page * 3 + (e[page] ? 2 : 0), source) : pages[page];
+          let pg = notes.length ? fix(pages[page], notes, page * 3 + (book ? 2 : 0), source) : pages[page];
           fx.forEach(({ slot, f }) => {
             const had = pg.fx?.[slot] ?? [];
             pg = { ...pg, fx: { ...(pg.fx ?? {}), [slot]: had.includes(f) ? had : [...had, f] } };
@@ -457,8 +554,12 @@ export default function Review() {
   // перед заказом — проверка книги: пустые рамки, разрешение, смаз, скриншоты (сервер отвечает не дольше 3 с)
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [checking, setChecking] = useState(false);
-  const order = async () => {
+  // нечётное число страниц: последняя страница разворота останется пустой, а разворот уже оплачен — спрашиваем один раз
+  const [oddAsk, setOddAsk] = useState(false);
+  const order = async (oddOk = false) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (pagesN % 2 && !oddOk) return setOddAsk(true);
+    setOddAsk(false);
     setChecking(true);
     const pid = params.projectId;
     const server = pid && serverBook(pid) ? await Promise.race([checkOnServer(pid).catch(() => ({})), new Promise<Record<string, never>>((r) => setTimeout(() => r({}), 3000))]) : {};
@@ -473,7 +574,7 @@ export default function Review() {
   };
   const goCheckout = () => {
     setIssues(null);
-    orderNow({ projectId: id, title, tariff, tariffName: t.name, format: fmt, pages: pagesN, finish: 'Глянец', price, readyBy: t.readyBy, cover: pages[0]?.photos[0] ?? 'night-window' });
+    orderNow({ projectId: id, title, tariff, tariffName: t.name, format: fmt, pages: pagesN, finish: 'Глянец', price, readyBy: t.readyBy, cover: front ?? 'night-window' });
     router.push('/checkout');
   };
 
@@ -482,7 +583,25 @@ export default function Review() {
       <StatusBar style="dark" />
       <View style={s.head}>
         <View style={{ flex: 1 }}>
-          <Text style={s.title} numberOfLines={2}>{title}</Text>
+          {renaming ? (
+            <TextInput
+              value={titleDraft}
+              onChangeText={setTitleDraft}
+              autoFocus
+              selectTextOnFocus
+              maxLength={TITLE_MAX}
+              returnKeyType="done"
+              onSubmitEditing={finishRename}
+              onBlur={finishRename}
+              style={[s.title, s.titleInput]}
+              accessibilityLabel="Название книги"
+            />
+          ) : (
+            <Tap onPress={startRename} style={s.titleRow} accessibilityRole="button" accessibilityLabel={`Название: ${title}. Нажмите, чтобы изменить`}>
+              <Text style={[s.title, { flexShrink: 1 }]} numberOfLines={2}>{title}</Text>
+              <PencilSimpleIcon size={16} color={colors.mut} weight="bold" style={{ marginTop: 9 }} />
+            </Tap>
+          )}
           <Text style={s.sub}>
             стр. {Math.min(at + 1, pagesN)} из {pagesN}
             {pins.length ? ` · замечаний ${pins.length}` : ''}
@@ -493,13 +612,27 @@ export default function Review() {
         </Tap>
       </View>
 
+      {/* тариф — сверху и всегда на виду: до выбора внизу книги человек может не долистать */}
+      <TariffBar
+        tariff={tariff}
+        format={format}
+        pagesN={pagesN}
+        onTariff={(x) => {
+          Haptics.selectionAsync().catch(() => {});
+          setTariff(x);
+        }}
+      />
+
       <ScrollView
         ref={scroll}
         contentContainerStyle={[s.list, { paddingBottom: 24 }]}
         contentOffset={{ x: 0, y: Number(params.start ?? 0) * step }}
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={64}
+        // пока тащат страницу, лента сама не листается пальцем (прокрутка у края — FeedDrag)
+        scrollEnabled={!dragging}
+        scrollEventThrottle={16}
         onScroll={(e) => {
+          scrollY.set(e.nativeEvent.contentOffset.y);
           const n = Math.max(0, Math.min(pagesN - 1, Math.round(e.nativeEvent.contentOffset.y / step)));
           if (n !== at) setAt(n);
         }}
@@ -509,24 +642,63 @@ export default function Review() {
         <View style={s.tip}>
           <HandTapIcon size={16} color={colors.mut} weight="bold" />
           <Text style={s.tipText} numberOfLines={1}>Нажмите на фото, чтобы изменить</Text>
+          {/* сетка всех страниц — удобнее ленты в толстой книге */}
+          <Tap onPress={openOrder} hitSlop={8} style={s.tipOrder} accessibilityRole="button" accessibilityLabel="Порядок страниц: все страницы сеткой">
+            <SquaresFourIcon size={16} color={colors.fg} weight="bold" />
+          </Tap>
           <Tap onPress={() => setHint(true)} hitSlop={10} style={s.tipHelp} accessibilityRole="button" accessibilityLabel="Как это работает">
             <Text style={s.tipHelpText}>?</Text>
           </Tap>
         </View>
 
-        {pages.map((p, k) => {
-          // страница под сквозным фото предыдущей — уже нарисована вместе с ней
-          if (k > 0 && isSpread(pages[k - 1].layout)) return null;
+        {/* при первом открытии книги: страницы можно переставлять прямо здесь (раньше об этом нигде не говорилось) */}
+        {dragTip ? (
+          <Animated.View entering={FadeInDown.duration(260)} exiting={FadeOut.duration(180)} style={s.dragTip}>
+            <HandGrabbingIcon size={22} color={colors.coralAction} weight="bold" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.dragTipTitle}>Порядок страниц</Text>
+              <Text style={s.dragTipText}>Зажмите страницу и перетащите на новое место</Text>
+            </View>
+            <Tap onPress={closeDragTip} hitSlop={10} style={s.close} accessibilityRole="button" accessibilityLabel="Понятно, закрыть подсказку">
+              <XIcon size={14} color={colors.fg} weight="bold" />
+            </Tap>
+          </Animated.View>
+        ) : null}
+
+        {/* обложка — первой и отдельно: задняя сторона | корешок | лицевая с фото и названием; не переставляется */}
+        <View style={{ gap: 8 }}>
+          <View style={s.pageLabel}>
+            <Text style={s.pageNum}>Обложка</Text>
+          </View>
+          <Tap onPress={() => setCoverOpen(true)} accessibilityRole="button" accessibilityLabel="Обложка. Нажмите, чтобы выбрать фото и надпись">
+            <CoverView photo={front} title={cover.title ? title : undefined} w={pageW} pageAspect={pageW / pageH} />
+          </Tap>
+        </View>
+
+        {/* страницы: зажать и тащить прямо в ленте — остальные расступаются (components/feedDrag.tsx) */}
+        <FeedDrag
+          count={units.length}
+          gap={GAP}
+          scrollY={scrollY}
+          edges={{ top: insets.top + 120, bottom: winH - insets.bottom - 90 }}
+          scrollBy={(dy) => scroll.current?.scrollTo({ y: Math.max(0, scrollY.get() + dy), animated: false })}
+          onLock={setDragging}
+          onDrop={applyOrder}>
+        {units.map((u, ui) => {
+          // разворот на две страницы — одна единица: рисуется по первой странице, двигается целиком
+          const k = u[0];
+          const p = pages[k];
           const spread = isSpread(p.layout);
           const cw = pageW;
           const ch = spread ? pageW / 2 : pageH;
           const mine = pins.filter((x) => x.page === k);
           const fixedHere = mine.length > 0 && mine.every((x) => x.fixed);
           return (
-            <View key={k} style={{ gap: 8 }}>
+            <DragUnit key={k} index={ui}>
+            <View style={{ gap: 8 }}>
               <View style={s.pageLabel}>
                 <Text style={s.pageNum}>{spread ? `стр. ${k + 1}–${k + 2} · на разворот` : `стр. ${k + 1}`}</Text>
-                {spread && tariff !== 'premium' ? <Text style={s.seamNote}>шов по центру · на Premium без шва</Text> : null}
+                {spread && tariff === 'lite' ? <Text style={s.seamNote}>шов по центру · в Classic и Premium без шва</Text> : null}
                 {fixedHere ? (
                   <Animated.View entering={FadeIn.duration(250)} style={s.fixedTag}>
                     <CheckIcon size={11} color="#fff" weight="bold" />
@@ -535,16 +707,14 @@ export default function Review() {
                 ) : null}
               </View>
               <View>
-                <PageView page={p} w={cw} h={ch} dim={fixing && mine.some((x) => !x.fixed)} picked={menu?.page === k ? menu.slot : undefined} seam={spread && tariff !== 'premium'} />
+                <PageView page={p} w={cw} h={ch} dim={fixing && mine.some((x) => !x.fixed)} picked={menu?.page === k ? menu.slot : undefined} seam={spread && tariff === 'lite'} />
                 {/* слой касаний поверх всей страницы: координаты — от края страницы, а не от фото под пальцем */}
                 <Pressable
                   style={StyleSheet.absoluteFill}
-                  onPress={(e) => tapPage(k, e, cw, ch)}
-                  // долгое нажатие — «Порядок страниц»: перетащить страницу на другое место
-                  onLongPress={openOrder}
-                  delayLongPress={380}
+                  onPress={(e) => !dragging && tapPage(k, e, cw, ch)}
+                  // долгое нажатие ловит перетаскивание (DragUnit): страница приподнимается, и её можно тащить
                   accessibilityRole="button"
-                  accessibilityLabel={`Страница ${k + 1}. Нажмите на фото, чтобы заменить его, поменять раскладку или оставить замечание. Долгое нажатие — поменять порядок страниц`}
+                  accessibilityLabel={`Страница ${k + 1}. Нажмите на фото, чтобы заменить его, поменять раскладку или оставить замечание. Зажмите и перетащите, чтобы поменять порядок`}
                 />
                 {/* точки замечаний */}
                 {[...mine, ...(draft && draft.page === k && !pins.some((x) => x.id === draft.id) ? [draft] : [])].map((pin) => (
@@ -560,8 +730,17 @@ export default function Review() {
                 ))}
               </View>
             </View>
+            </DragUnit>
           );
         })}
+        </FeedDrag>
+
+        {/* добавить страницу в конец: цена за разворот — видно сразу, платно или бесплатно */}
+        <Tap style={s.addPage} onPress={() => insertPage(pagesN)} accessibilityRole="button" accessibilityLabel={`Добавить страницу, ${addPrice}`}>
+          <PlusIcon size={18} color={colors.coralAction} weight="bold" />
+          <Text style={s.addPageText}>Страница</Text>
+          <Text style={s.addPagePrice} numberOfLines={1}>· {addPrice}</Text>
+        </Tap>
 
         <Final
           pagesN={pagesN}
@@ -576,6 +755,12 @@ export default function Review() {
         />
       </ScrollView>
 
+      {/* книга собрана по черновым копиям — копии для печати догружаются, пока человек смотрит */}
+      {prints.total > prints.done ? (
+        <View style={s.printLine} accessibilityLiveRegion="polite">
+          <ThinkingLine text={`Фото для печати: ${prints.done} из ${prints.total}`} style={s.printLineText} />
+        </View>
+      ) : null}
       {/* внизу: есть замечания — «Исправить N мест»; нет — цена, срок и «Заказать» */}
       <View style={[s.bar, { paddingBottom: insets.bottom + 10 }]}>
         {fixing ? (
@@ -603,7 +788,7 @@ export default function Review() {
                 <Text style={[s.barMeta, { flexShrink: 1 }]} numberOfLines={1}> · {fmt} · {pagesN} стр. · печать {PRINT_DAYS} дня</Text>
               </View>
             </Tap>
-            <Tap style={s.order} onPress={order} disabled={checking} accessibilityRole="button" accessibilityLabel={`Заказать, ${t.name}, ${rub(price)}`}>
+            <Tap style={s.order} onPress={() => order()} disabled={checking} accessibilityRole="button" accessibilityLabel={`Заказать, ${t.name}, ${rub(price)}`}>
               <Text style={s.orderText}>{checking ? 'Проверяем…' : 'Заказать'}</Text>
             </Tap>
           </>
@@ -652,8 +837,8 @@ export default function Review() {
           page={pages[menu.page]}
           pageN={menu.page + 1}
           slot={menu.slot}
-          // сквозной лист: не на последней странице и не в Lite (там разворот не печатается одним листом)
-          canSpread={menu.page < pagesN - 1 && tariff !== 'lite'}
+          // сквозной лист: не на последней странице (в Lite будет виден шов — об этом подпись над разворотом)
+          canSpread={menu.page < pagesN - 1}
           bottom={insets.bottom}
           onReplace={() => replaceFromGallery().catch(() => {})}
           onRemove={removePhoto}
@@ -664,6 +849,10 @@ export default function Review() {
           }}
           onLayout={setLayout}
           onComment={commentHere}
+          // после сквозного фото новая страница встаёт за обеими его страницами
+          onInsertAfter={() => insertPage(menu.page + (isSpread(pages[menu.page].layout) ? 2 : 1))}
+          onDeletePage={() => deletePage(menu.page)}
+          canDelete={pagesN - (isSpread(pages[menu.page].layout) ? 2 : 1) >= minPages}
           onClose={() => setMenu(null)}
         />
       ) : null}
@@ -675,9 +864,68 @@ export default function Review() {
           photos={pages[sizeFor].photos}
           crop={pages[sizeFor].crop}
           aspect={isSpread(pages[sizeFor].layout) ? 2 : pageW / pageH}
-          seam={isSpread(pages[sizeFor].layout) && tariff !== 'premium'}
+          seam={isSpread(pages[sizeFor].layout) && tariff === 'lite'}
           onDone={saveSizes}
           onClose={() => setSizeFor(null)}
+        />
+      ) : null}
+
+      {coverOpen ? (
+        <CoverSheet
+          cover={cover}
+          front={front}
+          title={title}
+          photos={[...new Set(pages.flatMap((p) => p.photos).filter(Boolean))]}
+          bottom={insets.bottom}
+          onPick={(photo) => saveCoverNow({ ...cover, photo })}
+          onGallery={async () => {
+            const picked = await pickPhotos([], { multiple: false });
+            if (picked?.fresh[0]) saveCoverNow({ ...cover, photo: picked.fresh[0] });
+          }}
+          onTitle={(on) => saveCoverNow({ ...cover, title: on })}
+          onClose={() => setCoverOpen(false)}
+        />
+      ) : null}
+
+      {oddAsk ? (
+        <AskSheet
+          title="Последняя страница останется пустой"
+          text={`В книге ${pagesN} стр., а печатаем разворотами: у последнего разворота одна сторона без фото. Разворот уже оплачен — страницу можно добавить бесплатно.`}
+          yes="Добавить страницу"
+          no="Оставить пустой"
+          bottom={insets.bottom}
+          onYes={() => {
+            setOddAsk(false);
+            insertPage(pagesN);
+          }}
+          onNo={() => order(true)}
+          onClose={() => setOddAsk(false)}
+        />
+      ) : null}
+
+      {spreadAsk ? (
+        <AskSheet
+          title="Фото на разворот сдвинется"
+          text={
+            spreadAsk.kind === 'insert'
+              ? 'После этого места есть фото на весь разворот. Одна новая страница сдвинет его на соседний лист, и половинки окажутся на разных листах.'
+              : 'После этой страницы есть фото на весь разворот. Без одной страницы оно сдвинется, и половинки окажутся на разных листах.'
+          }
+          yes={spreadAsk.kind === 'insert' ? 'Добавить 2 страницы' : 'Удалить и сделать обычной страницей'}
+          no={spreadAsk.kind === 'insert' ? 'Добавить 1, разворот сделать обычной страницей' : 'Не удалять'}
+          bottom={insets.bottom}
+          onYes={() => {
+            const a = spreadAsk;
+            setSpreadAsk(null);
+            if (a.kind === 'insert') insertPages(a.at, pagesN + 2 > BOOK[tariff].max ? 1 : 2, { flattenAfter: pagesN + 2 > BOOK[tariff].max });
+            else deletePage(a.at, { flattenAfter: true });
+          }}
+          onNo={() => {
+            const a = spreadAsk;
+            setSpreadAsk(null);
+            if (a.kind === 'insert') insertPages(a.at, 1, { flattenAfter: true });
+          }}
+          onClose={() => setSpreadAsk(null)}
         />
       ) : null}
 
@@ -841,7 +1089,7 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
           </View>
         );
       })}
-      {/* сквозной разворот: на Classic по центру виден шов, на Premium — нет; в Lite сквозных листов нет */}
+      {/* сквозной разворот: в Lite по центру виден шов, в Classic и Premium — нет */}
       {seam ? <View pointerEvents="none" style={[s.seam, { left: w / 2 - 6 }]} /> : null}
       {def.caption ? (
         <View style={[{ position: 'absolute', justifyContent: 'center' }, box(def.caption)]}>
@@ -880,7 +1128,7 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  * Нажали на фото — что с ним сделать: заменить своим из галереи, убрать, оставить замечание;
  * выбрать макет страницы из библиотеки. Улучшения ИИ (свет, горизонт, чёткость…) — в «Замечании для ИИ».
  */
-function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onClose: () => void }) {
+function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onInsertAfter, onDeletePage, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; canDelete: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onInsertAfter: () => void; onDeletePage: () => void; onClose: () => void }) {
   const n = slotsOf(page.layout);
   const k = page.photos[slot];
   return (
@@ -927,6 +1175,114 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, onReplace, onRemove, 
             );
           })}
         </ScrollView>
+
+        {/* сама страница: вставить пустую после неё или удалить (не меньше минимума тарифа) */}
+        <View style={s.pageActions}>
+          <Tap style={s.pageAction} onPress={onInsertAfter} accessibilityRole="button" accessibilityLabel="Вставить пустую страницу после этой">
+            <FilePlusIcon size={18} color={colors.fg} weight="bold" />
+            <Text style={s.pageActionText}>Вставить страницу после</Text>
+          </Tap>
+          <Tap style={[s.pageAction, !canDelete && { opacity: 0.45 }]} disabled={!canDelete} onPress={onDeletePage} accessibilityRole="button" accessibilityLabel="Удалить страницу">
+            <TrashIcon size={18} color={colors.coralAction} weight="bold" />
+            <Text style={[s.pageActionText, { color: colors.coralAction }]}>Удалить страницу</Text>
+          </Tap>
+        </View>
+      </Animated.View>
+    </>
+  );
+}
+
+/**
+ * Обложка разворотом, как её печатают: задняя сторона | корешок | лицевая. На лицевой — фото во всю сторону
+ * и название внизу (если включено). pageAspect — ширина к высоте одной стороны (как у страниц книги).
+ */
+function CoverView({ photo, title, w, pageAspect }: { photo?: Pic; title?: string; w: number; pageAspect: number }) {
+  const spine = 8;
+  const side = (w - spine) / 2;
+  const h = side / pageAspect;
+  return (
+    <View style={[s.cover, { width: w, height: h }]}>
+      <View style={[s.coverBack, { width: side }]}>
+        <Text style={s.coverBackText}>задняя сторона</Text>
+      </View>
+      <View style={[s.coverSpine, { width: spine }]} />
+      <View style={{ width: side, height: h, overflow: 'hidden' }}>
+        {photo ? <Image source={pic(photo)} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card2 }]} />}
+        {title ? (
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)']} style={s.coverShade}>
+            <Text style={s.coverTitle} numberOfLines={2}>{title}</Text>
+          </LinearGradient>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** Обложка: фото на лицевой стороне (из книги или из галереи) и название на ней. Меняется сразу. */
+function CoverSheet({ cover, front, title, photos, bottom, onPick, onGallery, onTitle, onClose }: { cover: { photo?: Pic; title: boolean }; front?: Pic; title: string; photos: Pic[]; bottom: number; onPick: (p: Pic) => void; onGallery: () => Promise<void>; onTitle: (on: boolean) => void; onClose: () => void }) {
+  return (
+    <>
+      <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
+      </Animated.View>
+      <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, s.sheetAbs, { bottom: -SHEET_TAIL, paddingBottom: bottom + 12 + SHEET_TAIL }]}>
+        <View style={s.sheetHead}>
+          <Text style={[s.sheetTitle, { flex: 1 }]}>Обложка</Text>
+          <Tap style={s.close} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Закрыть">
+            <XIcon size={16} color={colors.fg} weight="bold" />
+          </Tap>
+        </View>
+        <Text style={s.menuLabel}>Фото на лицевой стороне</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.coverPicks}>
+          <Tap style={[s.coverPick, s.coverGallery]} onPress={() => onGallery().catch(() => {})} accessibilityRole="button" accessibilityLabel="Выбрать из галереи">
+            <ImagesIcon size={22} color={colors.fg} weight="bold" />
+            <Text style={s.coverGalleryText}>Галерея</Text>
+          </Tap>
+          {photos.map((k) => {
+            const on = k === front;
+            return (
+              <Tap key={String(k)} style={[s.coverPick, on && s.coverPickOn]} onPress={() => !on && onPick(k)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel="Фото из книги">
+                <Image source={pic(k)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                {on ? (
+                  <View style={s.coverPickCheck}>
+                    <CheckIcon size={12} color="#fff" weight="bold" />
+                  </View>
+                ) : null}
+              </Tap>
+            );
+          })}
+        </ScrollView>
+        <View style={s.coverTitleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.coverTitleLabel}>Название на обложке</Text>
+            <Text style={s.sheetSub} numberOfLines={1}>«{title}»</Text>
+          </View>
+          <Switch value={cover.title} onValueChange={onTitle} trackColor={{ true: colors.coralAction, false: colors.hair }} accessibilityLabel="Название на обложке" />
+        </View>
+      </Animated.View>
+    </>
+  );
+}
+
+/** Вопрос снизу: что случится и два ответа; «Отмена» — ничего не менять. */
+function AskSheet({ title, text, yes, no, bottom, onYes, onNo, onClose }: { title: string; text: string; yes: string; no: string; bottom: number; onYes: () => void; onNo: () => void; onClose: () => void }) {
+  return (
+    <>
+      <Animated.View entering={FadeIn.duration(240)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, s.scrim]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Закрыть" />
+      </Animated.View>
+      <Animated.View entering={sheetIn} exiting={sheetOut} style={[s.sheet, s.sheetAbs, { bottom: -SHEET_TAIL, paddingBottom: bottom + 12 + SHEET_TAIL }]}>
+        <Text style={s.sheetTitle}>{title}</Text>
+        <Text style={s.sheetSub}>{text}</Text>
+        <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={onYes} accessibilityRole="button">
+          <Text style={s.saveText}>{yes}</Text>
+        </Tap>
+        <Tap style={[s.chip, { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 14 }]} onPress={onNo} accessibilityRole="button">
+          <Text style={s.chipText}>{no}</Text>
+        </Tap>
+        <Tap style={{ alignItems: 'center', paddingVertical: 10 }} onPress={onClose} accessibilityRole="button">
+          <Text style={[s.chipText, { color: colors.mut }]}>Отмена</Text>
+        </Tap>
       </Animated.View>
     </>
   );
@@ -976,6 +1332,19 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
   const [font, setFont] = useState<string>(page.captionFont ?? 'classic');
   const [layout, setLayoutId] = useState(layoutOf(page.layout).caption ? page.layout : 'caption');
   const at = layoutOf(layout).captionAt ?? 'bottom';
+  // строк на странице: снизу/сверху — 2, сбоку — 6 (как numberOfLines в PageView); Enter сверх этого не добавляет строку
+  const maxLines = at === 'left' || at === 'right' ? 6 : 2;
+  const [tooMany, setTooMany] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const change = (v: string) => {
+    if (v.split('\n').length > maxLines) {
+      setTooMany(true);
+      return;
+    }
+    setTooMany(false);
+    setText(v);
+  };
   const kb = useAnimatedKeyboard();
   const lift = useAnimatedStyle(() => ({ transform: [{ translateY: -Math.max(0, kb.height.value - bottom) }] }));
   return (
@@ -1013,22 +1382,29 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
 
           <View style={s.field}>
             <TextInput
+              ref={input}
               value={text}
-              onChangeText={setText}
+              onChangeText={change}
               maxLength={CAPTION_MAX}
               placeholder="Например: лето у бабушки"
               placeholderTextColor={colors.mut2}
               style={[s.input, captionFontStyle(font)]}
               multiline
-              // «Готово» на клавиатуре прячет её (в многострочном поле иначе не спрятать)
-              returnKeyType="done"
-              submitBehavior="blurAndSubmit"
+              // Enter — новая строка; спрятать клавиатуру — галочка рядом с полем
+              submitBehavior="newline"
+              onFocus={() => setTyping(true)}
+              onBlur={() => setTyping(false)}
               accessibilityLabel="Текст подписи"
             />
+            {typing ? (
+              <Tap style={s.kbDone} onPress={() => input.current?.blur()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Готово, спрятать клавиатуру">
+                <CheckIcon size={16} color="#fff" weight="bold" />
+              </Tap>
+            ) : null}
           </View>
-          {/* подпись — две строки на странице: длиннее не влезет в печать */}
-          <Text style={[s.counter, text.length >= CAPTION_MAX && { color: colors.coralAction }]}>
-            {text.length} / {CAPTION_MAX}
+          {/* подпись — две строки на странице (сбоку — шесть): длиннее не влезет в печать */}
+          <Text style={[s.counter, (tooMany || text.length >= CAPTION_MAX) && { color: colors.coralAction }]}>
+            {tooMany ? `Тут помещается ${maxLines === 2 ? '2 строки' : '6 строк'}` : `${text.length} / ${CAPTION_MAX}`}
           </Text>
           {/* шрифт подписи: каждая кнопка написана своим шрифтом — видно, как будет на странице */}
           <View style={s.fontRow} accessibilityRole="radiogroup">
@@ -1214,6 +1590,27 @@ function Composer({ pin, isNew, bottom, onSave, onDelete, onClose }: { pin: Pin;
 }
 
 /** В конце книги: итог и выбор тарифа пилюлями с ценой. */
+/** Lite · Classic · Premium сверху: цена за эту книгу и главное отличие для разворотов — шов по центру только у Lite. */
+function TariffBar({ tariff, format, pagesN, onTariff }: { tariff: Tariff['id']; format: string; pagesN: number; onTariff: (t: Tariff['id']) => void }) {
+  return (
+    <View style={s.tbar} accessibilityRole="radiogroup">
+      {tariffs.map((t) => {
+        const on = t.id === tariff;
+        const p = bookPrice(t.id, fitFormat(t.id, format), pagesN, 'Глянец');
+        const note = t.id === 'lite' ? 'шов по центру' : 'без шва';
+        return (
+          <Tap key={t.id} style={[s.tbarItem, on && s.tbarOn]} onPress={() => !on && onTariff(t.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${t.name}, ${rub(p)}, ${note}`}>
+            <Text style={[s.tbarName, on && { color: '#fff' }]} numberOfLines={1}>
+              {t.name} <Text style={[s.tbarPrice, on && { color: 'rgba(255,255,255,0.9)' }]}>{rub(p)}</Text>
+            </Text>
+            <Text style={[s.tbarNote, on && { color: 'rgba(255,255,255,0.8)' }]} numberOfLines={1}>{note}</Text>
+          </Tap>
+        );
+      })}
+    </View>
+  );
+}
+
 function Final({ pagesN, fixed, tariff, format, onTariff, onMore }: { pagesN: number; fixed: number; tariff: Tariff['id']; format: string; onTariff: (t: Tariff['id']) => void; onMore: () => void }) {
   const list = useMemo(() => tariffs.map((t) => ({ t, fmt: fitFormat(t.id, format) })), [format]);
   return (
@@ -1248,6 +1645,8 @@ const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
   title: { fontSize: 28, lineHeight: 33, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
   sub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, marginTop: 2, fontVariant: ['tabular-nums'] },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  titleInput: { padding: 0, borderBottomWidth: 2, borderBottomColor: colors.coralAction },
   close: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: 16, gap: GAP },
   tip: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: -8 },
@@ -1256,10 +1655,11 @@ const s = StyleSheet.create({
   // «?» — заметный: коралловый кружок, а не серая обводка
   tipHelp: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
   tipHelpText: { fontSize: 13, fontFamily: fonts.display, color: '#fff' },
-  pageLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 14 },
+  // не height: строка Manrope 12,5 — около 17 pt, при height: 14 хвост «р» в «стр.» обрезался
+  pageLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 20 },
   seam: { position: 'absolute', top: 0, bottom: 0, width: 12, backgroundColor: 'rgba(0,0,0,0.10)' },
   seamNote: { fontSize: 11.5, fontFamily: fonts.medium, color: colors.peachInk },
-  pageNum: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.mut, fontVariant: ['tabular-nums'] },
+  pageNum: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.semibold, color: colors.mut, fontVariant: ['tabular-nums'] },
   fixedTag: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 20, paddingHorizontal: 8, borderRadius: 10, backgroundColor: colors.tealInk },
   fixedText: { fontSize: 11.5, fontFamily: fonts.semibold, color: '#fff' },
   page: { backgroundColor: '#fff', borderRadius: 10, padding: 12, gap: 8, boxShadow: '0 8px 24px rgba(60,40,30,0.14)' },
@@ -1272,6 +1672,32 @@ const s = StyleSheet.create({
   pinNote: { maxWidth: 170, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.18)' },
   pinNoteText: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.fg },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hair, backgroundColor: colors.bg },
+  cover: { flexDirection: 'row', borderRadius: 6, overflow: 'hidden', backgroundColor: colors.card, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  coverBack: { backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 12 },
+  coverBackText: { fontSize: 11, fontFamily: fonts.medium, color: colors.mut2 },
+  coverSpine: { backgroundColor: 'rgba(0,0,0,0.18)' },
+  coverShade: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 12, paddingTop: 28, paddingBottom: 12 },
+  coverTitle: { fontSize: 17, lineHeight: 21, fontFamily: fonts.display, color: '#fff', letterSpacing: -0.3 },
+  coverPicks: { gap: 8, paddingHorizontal: 16 },
+  coverPick: { width: 64, height: 64, borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
+  coverPickOn: { borderColor: colors.coralAction },
+  coverPickCheck: { position: 'absolute', right: 4, top: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.coralAction, alignItems: 'center', justifyContent: 'center' },
+  coverGallery: { backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  coverGalleryText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.fg },
+  coverTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14 },
+  coverTitleLabel: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  tipOrder: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  dragTip: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', boxShadow: '0 6px 18px rgba(40,28,20,0.10)' },
+  dragTipTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
+  dragTipText: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
+  addPage: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 52, borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.coralAction, paddingHorizontal: 16 },
+  addPageText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralAction },
+  addPagePrice: { flexShrink: 1, fontSize: 13.5, fontFamily: fonts.medium, color: colors.mut },
+  pageActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  pageAction: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 14, backgroundColor: colors.card, paddingHorizontal: 8 },
+  pageActionText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.fg, flexShrink: 1 },
+  printLine: { paddingHorizontal: 16, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hair, backgroundColor: colors.bg },
+  printLineText: { fontSize: 12.5, lineHeight: 17, fontFamily: fonts.medium, color: colors.mut },
   barPrice: { fontSize: 20, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.4, color: colors.fg },
   barTariffRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1, overflow: 'hidden' },
   barTariff: { fontSize: 12.5, fontFamily: fonts.bold, color: colors.coralLink },
@@ -1327,6 +1753,8 @@ const s = StyleSheet.create({
   sizeBtnText: { fontSize: 14.5, fontFamily: fonts.semibold, color: colors.fg },
   counter: { fontSize: 12, fontFamily: fonts.medium, color: colors.mut2, textAlign: 'right', marginTop: -6, paddingHorizontal: 4 },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.card, borderRadius: 20, padding: 6, paddingLeft: 14 },
+  // галочка рядом с полем подписи: спрятать клавиатуру (Enter в поле — новая строка)
+  kbDone: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.tealInk, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' },
   ring: { position: 'absolute', left: -2, right: -2, top: -2, bottom: -2, borderRadius: 22 },
   halo: {
     position: 'absolute',
@@ -1351,6 +1779,12 @@ const s = StyleSheet.create({
   finalIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   finalTitle: { fontSize: 24, fontFamily: fonts.display, letterSpacing: -0.6, color: colors.fg },
   finalSub: { fontSize: 14.5, fontFamily: fonts.medium, color: colors.mut, marginBottom: 6 },
+  tbar: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 10 },
+  tbarItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderRadius: 14, backgroundColor: colors.card, paddingHorizontal: 4, paddingVertical: 6 },
+  tbarOn: { backgroundColor: colors.coralAction },
+  tbarName: { fontSize: 13.5, lineHeight: 18, fontFamily: fonts.bold, color: colors.fg },
+  tbarPrice: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.mut },
+  tbarNote: { fontSize: 11, lineHeight: 14, fontFamily: fonts.medium, color: colors.mut },
   pills: { flexDirection: 'row', gap: 8, alignSelf: 'stretch' },
   pill: { flex: 1, alignItems: 'center', gap: 2, backgroundColor: '#fff', borderRadius: 18, paddingVertical: 12 },
   pillOn: { backgroundColor: colors.coralAction },

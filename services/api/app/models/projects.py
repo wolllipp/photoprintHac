@@ -51,6 +51,8 @@ class Project(Base):
     status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.draft)
     source: Mapped[ProjectSource] = mapped_column(Enum(ProjectSource))
     page_count: Mapped[int | None] = mapped_column(Integer)
+    # обложка — отдельно от страниц: {"photo_id": фото на лицевой стороне, "title": показывать название}
+    cover: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = created_at()
 
 
