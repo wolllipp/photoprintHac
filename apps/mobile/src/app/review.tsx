@@ -15,18 +15,19 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowsOutLineHorizontalIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, FilePlusIcon, HandGrabbingIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, PencilSimpleIcon, PlusIcon, SquaresFourIcon, TrashIcon, XIcon } from 'phosphor-react-native';
+import { ArrowsOutLineHorizontalIcon, ArrowUUpLeftIcon, ArrowUUpRightIcon, CaretDownIcon, ChatCircleTextIcon, CheckIcon, CropIcon, FilePlusIcon, HandGrabbingIcon, HandTapIcon, ImagesIcon, MicrophoneIcon, MinusCircleIcon, PencilSimpleIcon, PlusIcon, SquaresFourIcon, TrashIcon, XIcon } from 'phosphor-react-native';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { checkOnServer, loadServerBook, onPrintUploads, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, type ServerPage } from '@/api/book';
+import { checkOnServer, loadServerBook, onPrintUploads, photoPalette, printUploads, projectPhotos, renameProject, saveCover, savePages, serverBook, type ServerPage } from '@/api/book';
 import { findIssues, PreflightSheet, type Issue } from '@/components/preflight';
 import { CropEditor, CroppedImage, type Crop } from '@/components/cropEditor';
 import { DragUnit, FeedDrag } from '@/components/feedDrag';
 import { PageOrder } from '@/components/pageOrder';
 import { SizeEditor } from '@/components/sizeEditor';
+import { Slider } from '@/components/slider';
 import { features } from '@/data/features';
 import { pickPhotos } from '@/data/picked';
 import { EditorGuide } from '@/components/editorGuide';
@@ -34,6 +35,7 @@ import { TariffSheet } from '@/components/tariffSheet';
 import { Tap } from '@/components/ui';
 import { bookPrice, BOOK, drafts, fitFormat, fitPages, PRINT_DAYS, spreads, tariffs, type PageLayout, type Tariff } from '@/data/demo';
 import { CAPTION_FONTS, captionFontStyle } from '@/data/captionFonts';
+import { BASE_COLORS, CAPTION_STYLES, captionText, DEFAULT_COLOR, lineSize, poorOnWhite, SIZE_MAX, SIZE_MIN, sizeChanged, type CaptionLook, type CaptionStyle } from '@/data/captionLook';
 import { captionLayout, captionPlaces, isSpread, LAYOUTS, layoutOf, slotAt, type CaptionAt, type LayoutDef, type Rect } from '@/data/layouts';
 import { pic, type Pic, type PhotoName } from '@/data/photos';
 import { rub, useStore } from '@/data/store';
@@ -47,7 +49,7 @@ import { colors, fonts } from '@/theme';
 type Fx = 'light' | 'crop' | 'sharp' | 'horizon' | 'warm' | 'bg' | 'restore' | 'bw';
 /** crop — кадр, который человек выставил вручную: фото → центр и увеличение (по фото, а не по месту — переживает смену макета). */
 /** slots — размеры фото, которые человек поменял сам (components/sizeEditor.tsx); нет — как в макете. */
-type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; crop?: Record<string, Crop>; slots?: Rect[] };
+type Page = { layout: string; photos: Pic[]; fx?: Record<number, Fx[]>; caption?: string; captionFont?: string; captionLook?: CaptionLook; crop?: Record<string, Crop>; slots?: Rect[] };
 const slotsOf = (id: string) => layoutOf(id).slots.length;
 /** Самый простой макет на n фото — когда фото убрали. */
 const SIMPLE: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' };
@@ -67,6 +69,8 @@ const GAP = 22;
 const DRAG_TIP_KEY = 'picpac.tip.dragPages';
 /** Название книги: на обложке помещается две строки. */
 const TITLE_MAX = 60;
+/** Сколько шагов «назад» помнит история правок. */
+const HISTORY_MAX = 50;
 
 /** Страницы книги из демо-разворотов: левая и правая страница каждого разворота по очереди. */
 function makePages(n: number): Page[] {
@@ -134,18 +138,6 @@ export default function Review() {
   const [title, setTitle] = useState(params.title ?? d?.title ?? 'Новая книга');
   const [renaming, setRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
-  const startRename = () => {
-    Haptics.selectionAsync().catch(() => {});
-    setTitleDraft(title);
-    setRenaming(true);
-  };
-  const finishRename = () => {
-    setRenaming(false);
-    const v = titleDraft.trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX);
-    if (!v || v === title) return;
-    setTitle(v);
-    if (params.projectId && serverBook(params.projectId)) renameProject(params.projectId, v).catch(() => {});
-  };
   const format = params.format ?? d?.format ?? '20×20';
   const total = Math.max(2, Number(params.pages ?? d?.pages ?? 24));
   const [tariff, setTariff] = useState<Tariff['id']>((params.tariff as Tariff['id']) ?? 'lite');
@@ -189,10 +181,8 @@ export default function Review() {
   const [coverEdit, setCoverEdit] = useState<Cover | null>(null);
   const cover: Cover = coverEdit ?? (fromServer?.cover as Cover | undefined) ?? { title: true };
   const [coverOpen, setCoverOpen] = useState(false);
-  const saveCoverNow = (next: Cover) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setCoverEdit(next);
-    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: next.photo ? String(next.photo) : undefined, title: next.title }).catch(() => {});
+  const pushCover = (c: Cover) => {
+    if (params.projectId && serverBook(params.projectId)) saveCover(params.projectId, { photo: c.photo ? String(c.photo) : undefined, title: c.title }).catch(() => {});
   };
 
   // откуда ИИ и смена макета берут фото: в своей книге — только фото человека из проекта (сначала те, что ещё не в книге),
@@ -234,8 +224,75 @@ export default function Review() {
   const [draft, setDraft] = useState<Pin | null>(null);
   // нажали на фото — меню: заменить из галереи, убрать, раскладка 1–4, комментарий
   const [menu, setMenu] = useState<{ page: number; slot: number; x: number; y: number } | null>(null);
-  // последняя прямая правка — можно отменить
-  const [undo, setUndo] = useState<{ prev: Page[] | null; what: string } | null>(null);
+  // История правок: ↶ назад и ↷ вперёд в шапке. Снимок — всё, что человек меняет: страницы, обложка, название,
+  // тариф, замечания. Перед каждой правкой — record(); новая правка после «назад» стирает «вперёд».
+  type Snap = { book: Page[] | null; cover: Cover | null; title: string; tariff: Tariff['id']; pins: Pin[] };
+  // после удаления фото или страницы — плашка «Отменить» рядом с пальцем (это тот же шаг «назад»)
+  const [undo, setUndo] = useState<{ what: string } | null>(null);
+  const [past, setPast] = useState<Snap[]>([]);
+  const [future, setFuture] = useState<Snap[]>([]);
+  const snap = (): Snap => ({ book, cover: coverEdit, title, tariff, pins });
+  const record = () => {
+    setPast((p) => [...p.slice(-(HISTORY_MAX - 1)), snap()]);
+    setFuture([]);
+  };
+  const restore = (x: Snap) => {
+    setMenu(null);
+    setBook(x.book);
+    setTariff(x.tariff);
+    setPins(x.pins);
+    if (x.cover !== coverEdit) {
+      setCoverEdit(x.cover);
+      pushCover(x.cover ?? (fromServer?.cover as Cover | undefined) ?? { title: true });
+    }
+    if (x.title !== title) {
+      setTitle(x.title);
+      if (params.projectId && serverBook(params.projectId)) renameProject(params.projectId, x.title).catch(() => {});
+    }
+  };
+  const back = () => {
+    const prev = past[past.length - 1];
+    if (!prev) return;
+    Haptics.selectionAsync().catch(() => {});
+    setPast((p) => p.slice(0, -1));
+    setFuture((f) => [...f, snap()]);
+    restore(prev);
+    setUndo(null);
+  };
+  const forward = () => {
+    const next = future[future.length - 1];
+    if (!next) return;
+    Haptics.selectionAsync().catch(() => {});
+    setFuture((f) => f.slice(0, -1));
+    setPast((p) => [...p, snap()]);
+    restore(next);
+  };
+
+  const startRename = () => {
+    Haptics.selectionAsync().catch(() => {});
+    setTitleDraft(title);
+    setRenaming(true);
+  };
+  const finishRename = () => {
+    setRenaming(false);
+    const v = titleDraft.trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX);
+    if (!v || v === title) return;
+    record();
+    setTitle(v);
+    if (params.projectId && serverBook(params.projectId)) renameProject(params.projectId, v).catch(() => {});
+  };
+  const saveCoverNow = (next: Cover) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    record();
+    setCoverEdit(next);
+    pushCover(next);
+  };
+  const changeTariff = (x: Tariff['id']) => {
+    Haptics.selectionAsync().catch(() => {});
+    if (x === tariff) return;
+    record();
+    setTariff(x);
+  };
   const [fixing, setFixing] = useState(false);
   // копии для печати, которые догружаются в фоне (книга собрана по черновым): «Фото для печати: N из M»
   const [prints, setPrints] = useState(printUploads);
@@ -286,7 +343,9 @@ export default function Review() {
   // прямая правка страницы — сразу, с возможностью отменить
   const editPage = (page: number, next: Page, what: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setUndo({ prev: book, what });
+    record();
+    // плашка «Отменить» — только когда что-то убрали; остальное возвращается стрелкой ↶ в шапке
+    setUndo(/убран/i.test(what) ? { what } : null);
     mutate((all) => {
       all[page] = next;
       return all;
@@ -295,8 +354,7 @@ export default function Review() {
   };
   const undoLast = () => {
     if (!undo) return;
-    setBook(undo.prev);
-    setUndo(null);
+    back();
   };
   const replaceFromGallery = async () => {
     if (!menu) return;
@@ -373,7 +431,8 @@ export default function Review() {
     setBook(flat.map((old) => pages[old]));
     // замечания переезжают вместе со своими страницами
     setPins((ps) => ps.map((p) => ({ ...p, page: Math.max(0, flat.indexOf(p.page)) })));
-    setUndo({ prev: book, what: 'Порядок страниц изменён' });
+    record();
+    setNotice('Порядок страниц изменён');
     // переставил сам — подсказка больше не нужна
     if (dragTip) closeDragTip();
   };
@@ -391,7 +450,9 @@ export default function Review() {
     setPins((ps) => ps.filter((p) => by > 0 || p.page < from + by || p.page >= from).map((p) => (p.page >= from ? { ...p, page: p.page + by } : p)));
   const insertPages = (at: number, n: number, opts: { flattenAfter?: boolean } = {}) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setUndo({ prev: book, what: n === 1 ? 'Страница добавлена' : `Добавлено страниц: ${n}` });
+    record();
+    setUndo(null);
+    setNotice(n === 1 ? 'Страница добавлена' : `Добавлено страниц: ${n}`);
     mutate((all) => {
       const tail = all.slice(at).map((p) => (opts.flattenAfter ? flatten(p) : p));
       return [...all.slice(0, at), ...Array.from({ length: n }, () => ({ layout: 'one', photos: [] }) as Page), ...tail];
@@ -414,7 +475,8 @@ export default function Review() {
     if (pagesN - n < minPages) return setNotice(`В ${t.name} не меньше ${minPages} страниц`);
     if (n === 1 && !opts.flattenAfter && spreadsFrom(k + 1)) return setSpreadAsk({ kind: 'delete', at: k });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setUndo({ prev: book, what: 'Страница удалена' });
+    record();
+    setUndo({ what: 'Страница удалена' });
     mutate((all) => [...all.slice(0, k), ...all.slice(k + n).map((p) => (opts.flattenAfter ? flatten(p) : p))]);
     shiftPins(k + n, -n);
   };
@@ -463,14 +525,14 @@ export default function Review() {
   const [captionFor, setCaptionFor] = useState<number | null>(null);
   // макет без подписи с тем же числом фото — пустая подпись не занимает место на странице
   const plainLayout = (layout: string) => (layoutOf(layout).caption ? SIMPLE[Math.min(4, Math.max(1, slotsOf(layout)))] : layout);
-  const saveCaption = (page: number, text: string, layout: string, font: string) => {
+  const saveCaption = (page: number, text: string, layout: string, font: string, look?: CaptionLook) => {
     const p = pages[page];
     const v = text.trim();
     if (!v) {
       // подпись не написали — страница снова обычная
-      editPage(page, { ...withLayout(p, plainLayout(layout), 0, source), caption: undefined, captionFont: undefined, fx: p.fx }, 'Без подписи');
+      editPage(page, { ...withLayout(p, plainLayout(layout), 0, source), caption: undefined, captionFont: undefined, captionLook: undefined, fx: p.fx }, 'Без подписи');
     } else {
-      editPage(page, { ...withLayout(p, layout, 0, source), caption: v, captionFont: font, fx: p.fx }, 'Подпись сохранена');
+      editPage(page, { ...withLayout(p, layout, 0, source), caption: v, captionFont: font, captionLook: look, fx: p.fx }, 'Подпись сохранена');
     }
     setCaptionFor(null);
   };
@@ -517,6 +579,8 @@ export default function Review() {
   // ИИ правит только страницы с замечаниями
   const fixAll = () => {
     if (!open.length) return;
+    // всё, что поправил ИИ, — один шаг: ↶ возвращает книгу и замечания как было до «Исправить»
+    record();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setFixing(true);
     setTimeout(() => {
@@ -607,6 +671,15 @@ export default function Review() {
             {pins.length ? ` · замечаний ${pins.length}` : ''}
           </Text>
         </View>
+        {/* история правок: назад и вперёд — фото, макеты, подписи, страницы, обложка, название, тариф */}
+        <View style={s.history}>
+          <Tap style={[s.close, !past.length && { opacity: 0.35 }]} disabled={!past.length} onPress={back} hitSlop={6} accessibilityRole="button" accessibilityLabel="Назад: отменить последнюю правку" accessibilityState={{ disabled: !past.length }}>
+            <ArrowUUpLeftIcon size={18} color={colors.fg} weight="bold" />
+          </Tap>
+          <Tap style={[s.close, !future.length && { opacity: 0.35 }]} disabled={!future.length} onPress={forward} hitSlop={6} accessibilityRole="button" accessibilityLabel="Вперёд: вернуть отменённую правку" accessibilityState={{ disabled: !future.length }}>
+            <ArrowUUpRightIcon size={18} color={colors.fg} weight="bold" />
+          </Tap>
+        </View>
         <Tap style={s.close} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Закрыть — книга останется в черновиках">
           <XIcon size={18} color={colors.fg} weight="bold" />
         </Tap>
@@ -617,10 +690,7 @@ export default function Review() {
         tariff={tariff}
         format={format}
         pagesN={pagesN}
-        onTariff={(x) => {
-          Haptics.selectionAsync().catch(() => {});
-          setTariff(x);
-        }}
+        onTariff={changeTariff}
       />
 
       <ScrollView
@@ -747,10 +817,7 @@ export default function Review() {
           fixed={pins.filter((p) => p.fixed).length}
           tariff={tariff}
           format={format}
-          onTariff={(x) => {
-            Haptics.selectionAsync().catch(() => {});
-            setTariff(x);
-          }}
+          onTariff={changeTariff}
           onMore={() => router.push({ pathname: '/book/[id]', params: { id, format: fmt, pages: String(pagesN) } })}
         />
       </ScrollView>
@@ -804,7 +871,7 @@ export default function Review() {
           pages={total}
           hasSpreads={pages.some((p) => isSpread(p.layout))}
           onPick={(x) => {
-            setTariff(x);
+            changeTariff(x);
             setTariffOpen(false);
           }}
           onMore={() => {
@@ -988,7 +1055,7 @@ export default function Review() {
           page={pages[captionFor]}
           pageN={captionFor + 1}
           bottom={insets.bottom}
-          onSave={(text, layout, font) => saveCaption(captionFor, text, layout, font)}
+          onSave={(text, layout, font, look) => saveCaption(captionFor, text, layout, font, look)}
           onClose={closeCaption}
         />
       ) : null}
@@ -1093,11 +1160,7 @@ function PageView({ page, w, h, dim, picked, seam }: { page: Page; w: number; h:
       {seam ? <View pointerEvents="none" style={[s.seam, { left: w / 2 - 6 }]} /> : null}
       {def.caption ? (
         <View style={[{ position: 'absolute', justifyContent: 'center' }, box(def.caption)]}>
-          <Text
-            style={[s.caption, page.caption ? captionFontStyle(page.captionFont) : null, (def.captionAt === 'left' || def.captionAt === 'right') && { textAlign: def.captionAt === 'left' ? 'right' : 'left', fontSize: 12 }, !page.caption && { color: colors.mut2 }]}
-            numberOfLines={def.captionAt === 'left' || def.captionAt === 'right' ? 6 : 2}>
-            {page.caption ?? 'Нажмите, чтобы подписать'}
-          </Text>
+          <CaptionView page={page} at={def.captionAt} w={w} />
         </View>
       ) : null}
     </View>
@@ -1189,6 +1252,36 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
         </View>
       </Animated.View>
     </>
+  );
+}
+
+/**
+ * Подпись на странице: каждая строка своим размером (стиль, общий размер, размер строки — data/captionLook.ts) и цветом.
+ * Светлый цвет на белой странице не читается — подкладываем полупрозрачную тёмную плашку.
+ */
+function CaptionView({ page, at, w }: { page: Page; at?: CaptionAt; w: number }) {
+  const side = at === 'left' || at === 'right';
+  const look = page.captionLook;
+  if (!page.caption) {
+    return <Text style={[s.caption, side && { textAlign: at === 'left' ? 'right' : 'left', fontSize: 12 }, { color: colors.mut2 }]} numberOfLines={2}>Нажмите, чтобы подписать</Text>;
+  }
+  const color = look?.color ?? DEFAULT_COLOR;
+  const plate = poorOnWhite(look?.color);
+  const lines = captionText(page.caption, look).split('\n');
+  return (
+    <View style={[plate && s.captionPlate, side ? { alignSelf: 'stretch' } : { alignSelf: 'center', maxWidth: '100%' }]}>
+      <Text style={[s.caption, captionFontStyle(page.captionFont), side && { textAlign: at === 'left' ? 'right' : 'left' }, { color }]} numberOfLines={side ? 6 : 2}>
+        {lines.map((ln, i) => {
+          const fs = lineSize(look, i, w, side);
+          return (
+            <Text key={i} style={{ fontSize: fs, lineHeight: Math.round(fs * 1.3) }}>
+              {ln}
+              {i < lines.length - 1 ? '\n' : ''}
+            </Text>
+          );
+        })}
+      </Text>
+    </View>
   );
 }
 
@@ -1327,9 +1420,37 @@ const NOTE_MAX = 200;
  * Подпись страницы: текст (свой, «дата и место» или «придумать ИИ») и где она стоит — сверху, снизу, слева, справа.
  * Сверху — живая мини-схема страницы: видно, куда встанет подпись. Лист едет вместе с клавиатурой.
  */
-function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; pageN: number; bottom: number; onSave: (text: string, layout: string, font: string) => void; onClose: () => void }) {
+function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; pageN: number; bottom: number; onSave: (text: string, layout: string, font: string, look: CaptionLook) => void; onClose: () => void }) {
+  const { width: winW, height: winH } = useWindowDimensions();
   const [text, setText] = useState(page.caption ?? '');
   const [font, setFont] = useState<string>(page.captionFont ?? 'classic');
+  // вид подписи: новая подпись — «Заголовок + подпись» (первая строка крупнее)
+  const [look, setLook] = useState<CaptionLook>(page.captionLook ?? { style: 'title' });
+  // чей размер двигает ползунок: -1 — весь текст, 0, 1… — отдельная строка
+  const [target, setTarget] = useState(-1);
+  const linesN = text ? text.split('\n').length : 0;
+  const sizeNow = target < 0 ? (look.size ?? 1) : (look.lines?.[target] ?? 1);
+  const setSize = (v: number) =>
+    setLook((l) => {
+      if (target < 0) return { ...l, size: v };
+      const lines = [...(l.lines ?? [])];
+      while (lines.length <= target) lines.push(null);
+      lines[target] = v;
+      return { ...l, lines };
+    });
+  // цвета с фото этой страницы: 2 светлых и 3 тёмных (считает сервер)
+  const [fromPhoto, setFromPhoto] = useState<string[]>([]);
+  useEffect(() => {
+    const first = page.photos.find(Boolean);
+    if (!first) return;
+    let alive = true;
+    photoPalette(String(first))
+      .then((p) => alive && setFromPhoto([...p.light.slice(0, 2), ...p.dark.slice(0, 3)]))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [page.photos]);
   const [layout, setLayoutId] = useState(layoutOf(page.layout).caption ? page.layout : 'caption');
   const at = layoutOf(layout).captionAt ?? 'bottom';
   // строк на странице: снизу/сверху — 2, сбоку — 6 (как numberOfLines в PageView); Enter сверх этого не добавляет строку
@@ -1344,6 +1465,8 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
     }
     setTooMany(false);
     setText(v);
+    // строку, размер которой двигали, стёрли — ползунок снова для всего текста
+    if (target >= v.split('\n').length) setTarget(-1);
   };
   const kb = useAnimatedKeyboard();
   const lift = useAnimatedStyle(() => ({ transform: [{ translateY: -Math.max(0, kb.height.value - bottom) }] }));
@@ -1406,6 +1529,68 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
           <Text style={[s.counter, (tooMany || text.length >= CAPTION_MAX) && { color: colors.coralAction }]}>
             {tooMany ? `Тут помещается ${maxLines === 2 ? '2 строки' : '6 строк'}` : `${text.length} / ${CAPTION_MAX}`}
           </Text>
+
+          {/* пока печатают — только текст и готовые варианты; вид подписи — когда клавиатура спрятана (лист иначе не влезает) */}
+          {!typing && text ? (
+            <ScrollView style={{ maxHeight: winH * 0.42, marginHorizontal: -16 }} contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
+              {/* как будет на странице: размер строк и цвет видно сразу */}
+              <View style={[s.capPreview, poorOnWhite(look.color) && { paddingVertical: 10 }]}>
+                <CaptionView page={{ ...page, caption: text, captionFont: font, captionLook: look }} at={at === 'left' || at === 'right' ? undefined : at} w={winW - 64} />
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow}>
+                {CAPTION_STYLES.map((st) => {
+                  const on = (look.style ?? 'plain') === st.id;
+                  return (
+                    <Tap key={st.id} style={[s.chip, on && s.placeOn]} onPress={() => setLook((l) => ({ ...l, style: st.id as CaptionStyle }))} accessibilityRole="radio" accessibilityState={{ selected: on }}>
+                      <Text style={[s.chipText, on && { color: '#fff' }]}>{st.name}</Text>
+                    </Tap>
+                  );
+                })}
+              </ScrollView>
+
+              {/* размер: по умолчанию один на весь текст; можно отдельно для строки */}
+              <View style={s.sizeHead}>
+                <Text style={s.menuLabel}>Размер</Text>
+                {linesN > 1 ? (
+                  <View style={s.sizeTargets} accessibilityRole="radiogroup">
+                    {[-1, ...Array.from({ length: Math.min(linesN, maxLines) }, (_, i) => i)].map((i) => {
+                      const on = i === target;
+                      return (
+                        <Tap key={i} style={[s.sizeTarget, on && s.placeOn]} onPress={() => setTarget(i)} accessibilityRole="radio" accessibilityState={{ selected: on }}>
+                          <Text style={[s.sizeTargetText, on && { color: '#fff' }]}>{i < 0 ? 'Весь текст' : `${i + 1}-я строка`}</Text>
+                        </Tap>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                {sizeChanged(look) ? (
+                  <Tap onPress={() => setLook((l) => ({ ...l, size: undefined, lines: undefined }))} hitSlop={8} accessibilityRole="button">
+                    <Text style={s.sizeReset}>По умолчанию</Text>
+                  </Tap>
+                ) : null}
+              </View>
+              <Slider value={sizeNow} min={SIZE_MIN} max={SIZE_MAX} onChange={setSize} label={target < 0 ? 'Размер всего текста' : `Размер ${target + 1}-й строки`} />
+
+              {/* цвет: белый и чёрный, три пастельных; ниже — с фото этой страницы */}
+              <Text style={s.menuLabel}>Цвет</Text>
+              <View style={s.colorRow}>
+                {BASE_COLORS.map((c) => (
+                  <ColorDot key={c.hex} hex={c.hex} name={c.name} on={look.color === c.hex} onPress={() => setLook((l) => ({ ...l, color: c.hex }))} />
+                ))}
+              </View>
+              {fromPhoto.length ? (
+                <View style={s.colorRow}>
+                  {fromPhoto.map((hex) => (
+                    <ColorDot key={hex} hex={hex} name="Цвет с фото" on={look.color === hex} onPress={() => setLook((l) => ({ ...l, color: hex }))} />
+                  ))}
+                  <Text style={s.colorNote}>с фото</Text>
+                </View>
+              ) : null}
+              {poorOnWhite(look.color) ? <Text style={s.colorWarn}>На белой странице светлый текст не читается — подложили полупрозрачную плашку</Text> : null}
+            </ScrollView>
+          ) : null}
+
           {/* шрифт подписи: каждая кнопка написана своим шрифтом — видно, как будет на странице */}
           <View style={s.fontRow} accessibilityRole="radiogroup">
             {CAPTION_FONTS.map((f) => {
@@ -1442,12 +1627,29 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
             ) : null}
           </ScrollView>
           {/* flex: 0 — в столбце кнопка с flex: 1 сжималась до нулевой высоты и её не было видно */}
-          <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={() => onSave(text, layout, font)} accessibilityRole="button">
+          <Tap style={[s.save, { flex: 0, alignSelf: 'stretch' }]} onPress={() => onSave(text, layout, font, look)} accessibilityRole="button">
             <Text style={s.saveText}>Готово</Text>
           </Tap>
         </Animated.View>
       </View>
     </>
+  );
+}
+
+/** Кружок цвета подписи; выбранный — в кольце. Белый — с обводкой, чтобы был виден на светлом листе. */
+function ColorDot({ hex, name, on, onPress }: { hex: string; name: string; on: boolean; onPress: () => void }) {
+  return (
+    <Tap
+      style={[s.colorDot, on && s.colorDotOn]}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress();
+      }}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={`Цвет: ${name}`}>
+      <View style={[s.colorFill, { backgroundColor: hex }, hex.toUpperCase() === '#FFFFFF' && { borderWidth: 1, borderColor: colors.card2 }]} />
+    </Tap>
   );
 }
 
@@ -1645,6 +1847,7 @@ const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
   title: { fontSize: 28, lineHeight: 33, fontFamily: fonts.display, letterSpacing: -0.7, color: colors.fg },
   sub: { fontSize: 13, fontFamily: fonts.medium, color: colors.mut, marginTop: 2, fontVariant: ['tabular-nums'] },
+  history: { flexDirection: 'row', gap: 6 },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   titleInput: { padding: 0, borderBottomWidth: 2, borderBottomColor: colors.coralAction },
   close: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
@@ -1740,6 +1943,19 @@ const s = StyleSheet.create({
   fxTag: { position: 'absolute', left: 6, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3, height: 20, paddingHorizontal: 6, borderRadius: 10, backgroundColor: 'rgba(20,16,14,0.55)' },
   fxTagText: { fontSize: 10.5, fontFamily: fonts.bold, color: '#fff' },
   caption: { fontSize: 13, lineHeight: 17, fontFamily: fonts.medium, fontStyle: 'italic', color: colors.mut, textAlign: 'center', paddingHorizontal: 8 },
+  capPreview: { backgroundColor: '#fff', borderRadius: 14, paddingVertical: 8, minHeight: 44, justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.card2 },
+  sizeHead: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 },
+  sizeTargets: { flexDirection: 'row', gap: 4, flex: 1 },
+  sizeTarget: { height: 28, paddingHorizontal: 10, borderRadius: 14, backgroundColor: colors.card, justifyContent: 'center' },
+  sizeTargetText: { fontSize: 12, fontFamily: fonts.semibold, color: colors.fg },
+  sizeReset: { fontSize: 13, fontFamily: fonts.semibold, color: colors.coralLink, marginLeft: 'auto' },
+  colorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  colorDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  colorDotOn: { borderColor: colors.coralAction },
+  colorFill: { width: 26, height: 26, borderRadius: 13 },
+  colorNote: { fontSize: 12, fontFamily: fonts.medium, color: colors.mut },
+  colorWarn: { fontSize: 12, lineHeight: 16, fontFamily: fonts.medium, color: colors.peachInk },
+  captionPlate: { backgroundColor: 'rgba(29,33,32,0.62)', borderRadius: 8, paddingVertical: 4 },
   // уведомление «… · Отменить/Вернуть» — светлое, как карточки приложения: белое, мягкая тень, коралловая ссылка
   toast: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', paddingHorizontal: 16, paddingVertical: 12, boxShadow: '0 8px 24px rgba(40,28,20,0.14)' },
   toastText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },

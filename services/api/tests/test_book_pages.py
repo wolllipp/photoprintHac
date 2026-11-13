@@ -42,6 +42,28 @@ async def test_whole_book_rejects_foreign_photos(client):
     assert r.status_code == 404
 
 
+async def test_caption_look_saved(client):
+    gh, pid, ids = await _book(client)
+    pg = {**page(ids[0], template="caption", caption="Лето\nу бабушки"),
+          "caption_look": {"style": "title", "size": 1.2, "lines": [1.4, None], "color": "#3A2F2B"}}
+    assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": [pg]})).status_code == 200
+    out = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["pages"][0]
+    assert out["caption"] == "Лето\nу бабушки"
+    assert out["caption_look"] == {"style": "title", "size": 1.2, "lines": [1.4, None], "color": "#3A2F2B"}
+    bad = {**pg, "caption_look": {"color": "red"}}
+    assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": [bad]})).status_code == 422
+
+
+async def test_photo_palette(client):
+    gh, _, ids = await _book(client)
+    r = await client.get(f"/photos/{ids[0]}/palette", headers=gh)
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"light", "dark"} and all(c.startswith("#") and len(c) == 7 for c in body["light"] + body["dark"])
+    other = auth((await client.post("/auth/guest")).json()["token"])
+    assert (await client.get(f"/photos/{ids[0]}/palette", headers=other)).status_code == 404
+
+
 async def test_rename_project(client):
     gh, pid, _ = await _book(client)
     r = await client.patch(f"/projects/{pid}", headers=gh, json={"title": "  Лето у бабушки "})

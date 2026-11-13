@@ -118,6 +118,50 @@ async def upload(files: list[UploadFile] = File(...), taken_at: list[str] = Form
              "taken_at": p.taken_at.isoformat() if p.taken_at else None} for p in out]
 
 
+def _palette(path: str) -> dict:
+    """Цвета фото для подписи: 2 светлых и 3 тёмных, заметно разных. По уменьшенной копии — быстро."""
+    from PIL import ImageOps
+
+    with Image.open(path) as im:
+        im = ImageOps.exif_transpose(im).convert("RGB")
+        im.thumbnail((160, 160))
+        q = im.quantize(colors=16, method=Image.Quantize.MEDIANCUT)
+        pal = q.getpalette() or []
+        counts = sorted(q.getcolors() or [], reverse=True)
+    colors = [tuple(pal[i * 3:i * 3 + 3]) for _, i in counts]
+
+    def lum(c):
+        return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255
+
+    def pick(cands, n):
+        out = []
+        for c in cands:
+            # не берём почти одинаковые оттенки
+            if all(sum(abs(a - b) for a, b in zip(c, o)) > 60 for o in out):
+                out.append(c)
+            if len(out) == n:
+                break
+        return out
+
+    by_lum = sorted(colors, key=lum)
+    light = pick([c for c in reversed(by_lum) if lum(c) > 0.55] or list(reversed(by_lum)), 2)
+    dark = pick([c for c in by_lum if lum(c) < 0.45] or by_lum, 3)
+    hexed = lambda cs: ["#%02X%02X%02X" % c for c in cs]  # noqa: E731
+    return {"light": hexed(light), "dark": hexed(dark)}
+
+
+@router.get("/photos/{photo_id}/palette")
+async def photo_palette(photo_id: uuid.UUID, user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):
+    """Цвета с фото — для цвета подписи на странице (в приложении: «из фото»)."""
+    p = await s.get(Photo, photo_id)
+    if p is None or p.owner_id != user.id:
+        raise HTTPException(404, "фото не найдено")
+    try:
+        return await asyncio.to_thread(_palette, p.path)
+    except Exception:
+        return {"light": [], "dark": []}
+
+
 @router.put("/photos/{photo_id}/file")
 async def replace_file(photo_id: uuid.UUID, file: UploadFile = File(...),
                        user: User = Depends(current_user), s: AsyncSession = Depends(get_session)):

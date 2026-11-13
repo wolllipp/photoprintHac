@@ -250,6 +250,7 @@ async def project_pages(project_id: uuid.UUID, user: User = Depends(current_user
             "pages": [{"position": r.position, "chapter": r.layout.get("chapter"),
                        "template": r.layout.get("template"), "caption": r.layout.get("caption"),
                        "caption_font": r.layout.get("caption_font"),
+                       "caption_look": r.layout.get("caption_look"),
                        "fx": r.layout.get("fx") or {},
                        "frames": [{"photo_id": f["photo_id"], "frame": f["frame"]} for f in r.layout.get("frames", [])]}
                       for r in rows]}
@@ -260,11 +261,20 @@ class FrameIn(BaseModel):
     frame: dict[str, float]
 
 
+class CaptionLook(BaseModel):
+    """Вид подписи: стиль строк, общий размер (доля от обычного), размер каждой строки отдельно, цвет текста."""
+    style: str | None = Field(None, pattern="^(title|plain|quote)$")  # заголовок + подпись | только подпись | цитата
+    size: float | None = Field(None, ge=0.5, le=2.5)
+    lines: list[float | None] = Field(default_factory=list, max_length=6)
+    color: str | None = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
+
+
 class PageIn(BaseModel):
     template: str = Field(min_length=1, max_length=40)  # макет из библиотеки приложения: one, two-side, spread…
     frames: list[FrameIn] = Field(default_factory=list, max_length=8)
     caption: str | None = Field(None, max_length=300)
     caption_font: str | None = Field(None, pattern="^(classic|plain|bold|hand)$")  # шрифт подписи в приложении
+    caption_look: CaptionLook | None = None
     fx: dict[str, list[str]] = Field(default_factory=dict)  # номер рамки → улучшения ИИ
 
 
@@ -283,7 +293,8 @@ async def keep_photos(s: AsyncSession, p: Project, ids: list[uuid.UUID], user: U
 
 def page_layout(position: int, body: PageIn, chapter: str | None = None) -> dict:
     return {"position": position, "chapter": chapter, "template": body.template,
-            "caption": body.caption, "caption_font": body.caption_font, "fx": body.fx,
+            "caption": body.caption, "caption_font": body.caption_font,
+            "caption_look": body.caption_look.model_dump(exclude_none=True) if body.caption_look else None, "fx": body.fx,
             "frames": [{"photo_id": str(f.photo_id), "frame": f.frame} for f in body.frames]}
 
 

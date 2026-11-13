@@ -6,6 +6,7 @@ import { File as FsFile } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { API_URL, ApiError, api, authHeaders, ensureRegistered, online } from '@/api/client';
+import type { CaptionLook } from '@/data/captionLook';
 import { layoutOf } from '@/data/layouts';
 import { draftCopy, takenAt, uploadCopy } from '@/data/picked';
 import { setRemoteSource } from '@/data/photos';
@@ -150,6 +151,8 @@ export type ServerPage = {
   caption?: string;
   /** шрифт подписи: classic | plain | bold | hand (data/captionFonts.ts) */
   captionFont?: string;
+  /** вид подписи: стиль строк, размер (весь текст и каждая строка), цвет — data/captionLook.ts */
+  captionLook?: CaptionLook;
   fx?: Record<number, string[]>;
   crop?: Record<string, { cx: number; cy: number; z: number; a: number }>;
   /** свои размеры фото на странице (components/sizeEditor.tsx); нет — как в макете */
@@ -296,7 +299,7 @@ async function build(input: PendingBook, onStep: BuildStep, me: { jobId: string 
   return book;
 }
 
-type PagesOut = { cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
+type PagesOut = { cover?: { photo_id: string | null; title: boolean } | null; pages: { position: number; template: string | null; caption: string | null; caption_font?: string | null; caption_look?: CaptionLook | null; fx: Record<string, string[]>; frames: { photo_id: string; frame?: Record<string, number> }[] }[] };
 
 /**
  * Книга с сервера: страницы с правками (макет, фото, подпись, улучшения). Фото с телефона — по локальному адресу,
@@ -324,6 +327,7 @@ export async function loadServerBook(projectId: string, title = 'Книга'): P
       photos,
       caption: p.caption ?? undefined,
       captionFont: p.caption_font ?? undefined,
+      captionLook: p.caption_look ?? undefined,
       fx,
       crop: Object.keys(crop).length ? crop : undefined,
       slots: differ ? rects.map((fr) => ({ x: fr.x ?? 0, y: fr.y ?? 0, w: fr.w, h: fr.h ?? 1 })) : undefined,
@@ -343,6 +347,7 @@ function pageBody(page: ServerPage, ids: string[]) {
     template: page.layout,
     caption: page.caption ?? null,
     caption_font: page.caption ? (page.captionFont ?? null) : null,
+    caption_look: page.caption ? (page.captionLook ?? null) : null,
     fx: Object.fromEntries(Object.entries(page.fx ?? {}).map(([k, v]) => [k, v])),
     // ручной кадр — в той же рамке: сервер учитывает увеличение при проверке разрешения под печать
     frames: ids.slice(0, slots.length).map((id, i) => ({ photo_id: id, frame: { ...slots[i], ...page.crop?.[page.photos[i]] } })),
@@ -360,6 +365,25 @@ export async function savePages(projectId: string, pages: ServerPage[]) {
   await api.put(`/projects/${projectId}/pages`, { pages: body });
   const book = books.get(projectId);
   if (book) book.pages = pages;
+}
+
+/**
+ * Цвета с фото для подписи: 2 светлых и 3 тёмных (считает сервер). Фото ещё не на сервере (демо-снимок) — пусто.
+ * Запоминаем: одно и то же фото не спрашиваем дважды.
+ */
+const paletteOf = new Map<string, Promise<{ light: string[]; dark: string[] }>>();
+export function photoPalette(photo: string) {
+  const id = photo.startsWith('srv:') ? photo.slice(4) : idOfUri.get(photo);
+  if (!id) return Promise.resolve({ light: [], dark: [] });
+  let p = paletteOf.get(id);
+  if (!p) {
+    p = api.get<{ light: string[]; dark: string[] }>(`/photos/${id}/palette`).catch(() => {
+      paletteOf.delete(id);
+      return { light: [], dark: [] };
+    });
+    paletteOf.set(id, p);
+  }
+  return p;
 }
 
 /** Новое название книги (его меняют в редакторе, нажав на название). */
