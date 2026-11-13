@@ -935,9 +935,6 @@ export default function Review() {
         <Final
           pagesN={pagesN}
           fixed={pins.filter((p) => p.fixed).length}
-          tariff={tariff}
-          format={format}
-          onTariff={changeTariff}
           onMore={() => router.push({ pathname: '/book/[id]', params: { id, format: fmt, pages: String(pagesN) } })}
         />
         </>
@@ -2040,8 +2037,8 @@ function TariffBar({ tariff, format, pagesN, onTariff }: { tariff: Tariff['id'];
   );
 }
 
-function Final({ pagesN, fixed, tariff, format, onTariff, onMore }: { pagesN: number; fixed: number; tariff: Tariff['id']; format: string; onTariff: (t: Tariff['id']) => void; onMore: () => void }) {
-  const list = useMemo(() => tariffs.map((t) => ({ t, fmt: fitFormat(t.id, format) })), [format]);
+/** Конец книги: «Это вся книга». Тариф здесь не выбираем — переключатель всегда висит сверху (TariffBar). */
+function Final({ pagesN, fixed, onMore }: { pagesN: number; fixed: number; onMore: () => void }) {
   return (
     <View style={s.final}>
       <View style={s.finalIcon}>
@@ -2049,19 +2046,6 @@ function Final({ pagesN, fixed, tariff, format, onTariff, onMore }: { pagesN: nu
       </View>
       <Text style={s.finalTitle}>Это вся книга</Text>
       <Text style={s.finalSub}>{pagesN} стр. · {fixed ? `исправили ${fixed} ${places(fixed)}` : 'всё как собрал ИИ'}</Text>
-      <View style={s.pills} accessibilityRole="radiogroup">
-        {list.map(({ t, fmt }) => {
-          const on = t.id === tariff;
-          const p = bookPrice(t.id, fmt, pagesN, 'Глянец');
-          return (
-            <Tap key={t.id} style={[s.pill, on && s.pillOn]} onPress={() => onTariff(t.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${t.name}, ${rub(p)}`}>
-              <Text style={[s.pillName, on && { color: '#fff' }]}>{t.name}</Text>
-              <Text style={[s.pillPrice, on && { color: 'rgba(255,255,255,0.9)' }]}>{rub(p)}</Text>
-              <Text style={[s.pillRange, on && { color: 'rgba(255,255,255,0.75)' }]}>{BOOK[t.id].min}–{BOOK[t.id].max} стр.</Text>
-            </Tap>
-          );
-        })}
-      </View>
       <Tap onPress={onMore} hitSlop={8} accessibilityRole="button">
         <Text style={s.link}>Изменить формат и объём</Text>
       </Tap>
@@ -2244,11 +2228,5 @@ const s = StyleSheet.create({
   tbarName: { fontSize: 13.5, lineHeight: 18, fontFamily: fonts.bold, color: colors.fg },
   tbarPrice: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.mut },
   tbarNote: { fontSize: 11, lineHeight: 14, fontFamily: fonts.medium, color: colors.mut },
-  pills: { flexDirection: 'row', gap: 8, alignSelf: 'stretch' },
-  pill: { flex: 1, alignItems: 'center', gap: 2, backgroundColor: '#fff', borderRadius: 18, paddingVertical: 12 },
-  pillOn: { backgroundColor: colors.coralAction },
-  pillName: { fontSize: 16, fontFamily: fonts.bold, color: colors.fg },
-  pillPrice: { fontSize: 13.5, fontFamily: fonts.semibold, color: colors.fg },
-  pillRange: { fontSize: 11.5, fontFamily: fonts.regular, color: colors.mut },
   link: { fontSize: 15, fontFamily: fonts.semibold, color: colors.coralLink, paddingVertical: 4 },
 });
