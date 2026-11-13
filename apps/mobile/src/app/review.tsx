@@ -1277,7 +1277,7 @@ function PageView({ page, w, h, dim, picked, seam, liveStickers }: { page: Page;
       {seam ? <View pointerEvents="none" style={[s.seam, { left: w / 2 - 6 }]} /> : null}
       {def.caption ? (
         <View style={[{ position: 'absolute', justifyContent: 'center' }, box(def.caption)]}>
-          <CaptionView page={page} at={def.captionAt} w={w} />
+          <CaptionView page={page} at={def.captionAt} w={w} over={def.over} />
         </View>
       ) : null}
       {deco === 'few' ? <Corners w={w} h={h} dark={!isLight(bg)} /> : null}
@@ -1313,6 +1313,8 @@ function PinDot({ pin, n, left, top, active, onPress }: { pin: Pin; n: number; l
  */
 function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace, onRemove, onCrop, onSize, onLayout, onComment, onInsertAfter, onDeletePage, onFrame, onClose }: { page: Page; pageN: number; slot: number; bottom: number; canSpread: boolean; canDelete: boolean; onReplace: () => void; onRemove: () => void; onCrop: () => void; onSize: () => void; onLayout: (id: string) => void; onComment: () => void; onInsertAfter: () => void; onDeletePage: () => void; onFrame: (frame: FrameId, all: boolean) => void; onClose: () => void }) {
   const [frameAll, setFrameAll] = useState(false);
+  // фильтр макетов по числу фото: null — все
+  const [photosN, setPhotosN] = useState<number | null>(null);
   const { height: winH } = useWindowDimensions();
   const n = slotsOf(page.layout);
   const k = page.photos[slot];
@@ -1347,9 +1349,22 @@ function PhotoMenu({ page, pageN, slot, bottom, canSpread, canDelete, onReplace,
           </Tap>
         ) : null}
 
-        <Text style={s.menuLabel}>Макет страницы</Text>
+        {/* макеты; сверху — сколько фото на странице, чтобы список не превращался в стену */}
+        <View style={s.frameHead}>
+          <Text style={s.menuLabel}>Макет страницы</Text>
+          <View style={s.countRow} accessibilityRole="radiogroup">
+            {[null, 1, 2, 3, 4].map((c) => {
+              const on = c === photosN;
+              return (
+                <Tap key={String(c)} style={[s.countChip, on && s.placeOn]} onPress={() => setPhotosN(c)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={c ? `Макеты на  фото` : 'Все макеты'}>
+                  <Text style={[s.countText, on && { color: '#fff' }]}>{c ?? 'Все'}</Text>
+                </Tap>
+              );
+            })}
+          </View>
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.layouts}>
-          {LAYOUTS.filter((l) => !l.hidden && (canSpread || l.span !== 2)).map((l) => {
+          {LAYOUTS.filter((l) => !l.hidden && (canSpread || l.span !== 2) && (photosN === null || l.slots.length === photosN)).map((l) => {
             const cur = layoutOf(page.layout);
             const on = l.id === page.layout || (!!cur.hidden && !!l.caption && l.slots.length === cur.slots.length);
             return (
@@ -1418,16 +1433,19 @@ function FrameIcon({ id, on }: { id: FrameId; on: boolean }) {
  * Подпись на странице: каждая строка своим размером (стиль, общий размер, размер строки — data/captionLook.ts) и цветом.
  * Светлый цвет на белой странице не читается — подкладываем полупрозрачную тёмную плашку.
  */
-function CaptionView({ page, at, w }: { page: Page; at?: CaptionAt; w: number }) {
+function CaptionView({ page, at, w, over }: { page: Page; at?: CaptionAt; w: number; over?: boolean }) {
   const bg = usePageBg();
   const side = at === 'left' || at === 'right';
   const look = page.captionLook;
   if (!page.caption) {
-    return <Text style={[s.caption, side && { textAlign: at === 'left' ? 'right' : 'left', fontSize: 12 }, { color: colors.mut2 }]} numberOfLines={2}>Нажмите, чтобы подписать</Text>;
+    const hint = <Text style={[s.caption, side && { textAlign: at === 'left' ? 'right' : 'left', fontSize: 12 }, { color: over ? '#FFFFFF' : colors.mut2 }]} numberOfLines={2}>Нажмите, чтобы подписать</Text>;
+    // на фото серую подсказку не видно — тоже на плашке
+    return over ? <View style={[s.captionPlate, { alignSelf: 'center' }]}>{hint}</View> : hint;
   }
-  const color = look?.color ?? defaultColorOn(bg);
+  // подпись поверх фото («Подпись на фото») — по умолчанию белая на тёмной плашке
+  const color = look?.color ?? (over ? '#FFFFFF' : defaultColorOn(bg));
   // цвет сливается с фоном страницы — плашка: под светлый текст тёмная, под тёмный — светлая
-  const plate = poorOn(look?.color, bg) ? (isLight(color) ? s.captionPlate : s.captionPlateLight) : null;
+  const plate = over ? (isLight(color) ? s.captionPlate : s.captionPlateLight) : poorOn(look?.color, bg) ? (isLight(color) ? s.captionPlate : s.captionPlateLight) : null;
   const lines = captionText(page.caption, look).split('\n');
   return (
     <View style={[plate, side ? { alignSelf: 'stretch' } : { alignSelf: 'center', maxWidth: '100%' }]}>
@@ -1697,7 +1715,7 @@ function CaptionEditor({ page, pageN, bottom, onSave, onClose }: { page: Page; p
             <ScrollView style={{ maxHeight: winH * 0.42, marginHorizontal: -16 }} contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
               {/* как будет на странице: размер строк и цвет видно сразу */}
               <View style={[s.capPreview, { backgroundColor: pageBg }, poorOn(look.color, pageBg) && { paddingVertical: 10 }]}>
-                <CaptionView page={{ ...page, caption: text, captionFont: font, captionLook: look }} at={at === 'left' || at === 'right' ? undefined : at} w={winW - 64} />
+                <CaptionView page={{ ...page, caption: text, captionFont: font, captionLook: look }} at={at === 'left' || at === 'right' ? undefined : at} w={winW - 64} over={layoutOf(layout).over} />
               </View>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={s.quickRow}>
@@ -2053,6 +2071,9 @@ const s = StyleSheet.create({
   coverTitleLabel: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   tipOrder: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   menuScroll: { gap: 12, paddingHorizontal: 16 },
+  countRow: { flexDirection: 'row', gap: 4 },
+  countChip: { minWidth: 30, height: 28, paddingHorizontal: 9, borderRadius: 14, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
+  countText: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.fg },
   frameHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   frameAll: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: colors.card },
   frameAllText: { fontSize: 12.5, fontFamily: fonts.semibold, color: colors.fg },

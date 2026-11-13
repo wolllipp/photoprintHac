@@ -8,7 +8,8 @@ export type Rect = { x: number; y: number; w: number; h: number };
 export type CaptionAt = 'top' | 'bottom' | 'left' | 'right';
 /** hidden — не показываем в ленте макетов: это та же «с подписью», только подпись в другом месте (выбирается в редакторе подписи). */
 /** span: 2 — макет на весь разворот (две страницы): доли считаются от ширины разворота, следующая страница «занята». */
-export type LayoutDef = { id: string; name: string; slots: Rect[]; caption?: Rect; captionAt?: CaptionAt; bleed?: boolean; hidden?: boolean; span?: 2 };
+/** over — подпись лежит поверх фото на полупрозрачной плашке; places — где ещё можно поставить подпись в этом макете. */
+export type LayoutDef = { id: string; name: string; slots: Rect[]; caption?: Rect; captionAt?: CaptionAt; bleed?: boolean; hidden?: boolean; span?: 2; over?: boolean; places?: CaptionAt[] };
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 
@@ -32,6 +33,12 @@ export const LAYOUTS: LayoutDef[] = [
   { id: 'spread-15', name: 'Полтора листа', slots: [R(0, 0, 0.75, 1), R(0.75, 0, 0.25, 1)], bleed: true, span: 2 },
   { id: 'spread-15-two', name: 'Полтора листа и два', slots: [R(0, 0, 0.75, 1), R(0.75, 0, 0.25, 0.5), R(0.75, 0.5, 0.25, 0.5)], bleed: true, span: 2 },
   { id: 'four-top', name: 'Крупное и три', slots: [R(0, 0, 1, 0.62), R(0, 0.62, 1 / 3, 0.38), R(1 / 3, 0.62, 1 / 3, 0.38), R(2 / 3, 0.62, 1 / 3, 0.38)] },
+  // новые шаблоны (план notes/34, по мотивам Shutterfly — только простые): воздух вокруг фото, текст рядом или поверх
+  { id: 'margin', name: 'Фото с полями', slots: [R(0.1, 0.1, 0.8, 0.8)] },
+  { id: 'small-caption', name: 'Маленькое и подпись', slots: [R(0.2, 0.1, 0.6, 0.6)], caption: R(0.1, 0.74, 0.8, 0.18), captionAt: 'bottom', places: ['bottom'] },
+  { id: 'over', name: 'Подпись на фото', slots: [R(0, 0, 1, 1)], bleed: true, caption: R(0.06, 0.74, 0.88, 0.2), captionAt: 'bottom', over: true, places: ['bottom'] },
+  { id: 'column', name: 'Фото и текст', slots: [R(0, 0, 0.58, 1)], caption: R(0.62, 0.08, 0.38, 0.84), captionAt: 'right', places: ['right'] },
+  { id: 'title-top', name: 'Заголовок над фото', slots: [R(0, 0.26, 1, 0.74)], caption: R(0, 0, 1, 0.22), captionAt: 'top', places: ['top'] },
 ];
 
 export const layoutOf = (id: string) => LAYOUTS.find((l) => l.id === id) ?? LAYOUTS[0];
@@ -94,9 +101,11 @@ export function moveEdge(slots: Rect[], edge: Edge, to: number): Rect[] {
 
 /** Тот же макет с подписью в другом месте: одно фото — сверху, снизу, слева, справа; два — сверху или снизу. */
 export function captionLayout(id: string, at: CaptionAt) {
+  // у шаблона с одним местом для подписи (поверх фото, колонка, заголовок) — тот же шаблон
+  if (layoutOf(id).places) return id;
   const two = layoutOf(id).slots.length === 2;
   if (two) return at === 'top' ? 'two-caption-top' : 'two-caption';
   return at === 'bottom' ? 'caption' : `caption-${at}`;
 }
 /** Какие места для подписи есть у макета. */
-export const captionPlaces = (id: string): CaptionAt[] => (layoutOf(id).slots.length === 2 ? ['top', 'bottom'] : ['top', 'bottom', 'left', 'right']);
+export const captionPlaces = (id: string): CaptionAt[] => layoutOf(id).places ?? (layoutOf(id).slots.length === 2 ? ['top', 'bottom'] : ['top', 'bottom', 'left', 'right']);
