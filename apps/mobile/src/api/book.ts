@@ -114,6 +114,8 @@ function queuePrints(uris: string[]) {
 }
 
 async function runPrints() {
+  // сначала даём редактору открыться и показать страницы — потом тяжёлая работа с фото
+  await sleep(2000);
   const t0 = Date.now();
   const worker = async () => {
     for (let uri = printQueue.shift(); uri; uri = printQueue.shift()) {

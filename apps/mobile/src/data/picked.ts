@@ -4,6 +4,7 @@
  */
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'react-native';
 
 import { previewFile, setPreview } from '@/data/photos';
 
@@ -30,19 +31,51 @@ export async function rememberLibrary(items: { uri: string; width: number; heigh
   return items.map((a) => a.uri);
 }
 
+/**
+ * Уменьшить снимок и сохранить JPEG. Строго по одному за раз на всё приложение: снимок айфона на 12–48 Мпикс
+ * при обработке занимает в памяти сотни мегабайт, и когда копии для экрана и для печати делались параллельно
+ * (да ещё рядом редактор с сотней фото), iOS закрывал приложение посреди фоновой догрузки.
+ * Память нативных объектов отдаём сразу (release), не дожидаясь сборщика мусора.
+ */
+let shrinkChain: Promise<unknown> = Promise.resolve();
+function shrink(uri: string, size: { w: number; h: number }, px: number, compress: number) {
+  const run = async () => {
+    const ctx = ImageManipulator.manipulate(uri);
+    let img: Awaited<ReturnType<typeof ctx.renderAsync>> | null = null;
+    try {
+      ctx.resize(size.w >= size.h ? { width: px } : { height: px });
+      img = await ctx.renderAsync();
+      const out = await img.saveAsync({ compress, format: SaveFormat.JPEG });
+      return out.uri;
+    } finally {
+      img?.release();
+      ctx.release();
+    }
+  };
+  const p = shrinkChain.then(run, run);
+  shrinkChain = p.catch(() => {});
+  return p;
+}
+
+/** Копия для экрана уже делается — второй раз то же фото не обрабатываем, ждём ту же. */
+const previewJobs = new Map<string, Promise<void>>();
 /** Уменьшенная копия для экрана; не вышло — показываем оригинал, как раньше. */
-async function makePreview(a: Shot) {
+function makePreview(a: Shot) {
   const long = Math.max(a.width || 0, a.height || 0);
-  if (!long || long <= PREVIEW_PX * 1.2) return;
-  try {
-    const ctx = ImageManipulator.manipulate(a.uri);
-    ctx.resize(a.width >= a.height ? { width: PREVIEW_PX } : { height: PREVIEW_PX });
-    const img = await ctx.renderAsync();
-    const out = await img.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
-    setPreview(a.uri, out.uri);
-  } catch {
-    // оригинал тоже покажется, просто тяжелее
+  if (!long || long <= PREVIEW_PX * 1.2 || previewFile(a.uri)) return Promise.resolve();
+  let job = previewJobs.get(a.uri);
+  if (!job) {
+    job = shrink(a.uri, { w: a.width, h: a.height }, PREVIEW_PX, 0.8)
+      .then((out) => {
+        setPreview(a.uri, out);
+      })
+      .catch(() => {
+        // оригинал тоже покажется, просто тяжелее
+      })
+      .finally(() => previewJobs.delete(a.uri));
+    previewJobs.set(a.uri, job);
   }
+  return job;
 }
 
 /** Длинная сторона копии для печати: 3000 px на книге 20×20 — около 380 dpi, с запасом выше требований печати. */
@@ -64,24 +97,25 @@ export async function uploadCopy(uri: string) {
   const long = size ? Math.max(size.w, size.h) : 0;
   if (!size || long <= UPLOAD_PX * 1.1) return uri;
   try {
-    const ctx = ImageManipulator.manipulate(uri);
-    ctx.resize(size.w >= size.h ? { width: UPLOAD_PX } : { height: UPLOAD_PX });
-    const img = await ctx.renderAsync();
-    const out = await img.saveAsync({ compress: 0.88, format: SaveFormat.JPEG });
-    uploadOfUri.set(uri, out.uri);
-    return out.uri;
+    const out = await shrink(uri, size, UPLOAD_PX, 0.88);
+    uploadOfUri.set(uri, out);
+    return out;
   } catch {
     return uri;
   }
 }
 
-/** Размер снимка, если галерея его не дала: открываем файл и запоминаем. Не вышло — undefined. */
+/**
+ * Размер снимка, если галерея его не дала: читаем по заголовку файла (Image.getSize), не распаковывая
+ * снимок целиком (раньше распаковывали — ещё сотни мегабайт). Не вышло — undefined.
+ */
 async function measure(uri: string) {
   try {
-    const img = await ImageManipulator.manipulate(uri).renderAsync();
-    const size = { w: img.width, h: img.height };
-    if (size.w && size.h) sizeOfUri.set(uri, size);
-    return size.w && size.h ? size : undefined;
+    const { width, height } = await Image.getSize(uri);
+    if (!width || !height) return undefined;
+    const size = { w: width, h: height };
+    sizeOfUri.set(uri, size);
+    return size;
   } catch {
     return undefined;
   }
@@ -108,16 +142,15 @@ export async function draftCopy(uri: string): Promise<{ file: string; printW: nu
   return { file, printW: Math.round(size.w * k), printH: Math.round(size.h * k) };
 }
 
-/** Копии по 3 за раз: первые ждём (их сразу видно на экране сборки), остальные доделываются, пока фото грузятся. */
+/**
+ * Копии для экрана: первые ждём (их сразу видно на экране сборки), остальные доделываются в фоне.
+ * Все — через общую очередь shrink (по одному снимку за раз).
+ */
 async function makePreviews(assets: Shot[], waitFirst = 6) {
-  const queue = [...assets];
-  const worker = async () => {
-    for (let a = queue.shift(); a; a = queue.shift()) await makePreview(a);
-  };
   const first = assets.slice(0, waitFirst);
-  queue.splice(0, first.length);
+  const rest = assets.slice(waitFirst);
   await Promise.all(first.map(makePreview));
-  void Promise.all([worker(), worker(), worker()]);
+  rest.forEach((a) => void makePreview(a));
 }
 
 const keyOfUri = new Map<string, string>();
