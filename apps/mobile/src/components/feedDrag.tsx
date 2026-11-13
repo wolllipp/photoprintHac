@@ -29,6 +29,7 @@ type Drag = {
   onStart: () => void;
   onEdge: (dir: number) => void;
   onDrop: (order: number[]) => void;
+  onCancel: () => void;
 };
 const Ctx = createContext<Drag | null>(null);
 
@@ -93,6 +94,10 @@ export function FeedDrag({ count, gap, scrollY, edges, scrollBy, onLock, onDrop,
       onLock(false);
       onDrop(order);
     },
+    onCancel: () => {
+      onEdge(0);
+      onLock(false);
+    },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -109,6 +114,7 @@ export function DragUnit({ index, children }: { index: number; children: ReactNo
     (shift) => {
       if (shift === null) return;
       const h = heights.get();
+      if (h.length !== positions.get().length || index >= h.length) return;
       const natural = topsBy(h.map((_, i) => i), h, gap);
       const center = natural[index] + shift + h[index] / 2;
       // остальные по их местам, без этой страницы: сколько их центров выше — такое и место
@@ -148,6 +154,14 @@ export function DragUnit({ index, children }: { index: number; children: ReactNo
       if (active.get() !== index) return;
       // страница доезжает до своего места, потом порядок уходит в React
       const h = heights.get();
+      if (h.length !== positions.get().length) {
+        // пока тащили, число страниц поменялось — отменяем перетаскивание, лента снова листается
+        active.set(-1);
+        delta.set(0);
+        lifted.set(0);
+        runOnJS(d.onCancel)();
+        return;
+      }
       const natural = topsBy(h.map((_, i) => i), h, gap);
       const tops = topsBy(orderOf(positions.get()), h, gap);
       const to = tops[index] - natural[index] - (scrollY.get() - scrollStart.get());
@@ -164,13 +178,17 @@ export function DragUnit({ index, children }: { index: number; children: ReactNo
   const style = useAnimatedStyle(() => {
     const me = active.get() === index;
     const h = heights.get();
+    const pos = positions.get();
     let y = 0;
     if (me) y = delta.get() + scrollY.get() - scrollStart.get();
-    else {
+    else if (index < pos.length && pos.length === h.length) {
       const natural = topsBy(h.map((_, i) => i), h, gap);
-      const tops = topsBy(orderOf(positions.get()), h, gap);
+      const tops = topsBy(orderOf(pos), h, gap);
       y = withTiming(tops[index] - natural[index], SLIDE);
     }
+    // число страниц только что поменялось (книга догрузилась, страницу добавили) — массивы ещё старые:
+    // сдвиг вышел бы NaN, а NaN в transform на iOS роняет приложение целиком. Пока — без сдвига.
+    if (!Number.isFinite(y)) y = 0;
     return {
       zIndex: me ? 10 : 0,
       transform: [{ translateY: y }, { scale: 1 + lifted.get() * 0.03 }],
@@ -182,7 +200,9 @@ export function DragUnit({ index, children }: { index: number; children: ReactNo
     const hh = e.nativeEvent.layout.height;
     const cur = heights.get();
     if (cur[index] === hh) return;
+    // новая страница (книга догрузилась, добавили страницу) — массив высот ещё короче, дополняем
     const next = [...cur];
+    while (next.length <= index) next.push(0);
     next[index] = hh;
     heights.set(next);
   };

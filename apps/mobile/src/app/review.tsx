@@ -151,15 +151,22 @@ export default function Review() {
   // Открыли книгу с сервера, которой нет в памяти (например, из «Черновиков» после перезапуска), — подгружаем.
   const [loadedTick, setLoadedTick] = useState(0);
   const fromServer = serverBook(params.projectId);
+  // своя книга, которой нет в памяти (открыли из «Черновиков» после перезапуска), — пока грузится, страниц не показываем
+  const opening = !!params.projectId && !fromServer;
+  const [openFailed, setOpenFailed] = useState(false);
+  const [openTry, setOpenTry] = useState(0);
   useEffect(() => {
     if (!params.projectId || serverBook(params.projectId)) return;
     loadServerBook(params.projectId, title)
       .then(() => setLoadedTick((x) => x + 1))
-      .catch(() => {});
-  }, [params.projectId, title]);
+      .catch(() => setOpenFailed(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.projectId, openTry]);
   // книга, как её собрал ИИ: с сервера (недостающие до объёма тарифа — пустые листы) или демо
   const built = useMemo<Page[]>(
-    () => (fromServer ? Array.from({ length: builtN }, (_, k) => (fromServer.pages[k] as Page | undefined) ?? { layout: 'one', photos: [] }) : makePages(builtN)),
+    // своя книга ещё грузится с сервера — пусто (раньше на это время показывалась демо-книга с чужими фото,
+    // и её обложка успевала попасть в карточку черновика)
+    () => (fromServer ? Array.from({ length: builtN }, (_, k) => (fromServer.pages[k] as Page | undefined) ?? { layout: 'one', photos: [] }) : params.projectId ? [] : makePages(builtN)),
     // loadedTick — книга догрузилась с сервера
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [builtN, fromServer, loadedTick],
@@ -360,10 +367,11 @@ export default function Review() {
     setLastBook({ title, cover: front ?? 'night-window', params: { ...params, id, title, format, pages: String(pagesN), start: String(Math.min(page, pagesN - 1)), tariff }, at: Date.now() });
   useEffect(() => {
     startDraft(id);
-    remember(at);
+    // книга ещё грузится — не запоминаем: в карточку попала бы пустая или чужая обложка
+    if (!opening) remember(at);
     // title — переименовали книгу: карточка «продолжить» на главной с новым названием
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tariff, title]);
+  }, [tariff, title, opening]);
   // книга с сервера — карточка для «Черновиков» (у демо-книг она уже есть в данных)
   useEffect(() => {
     if (!params.projectId || !front) return;
@@ -799,6 +807,24 @@ export default function Review() {
           </Animated.View>
         ) : null}
 
+        {opening ? (
+          <View style={s.opening} accessibilityLiveRegion="polite">
+            {openFailed ? (
+              <>
+                <Text style={s.openingText}>Не получилось открыть книгу — проверьте интернет</Text>
+                <Tap style={[s.save, { flex: 0, alignSelf: 'center', paddingHorizontal: 24 }]} onPress={() => {
+                    setOpenFailed(false);
+                    setOpenTry((x) => x + 1);
+                  }} accessibilityRole="button">
+                  <Text style={s.saveText}>Попробовать ещё раз</Text>
+                </Tap>
+              </>
+            ) : (
+              <ThinkingLine text="Открываем книгу…" style={s.openingText} />
+            )}
+          </View>
+        ) : (
+        <>
         {/* обложка — первой и отдельно: задняя сторона | корешок | лицевая с фото и названием; не переставляется */}
         <View style={{ gap: 8 }}>
           <View style={s.pageLabel}>
@@ -895,6 +921,8 @@ export default function Review() {
           onTariff={changeTariff}
           onMore={() => router.push({ pathname: '/book/[id]', params: { id, format: fmt, pages: String(pagesN) } })}
         />
+        </>
+        )}
       </ScrollView>
 
       {/* книга собрана по черновым копиям — копии для печати догружаются, пока человек смотрит */}
@@ -2083,6 +2111,8 @@ const s = StyleSheet.create({
   bgPickOn: { borderColor: colors.coralAction },
   bgSwatch: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
   bgPickName: { fontSize: 13, fontFamily: fonts.semibold, color: colors.fg },
+  opening: { alignItems: 'center', gap: 14, paddingVertical: 80 },
+  openingText: { fontSize: 15, fontFamily: fonts.medium, color: colors.mut, textAlign: 'center' },
   dragTip: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: 'rgba(35,43,42,0.08)', boxShadow: '0 6px 18px rgba(40,28,20,0.10)' },
   dragTipTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.fg },
   dragTipText: { fontSize: 13, lineHeight: 17, fontFamily: fonts.regular, color: colors.mut, marginTop: 1 },
