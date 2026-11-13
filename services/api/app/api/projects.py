@@ -379,6 +379,8 @@ class CoverIn(BaseModel):
     # кадр фото на стороне обложки, как у фото на страницах: центр cx, cy, увеличение z, пропорции a
     front_crop: dict[str, float] | None = None
     back_crop: dict[str, float] | None = None
+    # одно фото на всю обложку (задняя сторона, корешок, лицевая): фото — photo_id, кадр — front_crop
+    wrap: bool = False
     title: bool = True  # название книги на обложке
 
 
@@ -393,7 +395,7 @@ async def save_cover(project_id: uuid.UUID, body: CoverIn, user: User = Depends(
         await keep_photos(s, p, ids, user)
     p.cover = {"photo_id": str(body.photo_id) if body.photo_id else None,
                "back_photo_id": str(body.back_photo_id) if body.back_photo_id else None, "title": body.title,
-               "front_crop": body.front_crop, "back_crop": body.back_crop}
+               "front_crop": body.front_crop, "back_crop": body.back_crop, "wrap": body.wrap}
     await s.commit()
     return p.cover
 

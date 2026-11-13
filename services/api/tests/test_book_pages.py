@@ -79,7 +79,7 @@ async def test_cover_saved_separately(client):
     r = await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "back_photo_id": ids[2], "title": False})
     assert r.status_code == 200, r.text
     cover = (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]
-    assert cover == {"photo_id": ids[1], "back_photo_id": ids[2], "title": False, "front_crop": None, "back_crop": None}
+    assert cover == {"photo_id": ids[1], "back_photo_id": ids[2], "title": False, "front_crop": None, "back_crop": None, "wrap": False}
     crop = {"cx": 0.4, "cy": 0.5, "z": 1.6, "a": 0.97}
     await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[1], "title": True, "front_crop": crop})
     assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]["front_crop"] == crop
@@ -180,3 +180,10 @@ async def test_build_with_stickers_and_save_them(client):
     assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": [pg]})).status_code == 200
     bad = {**page(ids[0]), "stickers": [{"id": "../etc/passwd", "x": 0.5, "y": 0.5, "s": 0.2}]}
     assert (await client.put(f"/projects/{pid}/pages", headers=gh, json={"pages": [bad]})).status_code == 422
+
+
+async def test_cover_one_photo_wrap(client):
+    gh, pid, ids = await _book(client)
+    r = await client.put(f"/projects/{pid}/cover", headers=gh, json={"photo_id": ids[0], "title": True, "wrap": True})
+    assert r.status_code == 200 and r.json()["wrap"] is True
+    assert (await client.get(f"/projects/{pid}/pages", headers=gh)).json()["cover"]["wrap"] is True
