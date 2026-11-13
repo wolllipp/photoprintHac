@@ -368,13 +368,22 @@ const InsightData = (() => {
   }
   function brief(o) {
     const tks = ticketsByOrder().get(o.order_id) || [], p = paymentOf(o.order_id);
+    const shipped = o.ship_day <= D.days - 1;
     return { id: o.order_id, customer_id: o.customer_id, date: isoOf(o.day), ts: tsOf(o.day, o.hour), product: D.dicts.products[o.product], line: D.dicts.lines[o.line], shift: D.dicts.shifts[o.shift],
-      units: o.units, defects: o.defects, coupon: !!o.coupon, net: p ? p.net : null, late: o.ship_day > o.promise_day, tickets: tks.length, action: orderAction(o, tks) };
+      units: o.units, defects: o.defects, coupon: !!o.coupon, net: p ? p.net : null, late: o.ship_day > o.promise_day, tickets: tks.length, action: orderAction(o, tks),
+      channel: D.dicts.channels[o.channel] || null, discountRate: p ? div(p.discount, p.net + p.discount) : null, paid: !!p, first: isFirstOrder(o), shipped, ontime: shipped && o.ship_day <= o.promise_day,
+      // Не отгружен к концу данных: будущая дата отгрузки «сегодня» не известна. Просрочен — обещанный день уже прошёл
+      overdue: !shipped && o.promise_day < D.days - 1 };
   }
-  // q: { from: "YYYY-MM-DD", line, shift, product, coupon: true|false, defects: true }
+  // q: { from, to: "YYYY-MM-DD", by: "order" | "promise" | "ship" — по какой дате отбирать (как в таблице, откуда провал),
+  //      line, shift, product, channel (номер или -1 — канал не указан), occasion, coupon: true|false, defects: true }
   function orders(q = {}) {
-    const from = q.from ? Math.round((Date.parse(q.from + "T00:00:00Z") - D.start) / DAY) : 0;
-    return D.orders.filter(o => o.day >= from && (q.line == null || o.line === q.line) && (q.shift == null || o.shift === q.shift) && (q.product == null || o.product === q.product)
+    const dayOfIso = iso => Math.round((Date.parse(iso + "T00:00:00Z") - D.start) / DAY);
+    const from = q.from ? dayOfIso(q.from) : 0, to = q.to ? dayOfIso(q.to) : Infinity;
+    const occ = id => { const c = custOf(id); return c ? c.occasion : null; };
+    const at = q.by === "promise" ? o => o.promise_day : q.by === "ship" ? o => (o.ship_day <= D.days - 1 ? o.ship_day : Infinity) : o => o.day;
+    return D.orders.filter(o => at(o) >= from && at(o) <= to && (q.line == null || o.line === q.line) && (q.shift == null || o.shift === q.shift) && (q.product == null || o.product === q.product)
+      && (q.channel == null || (q.channel === -1 ? o.channel == null : o.channel === q.channel)) && (q.occasion == null || occ(o.customer_id) === q.occasion)
       && (q.coupon == null || !!o.coupon === q.coupon) && (!q.defects || o.defects > 0))
       .sort((a, b) => b.day - a.day || b.hour - a.hour).map(brief);
   }
@@ -463,6 +472,137 @@ const InsightData = (() => {
     });
     return [...out.values()];
   }
+  /* ---------- Экраны 5.3: «Продажи и клиент», «Производство и качество», «Финансы и люди» ----------
+     Те же таблицы и те же формулы, что у 17 KPI, поэтому числа экранов сходятся с плитками. a, b — дни включительно. */
+  const inR = (d, a, b) => d >= a && d <= b;
+  const sumBy = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
+  let CUST = null;
+  const custOf = id => { if (!CUST) { CUST = new Map(); D.customersRaw.forEach(c => { if (!CUST.has(c.customer_id)) CUST.set(c.customer_id, c); }); } return CUST.get(id) || null; };
+  const netOf = o => { const p = paymentOf(o.order_id); return p ? p.net : 0; };
+  const discOf = o => { const p = paymentOf(o.order_id); return p ? p.discount : 0; };
+  // Сводка группы заказов: те же формулы, что у KPI «Средний чек», «Средняя скидка», «Заказы в срок»
+  function orderStats(list, totalOrders, totalNet) {
+    const last = D.days - 1, paid = list.filter(o => paymentOf(o.order_id)), net = sumBy(paid, netOf), disc = sumBy(paid, discOf), shipped = list.filter(o => o.ship_day <= last);
+    return { orders: list.length, share: div(list.length, totalOrders), net, netShare: div(net, totalNet), check: div(net, paid.length), discount: div(disc, net + disc),
+      newShare: div(list.filter(isFirstOrder).length, list.length), ontime: div(shipped.filter(o => o.ship_day <= o.promise_day).length, shipped.length) };
+  }
+  function sales(a, b) {
+    [a, b] = clampRange(a, b);
+    const ord = D.orders.filter(o => inR(o.day, a, b)), totalNet = sumBy(ord.filter(o => paymentOf(o.order_id)), netOf), last = D.days - 1;
+    // Воронка приложения: начали проект → оформили заказ (как KPI «Конверсия приложения») → оплатили → получили в срок
+    const app = ord.filter(o => o.channel === 1), started = S("started", a, b), ordered = S("appOrders", a, b);
+    const paidList = app.filter(o => paymentOf(o.order_id)), paidApp = Math.min(ordered, paidList.length);
+    const pending = paidList.filter(o => o.ship_day > last).length, ontimeApp = paidList.filter(o => o.ship_day <= last && o.ship_day <= o.promise_day).length;
+    const funnel = [
+      { id: "started", label: "Начали проект в приложении", n: started },
+      { id: "ordered", label: "Оформили заказ", n: ordered },
+      { id: "paid", label: "Оплатили", n: paidApp },
+      { id: "ontime", label: "Получили в срок", n: ontimeApp, note: pending ? `ещё в работе: ${pending}` : "" },
+    ];
+    // Каналы — канал заказа в ERP; сегменты — повод клиента в CRM
+    const channels = D.dicts.channels.map((name, i) => ({ id: i, name, ...orderStats(ord.filter(o => o.channel === i), ord.length, totalNet) }));
+    const noCh = ord.filter(o => o.channel == null);
+    if (noCh.length) channels.push({ id: null, name: "Не указан", ...orderStats(noCh, ord.length, totalNet) });
+    const occ = c => { const x = custOf(c); return x ? x.occasion : null; };
+    const segments = D.dicts.occasions.map((name, i) => {
+      const list = ord.filter(o => occ(o.customer_id) === i), ids = new Set(list.map(o => o.customer_id));
+      let repeat = 0; ids.forEach(id => { if ((ordersOfCustomer.get(id) || []).filter(x => x > b - 365 && x <= b).length >= 2) repeat++; });
+      return { id: i, name, customers: ids.size, repeat: div(repeat, ids.size), ...orderStats(list, ord.length, totalNet) };
+    });
+    // Новые и повторные заказы: первый заказ клиента или нет (тот же признак, что у купона в карточке заказа)
+    const fresh = ord.filter(isFirstOrder), back = ord.filter(o => !isFirstOrder(o));
+    const mix = { fresh: orderStats(fresh, ord.length, totalNet), back: orderStats(back, ord.length, totalNet) };
+    // Отток: клиенты с заказом в предыдущие полгода (26 недель до начала последних 26), которые за последние полгода не заказали ни разу
+    const half = 182, w0 = Math.max(0, b - 2 * half + 1), w1 = b - half;
+    const before = new Set(), after = new Set();
+    D.orders.forEach(o => { if (inR(o.day, w0, w1)) before.add(o.customer_id); else if (inR(o.day, w1 + 1, b)) after.add(o.customer_id); });
+    let gone = 0; before.forEach(id => { if (!after.has(id)) gone++; });
+    const churn = { base: before.size, gone, rate: div(gone, before.size), from: isoOf(w0), to: isoOf(w1), until: isoOf(b) };
+    // Обращения клиентов по темам — те же правила, что у KPI «SLA поддержки»
+    const tks = D.tickets.filter(t => inR(t.day, a, b));
+    const topics = D.dicts.topics.map((name, i) => { const l = tks.filter(t => t.topic === i); return { name, n: l.length, share: div(l.length, tks.length), sla: div(l.filter(t => t.resolve_min <= t.sla_min).length, l.length), median: median(l.map(t => t.resolve_min)) }; }).filter(t => t.n);
+    return { orders: ord.length, funnel, channels, segments, mix, churn, topics, tickets: tks.length, release: D.meta.stories.release };
+  }
+
+  function production(a, b) {
+    [a, b] = clampRange(a, b);
+    const last = D.days - 1;
+    const line = l => {
+      const plan = D.orders.filter(o => o.line === l && inR(o.promise_day, a, b)), shipped = plan.filter(o => o.ship_day <= last);
+      const out = D.orders.filter(o => o.line === l && inR(o.ship_day, a, b) && o.ship_day <= last);
+      const units = sumBy(out, o => o.units), defects = sumBy(out, o => o.defects);
+      // Перепечатка: себестоимость бракованных изделий (себестоимость заказа / изделий × брак) к себестоимости выпуска
+      const costOf = o => { const p = paymentOf(o.order_id); return p ? p.cost : o.cost; };
+      const reprintCost = sumBy(out, o => o.units ? costOf(o) / o.units * o.defects : 0), cost = sumBy(out, costOf);
+      return { id: l, name: D.dicts.lines[l], plan: plan.length, ontime: shipped.filter(o => o.ship_day <= o.promise_day).length, late: shipped.filter(o => o.ship_day > o.promise_day).length, pending: plan.length - shipped.length,
+        units, defects, defectRate: div(defects, units), reprintShare: div(reprintCost, cost),
+        load: div(S("output", a, b, [l]), S("capacity", a, b, [l])), downtimeH: S("downtime", a, b, [l]), downtime: div(S("downtime", a, b, [l]), S("lineHours", a, b, [l])),
+        lead: median(out.map(o => (o.ship_day - o.day) * 24 + o.ship_hour - o.hour)) };
+    };
+    const lines = D.dicts.lines.map((_, l) => line(l));
+    const tot = k => sumBy(lines, x => x[k]);
+    const total = { plan: tot("plan"), ontime: tot("ontime"), late: tot("late"), pending: tot("pending"), units: tot("units"), defects: tot("defects") };
+    total.done = div(total.ontime, total.plan); total.defectRate = div(total.defects, total.units);
+    lines.forEach(x => { x.done = div(x.ontime, x.plan); });
+    // Очередь на конец периода: заказ принят, но ещё не отгружен. Просрочен — обещанный день уже прошёл
+    const queue = D.dicts.lines.map((name, l) => { const q = D.orders.filter(o => o.line === l && o.day <= b && o.ship_day > b); return { name, n: q.length, units: sumBy(q, o => o.units), overdue: q.filter(o => o.promise_day < b).length, today: q.filter(o => o.promise_day === b).length }; });
+    // Перепечатка по продуктам (брак по дню отгрузки, как KPI «Брак»)
+    const out = D.orders.filter(o => inR(o.ship_day, a, b) && o.ship_day <= last);
+    const products = D.dicts.products.map((name, p) => { const l = out.filter(o => o.product === p), u = sumBy(l, o => o.units), d = sumBy(l, o => o.defects); return { name, line: D.dicts.lines[D.productLine[p]], units: u, defects: d, rate: div(d, u), book: !!D.dicts.isBook[p] }; });
+    return { lines, total, queue, products, asOf: isoOf(b), modq: div(S("modq", a, b), daysIn(a, b)) };
+  }
+
+  // БДР по календарным месяцам: выручка к плану, скидки, себестоимость, валовая маржа. Деньги на экране — только в % и индексах (контракт 1С)
+  function financeMonthly() {
+    const out = [];
+    for (let d = 0; d < D.days; d++) {
+      const iso = isoOf(d), key = iso.slice(0, 7);
+      if (!out.length || out[out.length - 1].key !== key) out.push({ key, a: d, b: d });
+      else out[out.length - 1].b = d;
+    }
+    // index — выручка в день к прошлому месяцу (в день, чтобы неполный месяц сравнивался честно). Сумм наружу не отдаём
+    let prevPerDay = null;
+    return out.map(m => {
+      const net = S("net", m.a, m.b), plan = S("plan", m.a, m.b), disc = S("discount", m.a, m.b), cost = S("cost", m.a, m.b), perDay = net / (m.b - m.a + 1);
+      const dim = new Date(Date.UTC(+m.key.slice(0, 4), +m.key.slice(5, 7), 0)).getUTCDate(), index = div(perDay, prevPerDay);
+      prevPerDay = perDay;
+      return { key: m.key, days: m.b - m.a + 1, partial: m.b - m.a + 1 < dim, toPlan: div(net, plan), discount: div(disc, net + disc), costShare: div(cost, net), margin: div(net - cost, net), index };
+    });
+  }
+  function finance(a, b) {
+    [a, b] = clampRange(a, b);
+    const row = ps => { const net = S("net", a, b, ps), plan = S("plan", a, b, ps), disc = S("discount", a, b, ps), cost = S("cost", a, b, ps); return { toPlan: div(net, plan), discount: div(disc, net + disc), costShare: div(cost, net), margin: div(net - cost, net), netShare: null, net }; };
+    const all = row(null), products = D.dicts.products.map((name, p) => ({ name, ...row([p]) }));
+    products.forEach(p => { p.netShare = div(p.net, all.net); delete p.net; }); delete all.net;
+    // БДДС: заказы периода без оплаты в 1С — ожидаемые поступления. Доля — от выручки тех же заказов периода (оплачено + ждём). Выплат в данных нет
+    const unpaid = D.orders.filter(o => inR(o.day, a, b) && !paymentOf(o.order_id)), due = sumBy(unpaid, o => o.list_price - o.discount);
+    return { all, products, unpaid: unpaid.length, unpaidShare: div(due, S("net", a, b) + due) };
+  }
+
+  // Штат по подразделениям HR: план (требуется), вышли, вакансии на конец периода, отсутствие; потребность в сезон — по прошлому сезону
+  function people(a, b, depts = null) {
+    [a, b] = clampRange(a, b);
+    const pick = h => !depts || depts.includes(h.dept);
+    const inSeason = d => { const m = +isoOf(d).slice(5, 7); return m >= 4 && m <= 6; };
+    const rows = D.dicts.hrDepts.map((name, i) => ({ id: i, name, needed: 0, present: 0, scheduled: 0, absent: 0, days: new Set(), vacancies: 0, now: 0, peak: 0, nightNeeded: 0, nightPresent: 0 })).filter(r => !depts || depts.includes(r.id));
+    const byId = new Map(rows.map(r => [r.id, r])), seasonDay = new Map();
+    D.hr.forEach(h => {
+      if (!pick(h)) return;
+      const r = byId.get(h.dept);
+      if (inR(h.day, a, b)) { r.needed += h.needed; r.present += h.scheduled - h.absent; r.scheduled += h.scheduled; r.absent += h.absent; r.days.add(h.day); if (h.shift === 1) { r.nightNeeded += h.needed; r.nightPresent += h.scheduled - h.absent; } }
+      if (h.day === b) { r.vacancies += h.vacancies; r.now += h.needed; }
+      if (inSeason(h.day)) { const k = h.dept + "|" + h.day; seasonDay.set(k, (seasonDay.get(k) || 0) + h.needed); }
+    });
+    seasonDay.forEach((v, k) => { const r = byId.get(+k.split("|")[0]); if (r && v > r.peak) r.peak = v; });
+    // В выходные часть подразделений не работает: «сейчас» — последний рабочий день периода
+    rows.forEach(r => { if (!r.now) { for (let d = b; d >= a; d--) { const l = D.hr.filter(h => h.day === d && h.dept === r.id); if (l.length) { r.now = sumBy(l, h => h.needed); r.vacancies = sumBy(l, h => h.vacancies); break; } } } });
+    const out = rows.map(r => ({ id: r.id, name: r.name, perDay: div(r.needed, r.days.size), staffing: div(r.present, r.needed), absence: div(r.absent, r.scheduled), night: r.nightNeeded ? div(r.nightPresent, r.nightNeeded) : null, vacancies: r.vacancies, now: r.now, peak: r.peak }));
+    const t = k => sumBy(rows, r => r[k]);
+    const total = { staffing: div(t("present"), t("needed")), absence: div(t("absent"), t("scheduled")), vacancies: t("vacancies"), now: t("now"), peak: t("peak"), night: div(t("nightPresent"), t("nightNeeded")) };
+    let sd = 0; while (sd < D.days && !inSeason(sd)) sd++;
+    return { rows: out, total, season: sd < D.days ? `апрель – июнь ${isoOf(sd).slice(0, 4)}` : null };
+  }
+
   // Обращения с темой «Брак» по неделям — претензии клиентов для разбора D-118
   function claimsWeekly(firstMonday, wFrom, wTo) {
     const d1 = dayOf(new Date(firstMonday + "T00:00:00Z")), topic = D.dicts.topics.indexOf("Брак"), out = new Map();
@@ -472,6 +612,7 @@ const InsightData = (() => {
   }
 
   return { load, boot, start, error, kpis, sources: () => SOURCES.map(s => ({ ...s, ...freshness(s) })), quality, contract, depts: () => DEPTS, statusText: s => STATUS_TEXT[s], dayOf, isoOf, meta: () => D.meta, days: () => D.days,
-    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order, weekly, claimsWeekly, hrWeekly, hrDepts: () => D.dicts.hrDepts };
+    access, ctx, matrix: MATRIX, products: () => D.dicts.products, lines: () => D.dicts.lines, forecast, orders, order, weekly, claimsWeekly, hrWeekly, hrDepts: () => D.dicts.hrDepts,
+    sales, production, finance, financeMonthly, people };
 })();
 InsightData.start();

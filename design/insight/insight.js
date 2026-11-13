@@ -95,6 +95,9 @@ const DEMO = {
   ],
   access: [
     ["Обзор и показатели", "Все блоки", "Без кадров", "Нет"],
+    ["Продажи и клиент", "Да (и руководители продаж и поддержки)", "Нет", "Нет"],
+    ["Производство и качество", "Да (и начальник производства)", "Нет", "Нет"],
+    ["Финансы и люди", "Да (финансы — финансовому директору, люди — HR-директору)", "Нет", "Нет"],
     ["Отклонения и причины", "Да", "Да, без кадровых", "Нет"],
     ["Ассистент", "Да", "Да, без кадровых витрин", "Нет"],
     ["Встречи", "Принимает предложения", "Только просмотр", "Нет"],
@@ -382,13 +385,15 @@ const kpiOpen = k => kpiAccess(k).open;
 const closedText = k => kpiAccess(k).why;
 /* Короткие имена продуктов для фильтра и пометка, если показатель по выбранному срезу не делится */
 const PRODUCT_SHORT = ["Lite", "Classic", "Premium", "Фотохимия", "Цифровая печать"];
+/* Охват плитки — короткая метка, полное объяснение во всплывающей подсказке */
 function sliceNote(k) {
+  const tag = (t, why) => `<span class="kpi-scope" title="${esc(why)}">${esc(t)}<span class="sr">: ${esc(why)}</span></span>`;
   const scope = kpiAccess(k).scope;
-  if (scope) return `<span class="kpi-scope">Только ${esc(scope)}</span>`;
+  if (scope) return tag("свои смены", `Только ${scope}`);
   const filtered = S.fProduct != null || S.line;
   if (!filtered) return "";
-  if (k.dim === "line") return `<span class="kpi-scope">По линии ${esc(InsightData.lines()[kctx().lines[0]])}</span>`;
-  if (k.dim !== "product") return `<span class="kpi-scope">Не делится по продукту — по всей компании</span>`;
+  if (k.dim === "line") { const l = InsightData.lines()[kctx().lines[0]]; return tag(l, `По линии ${l}`); }
+  if (k.dim !== "product") return tag("вся компания", "Не делится по продукту — показано по всей компании");
   return "";
 }
 /* Главные плитки для выбранного подразделения; все 17 — в «Все показатели» */
@@ -402,44 +407,68 @@ function fbMenu(label, act, items, cur, def) {
   return `<details class="menu fb-menu"><summary class="fb-btn${on ? " on" : ""}" aria-label="${label}: ${esc(sel[1])}. Изменить"><span class="fb-k">${label}</span><b>${esc(sel[1])}</b><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></summary>
     <div class="menu-pop">${items.map(([v, t]) => `<button data-act="${act}" data-arg="${v}" aria-pressed="${String(cur) === String(v)}">${esc(t)}</button>`).join("")}</div></details>`;
 }
-/* Показатели и их фильтры — один закреплённый блок под заголовком: что выбрал, то сразу и меняется (УП-03).
-   Это не виджет сетки, поэтому его нельзя увести вниз при настройке главной */
-function pulseHtml() {
+/* Плитка KPI — компактная: название и ⓘ, значение, изменение к прошлому периоду и статус к норме одной строкой.
+   Цвет несёт только статус (точка), изменение нейтральное — иначе красная стрелка спорила бы с зелёным «в норме».
+   Норма, формула и источник — в ⓘ. Общая для «Пульса» и экранов подразделений */
+function kpiTileHtml(id, r) {
+  const k = kpiById(id); if (!kpiOpen(k)) return `<div class="kpi-tile"><span class="lg-label">${esc(k.label)}</span><p class="small muted">${esc(closedText(k))}.</p></div>`;
+  const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
+  const lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null, st = k.statusOf(r.a, r.b, cur, prev);
+  return `<div class="kpi-tile kt st-${st}"><div class="kt-head"><span class="lg-label">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}</span>${kpiHowHtml(k, r.a, r.b, true)}</div>
+    <span class="kpi-val num">${esc(k.f(cur))}</span><div class="kt-foot">${kpiStatusHtml(k, r.a, r.b, cur, prev, true)}${deltaHtml(k, cur, prev, true)}</div>${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}</div>`;
+}
+/* Фильтры главной — тонкая строка под заголовком. Управляют «Пульсом», «Всеми показателями» и прогнозом (УП-03),
+   поэтому остаются наверху, даже когда «Пульс» убран вниз или скрыт в настройке */
+function filterBarHtml() {
   const r = homeRange(), own = S.role === "head" ? S.dept : null;
-  const tile = id => { const k = kpiById(id); if (!kpiOpen(k)) return `<div class="kpi-tile"><span class="lg-label">${esc(k.label)}</span><p class="note small">${esc(closedText(k))}.</p></div>`;
-    const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
-    const lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null;
-    return `<div class="kpi-tile"><span class="lg-label">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}</span><span class="kpi-val num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${id === "load" ? fcTileHtml() : ""}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
   const filters = [fbMenu("Период", "period", [[2, "2 недели"], [4, "4 недели"], [8, "8 недель"]], S.period, 4),
     fbMenu("Подразделение", "fDept", [["all", "Все"]].concat(InsightData.depts().map(d => [d.id, d.name])), S.fDept || "all", own || "all"),
     fbMenu("Продукт", "fProduct", [["all", "Все"]].concat(PRODUCT_SHORT.map((p, i) => [i, p])), S.fProduct == null ? "all" : S.fProduct, "all")];
   const changed = (S.fDept || null) !== own || S.fProduct != null || S.period !== 4;
   const crit = deviationRows().filter(x => x.status !== "done").length;
-  return `<section class="sheet pulse" aria-label="Пульс компании и фильтры"><div class="pulse-head"><h2>Пульс компании <span class="pulse-range">${esc(r.label)}</span></h2>
-    <div class="fb" role="group" aria-label="Фильтры показателей">${filters.join("")}${changed ? `<button class="fb-reset" data-act="fReset">Сбросить</button>` : ""}</div></div>
-    <p class="pulse-scope muted small">${esc(filterLabel())}${S.role === "manager" ? "" : ` · <a class="pulse-crit" href="#/deviations">критических отклонений: ${crit}</a>`}</p><div class="kpi-row">${HEADLINE[S.fDept || "all"].map(tile).join("")}</div></section>`;
+  return `<div class="home-filters"><div class="fb" role="group" aria-label="Фильтры показателей">${filters.join("")}${changed ? `<button class="fb-reset" data-act="fReset">Сбросить</button>` : ""}</div>
+    <p class="pulse-scope muted small">${esc(r.label)} · ${esc(filterLabel())}${S.role === "manager" ? "" : ` · <a class="pulse-crit" href="#/deviations">критических отклонений: ${crit}</a>`}</p></div>`;
+}
+/* «Пульс компании» — виджет сетки: по умолчанию внизу главной, его можно скрыть и вернуть через «Настроить» */
+function pulseHtml() {
+  const r = homeRange();
+  return `<div class="sheet pulse"><div class="w-head"><h2>Пульс компании</h2><span class="muted small">${esc(r.label)} · к прошлым ${S.period} нед.</span></div>
+    <div class="kpi-row">${HEADLINE[S.fDept || "all"].map(id => kpiTileHtml(id, r)).join("")}</div></div>`;
 }
 const fmtLoad = iso => { const t = new Date(iso); return `${String(t.getUTCDate()).padStart(2, "0")}.${String(t.getUTCMonth() + 1).padStart(2, "0")}, ${String((t.getUTCHours() + 3) % 24).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`; };
 /* Цвет статуса и «Как считается»: формула, источник, обновление и норма видны у каждого показателя (УП-02) */
-function kpiStatusHtml(k, a, b, cur, prev) {
+/* Слово статуса понятнее общего «хуже нормы»: ниже или выше нормы (у загрузки — «недогрузка», это не авария) */
+function statusWord(k, st, cur) {
+  if (st === "none") return k.norm.type === "growth" ? "нет базы" : "без нормы";
+  if (st === "good") return "в норме";
+  const n = k.norm, low = n.type === "min" || n.type === "growth" || (n.type === "range" && cur < n.v[0]);
+  if (k.id === "load" && low) return st === "bad" ? "недогрузка" : "ниже нормы";
+  return st === "warn" ? (low ? "чуть ниже нормы" : "чуть выше нормы") : low ? "ниже нормы" : "выше нормы";
+}
+function kpiStatusHtml(k, a, b, cur, prev, short) {
   const st = k.statusOf(a, b, cur, prev);
+  if (short) return `<span class="kpi-norm st-${st}" title="Норма: ${esc(k.normText)}"><i class="st-dot" aria-hidden="true"></i><span>${esc(statusWord(k, st, cur))}</span><span class="sr">, норма ${esc(k.normText)}</span></span>`;
   const text = st !== "none" ? `${InsightData.statusText(st)} · ${k.normText}` : k.norm.type === "growth" ? "нет базы для сравнения" : "норма не задана";
   return `<span class="kpi-norm st-${st}" title="Норма: ${esc(k.normText)}"><i class="st-dot" aria-hidden="true"></i><span>${esc(text)}</span></span>`;
 }
-function kpiHowHtml(k, a, b) {
+/* ⓘ с подсказкой поверх содержимого: для заголовков блоков вместо сносок под ними */
+const infoHtml = (label, html) => `<details class="kpi-how ico"><summary aria-label="${esc(label)}" title="${esc(label)}"><span class="sr">${esc(label)}</span></summary><div class="how-pop">${html}</div></details>`;
+function kpiHowHtml(k, a, b, icon) {
   const detail = k.detailOf ? k.detailOf(a, b) : "";
-  return `<details class="kpi-how"><summary>Как считается</summary><div class="how-pop">
+  return `<details class="kpi-how${icon ? " ico" : ""}"><summary${icon ? ` aria-label="Как считается: ${esc(k.label)}" title="Как считается"` : ""}>${icon ? '<span class="sr">Как считается</span>' : "Как считается"}</summary><div class="how-pop">
     <p><b>Формула.</b> ${esc(k.formula)}</p>${detail ? `<p><b>Сейчас.</b> ${esc(detail)}</p>` : ""}
     <p><b>Источник.</b> ${esc(k.sourceNames.join(", "))} · обновление ${esc(k.cadence)} · загрузка ${esc(fmtLoad(k.lastLoad))}</p>
     <p><b>Норма.</b> ${esc(k.normText)}${k.normNote ? ` (${esc(k.normNote)})` : ""} · <b>Подразделение.</b> ${esc(k.deptName)}</p></div></details>`;
 }
-function deltaHtml(k, cur, prev) {
-  if (cur == null || prev == null || (!k.pp && !prev)) return `<span class="delta flat">нет базы сравнения</span>`;
+/* neutral — без цвета «лучше/хуже»: на плитке цвет несёт только статус к норме */
+function deltaHtml(k, cur, prev, neutral) {
+  if (cur == null || prev == null || (!k.pp && !prev)) return `<span class="delta flat">${neutral ? "" : "нет базы сравнения"}</span>`;
   const diff = k.pp ? (cur - prev) * 100 : (cur - prev) / prev * 100;
   const small = Math.abs(diff) < (k.pp ? 0.05 : 0.5);
-  if (small) return `<span class="delta flat">без изменений</span>`;
+  if (small) return `<span class="delta flat">${neutral ? "без изм." : "без изменений"}</span>`;
   const good = (diff > 0) === k.up, sign = diff > 0 ? "+" : "−";
   const word = good ? "лучше" : "хуже";
+  if (neutral) return `<span class="delta flat" title="К прошлому периоду: стало ${word}">${diff > 0 ? "↑" : "↓"} ${sign}${NF1.format(Math.abs(diff))}${k.pp ? " п.п." : " %"}<span class="sr">, к прошлому периоду, ${word}</span></span>`;
   return `<span class="delta ${good ? "good" : "bad"}" title="Стало ${word}"><i class="delta-ico" aria-hidden="true"><svg viewBox="0 0 10 10"${diff > 0 ? "" : ' style="rotate:180deg"'}><path d="M5 8.500v-7M2 4.300 5 1.500l3 2.800"/></svg></i>${sign}${NF1.format(Math.abs(diff))}${k.pp ? " п.п." : " %"}<span class="sr">, ${word}</span></span>`;
 }
 
@@ -840,13 +869,17 @@ const WIDGETS = {
     return `<div class="sheet"><h2>Отклонения</h2>${rows.length ? `<div class="task-cards">${rows.slice(0, 3).map(r => { const s = caseState(r.id); return `<a class="task-card" href="#/deviations/${esc(r.id)}"><b>${esc(r.title).replace("Укомплектованность", "Укомплек&shy;тованность")}</b>
 <span class="muted small">${esc(s.next)}</span>${s.badge}</a>`; }).join("")}</div>` : `<p class="muted">Отклонений нет</p>`}</div>`;
   } },
+  pulse: { title: "Пульс компании", html: () => pulseHtml() },
+  /* 17 KPI одной таблицей: строка на показатель, группы по подразделениям. Формула, источник и норма — в ⓘ */
   allKpi: { title: "Все показатели", html() {
     const r = homeRange();
-    const row = k => { if (!kpiOpen(k)) return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><p class="note small">${esc(closedText(k))}.</p></div>`;
-      const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null;
-      return `<div class="lg-row"><span class="lg-label">${esc(k.label)}</span><span class="lg-value num">${esc(k.f(cur))}</span>${deltaHtml(k, cur, prev)}${kpiStatusHtml(k, r.a, r.b, cur, prev)}${sliceNote(k)}${kpiHowHtml(k, r.a, r.b)}</div>`; };
+    const row = k => { if (!kpiOpen(k)) return `<tr><th scope="row">${esc(k.label)}</th><td colspan="3" class="muted small">${esc(closedText(k))}</td><td></td></tr>`;
+      const cur = k.calc(r.a, r.b), prev = r.pa != null && r.pa >= DEMO.meta.firstHistoryWeek ? k.calc(r.pa, r.pb) : null, lk = k.link && devVisible(KPI_DEV[k.id]) ? k.link : null;
+      return `<tr><th scope="row">${lk ? `<a class="kpi-link" href="${lk}">${esc(k.label)}</a>` : esc(k.label)}${sliceNote(k)}</th><td class="r num kv">${esc(k.f(cur))}</td><td class="r">${deltaHtml(k, cur, prev, true)}</td><td>${kpiStatusHtml(k, r.a, r.b, cur, prev, true)}</td><td class="r">${kpiHowHtml(k, r.a, r.b, true)}</td></tr>`; };
     const groups = KPI.filter(g => !S.fDept || g.dept === S.fDept);
-    return `<div class="sheet"><div class="w-head"><h2>Все показатели: ${esc(r.label)}</h2><span class="muted small">${esc(filterLabel())} · ${KPI_ALL.length} KPI, формула и источник в «Как считается»</span></div><div class="ledger${groups.length === 1 ? " one" : ""}">${groups.map(g => `<div class="lg-col"><h2>${esc(g.group)}</h2>${g.items.map(row).join("")}</div>`).join("")}</div></div>`;
+    return `<div class="sheet"><div class="w-head"><h2>Все показатели</h2><span class="muted small">${esc(r.label)} · ${KPI_ALL.length} KPI</span></div>
+      <div class="table-wrap"><table class="kpi-table"><thead><tr><th>Показатель</th><th class="r">Значение</th><th class="r">К прошлому периоду</th><th>Статус</th><th class="r"><span class="sr">Как считается</span></th></tr></thead>
+      <tbody>${groups.map(g => `<tr class="grp"><th colspan="5" scope="rowgroup">${esc(g.group)}</th></tr>${g.items.map(row).join("")}`).join("")}</tbody></table></div></div>`;
   } },
   forecast: { title: "Прогноз спроса и мощности", html() {
     const f = fcData(), season = S.fcHorizon === "season", list = season ? fcSeason(f) : f.weeks.slice(0, 4);
@@ -860,7 +893,7 @@ const WIDGETS = {
   ask: { title: "Спросить ассистента", html: () => `<div class="sheet"><h2>Спросить ассистента</h2><div class="chips">${DEMO.assistant.presets.slice(0, 3).map((p, i) => `<a class="chip" href="#/assistant" data-act="askPreset" data-arg="${i}">${esc(p)}</a>`).join("")}</div></div>` },
 };
 /* Размер плитки постоянный и не зависит от места. Сетка из трёх колонок: 4 = одна колонка, 8 = две, 12 = весь ряд */
-const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, forecast: { full: true, spans: [12], pref: 12 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 } };
+const WIDGET_SIZE = { hero: { spans: [4, 8], pref: 4 }, forecast: { full: true, spans: [12], pref: 12 }, bars: { spans: [8], pref: 8 }, quality: { spans: [8], pref: 8 }, calendar: { spans: [4, 8], pref: 4 }, goals: { spans: [4, 8], pref: 4 }, decisions: { spans: [8], pref: 8 }, allKpi: { full: true, spans: [12], pref: 12 }, ask: { spans: [4, 8], pref: 4 }, pulse: { full: true, spans: [12], pref: 12 } };
 /* Каждая плитка встаёт в первое свободное место, куда помещается. Пустые ячейки запоминаем, чтобы показать их при настройке */
 function packLayout(ids) {
   const spans = {}, pos = {}, options = {}, rows = [], holes = [];
@@ -886,11 +919,17 @@ function packLayout(ids) {
   return { spans, pos, options, holes };
 }
 const packSpans = ids => packLayout(ids).spans;
-const DEFAULT_LAYOUT = ["hero", "bars", "forecast", "calendar", "quality", "goals", "decisions", "allKpi"];
-const LAYOUT_KEY = "picpac-insight-layout-v3"; // v3: добавлен прогноз (этап 3)
-/* Плитки «Показатели» теперь закреплены над сеткой: из сохранённой раскладки их (и любые неизвестные виджеты) просто убираем, остальное сохраняем */
+/* Сначала то, ради чего заходят (главное отклонение, динамика, прогноз), «Пульс компании» и все 17 KPI — внизу */
+const DEFAULT_LAYOUT = ["hero", "bars", "forecast", "calendar", "quality", "goals", "decisions", "pulse", "allKpi"];
+const LAYOUT_KEY = "picpac-insight-layout-v4"; // v4: «Пульс» стал виджетом сетки
+/* Раскладка из прошлой версии (v3) сохраняется: «Пульс» встаёт перед «Всеми показателями». Неизвестные виджеты убираем */
 function loadLayout() {
-  try { const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY)), v = Array.isArray(raw) ? raw.filter(id => WIDGETS[id]) : null; if (v && v.includes("hero")) return v; } catch (e) { /* хранилище недоступно */ }
+  const read = key => { const raw = JSON.parse(localStorage.getItem(key)); return Array.isArray(raw) ? raw.filter(id => WIDGETS[id]) : null; };
+  try {
+    const v = read(LAYOUT_KEY); if (v && v.includes("hero")) return v;
+    const old = read("picpac-insight-layout-v3");
+    if (old && old.includes("hero")) { const i = old.indexOf("allKpi"); old.splice(i < 0 ? old.length : i, 0, "pulse"); return old; }
+  } catch (e) { /* хранилище недоступно */ }
   return DEFAULT_LAYOUT.slice();
 }
 function saveLayout() { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(LAYOUT)); } catch (e) { /* хранилище недоступно */ } }
@@ -909,7 +948,7 @@ function vOverview() {
   const bar = S.edit ? `<div class="edit-bar${enter ? " enter" : ""}"><p class="edit-text">Перетащите плитку на другую или на свободное место</p>
 ${hidden.length ? `<div class="edit-add">${hidden.map(id => `<button class="btn btn-outline btn-sm" data-act="wAdd" data-arg="${id}">+ ${esc(WIDGETS[id].title)}</button>`).join("")}</div>` : ""}<div class="edit-actions"><button class="btn btn-quiet btn-sm" data-act="layoutReset">Сбросить</button><button class="btn btn-done btn-sm" data-act="toggleEdit">Готово</button></div></div>` : "";
   return `<div class="page-head home-head"><h1 tabindex="-1">Добрый день!</h1><div class="head-tools">${S.line ? `<button class="filter-chip" data-act="line" data-arg="${esc(S.line)}" aria-label="Снять фильтр: ${esc(S.line)}">${esc(S.line)} ×</button>` : ""}${S.edit ? "" : `<button class="btn btn-outline btn-sm" data-act="toggleEdit">Настроить</button>`}</div></div>
-  ${pulseHtml()}${bar}<div class="widget-grid${S.edit ? " editing" : ""}${enter ? " edit-enter" : ""}" id="widgets">${LAYOUT.map(id => `<section class="widget" data-w="${id}" style="${place(pack.pos[id].r, pack.pos[id].c, spans[id])}" aria-label="${esc(WIDGETS[id].title)}${S.edit ? ". Стрелки перемещают плитку" : ""}"${S.edit ? ' tabindex="0"' : ""}>${tools(id)}<div class="w-body">${WIDGETS[id].html(spans[id])}</div></section>`).join("")}${S.edit ? pack.holes.map(h => `<div class="slot" data-r="${h.r}" data-c="${h.c}" data-s="${h.s}" style="${place(h.r, h.c, h.s)}">Свободное место</div>`).join("") : ""}</div>`;
+  ${filterBarHtml()}${bar}<div class="widget-grid${S.edit ? " editing" : ""}${enter ? " edit-enter" : ""}" id="widgets">${LAYOUT.map(id => `<section class="widget" data-w="${id}" style="${place(pack.pos[id].r, pack.pos[id].c, spans[id])}" aria-label="${esc(WIDGETS[id].title)}${S.edit ? ". Стрелки перемещают плитку" : ""}"${S.edit ? ' tabindex="0"' : ""}>${tools(id)}<div class="w-body">${WIDGETS[id].html(spans[id])}</div></section>`).join("")}${S.edit ? pack.holes.map(h => `<div class="slot" data-r="${h.r}" data-c="${h.c}" data-s="${h.s}" style="${place(h.r, h.c, h.s)}">Свободное место</div>`).join("") : ""}</div>`;
 }
 /* ---------- Экран: отклонения ---------- */
 function deviationRows() {
@@ -1177,7 +1216,9 @@ function basisHtml(dev) {
 }
 function vOrderDetail(id) {
   const from = (location.hash.replace(/^#\/?/, "").split("/")[2] || "").trim(), back = from && BASIS[from] && devVisible(from) ? from : null;
-  const crumb = `<a class="btn btn-outline btn-sm crumb" href="${back ? "#/deviations/" + esc(back) : "#/deviations"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>${back ? "К отклонению " + esc(back) : "Все отклонения"}</a>`;
+  /* Пришли из экрана подразделения (провал из строки таблицы) — назад на этот экран */
+  const scr = !back && SCREEN_DEPTS[from] && screenOpen(from) ? ROUTES.find(x => x.path === from) : null;
+  const crumb = `<a class="btn btn-outline btn-sm crumb" href="${back ? "#/deviations/" + esc(back) : scr ? "#/" + scr.path : "#/deviations"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>${back ? "К отклонению " + esc(back) : scr ? "К разделу «" + esc(scr.label) + "»" : "Все отклонения"}</a>`;
   const o = InsightData.order(id);
   if (!o) return `${crumb}${stateBlock("Заказ не найден", `Заказа ${id} нет в данных ERP.`, "")}`;
   if (!orderVisible(id)) return `${crumb}${stateBlock("Нет доступа", "Руководитель подразделения видит только заказы, на которых основаны отклонения его подразделения.", "")}`;
@@ -1466,8 +1507,283 @@ function vSecurity() {
   ${S.journal.map(j => `<tr><td class="num"><time datetime="${esc(j.at || "")}">${esc(j.time)}</time>${j.tz ? `<span class="muted small src-note">${esc(j.tz)}</span>` : ""}</td><td>${esc(j.who)}</td><td>${esc(j.action || "Запрос к ассистенту")}</td><td class="any">${esc(j.object || j.q)}</td><td class="any">${esc(j.result)}${j.used ? `<span class="muted small src-note">Данные: ${esc(j.used)}</span>` : ""}${j.answer ? `<details class="more"><summary>Ответ</summary><p class="small">${esc(j.answer)}</p></details>` : ""}</td><td><span class="badge ${kinds[j.kind][1]}">${kinds[j.kind][0]}</span></td></tr>`).join("")}
   </tbody></table></div></section>`;
 }
+/* ---------- Экраны подразделений (ТЗ 5.3): «Продажи и клиент», «Производство и качество», «Финансы и люди» ----------
+   Числа считает слой данных (InsightData.sales / production / finance / people) по тем же таблицам и формулам, что 17 KPI,
+   поэтому плитки и таблицы экранов сходятся с «Пульсом». Период — тот же переключатель, что на главной */
+const SCREEN_DEPTS = { sales: ["sales", "support"], production: ["prod"], finance: ["fin", "hr"] };
+const screenOpen = path => isCeo() || (S.role === "head" && SCREEN_DEPTS[path].includes(S.dept));
+const scrDays = r => dayRange(r.a, r.b);
+/* Значение со статусом в таблице: цветом выделяется только то, что хуже нормы. В норме — обычное число, без значков */
+const stPill = (st, text) => st === "warn" || st === "bad" ? `<span class="stv st-${st}" title="${esc(InsightData.statusText(st))}">${esc(text)}<span class="sr">, ${esc(InsightData.statusText(st))}</span></span>` : `<span class="num">${esc(text)}</span>`;
+/* Заголовок блока: название, короткая подпись справа и ⓘ с пояснениями вместо сносок под блоком */
+const secHead = (title, aside, info) => `<div class="w-head"><h2>${title}</h2><div class="w-aside">${aside ? `<span class="muted small">${aside}</span>` : ""}${info ? infoHtml(`Пояснение: ${title.replace(/<[^>]+>/g, "")}`, info) : ""}</div></div>`;
+const pctOrDash = v => v == null ? "—" : fPct(v);
+/* Статус «чем больше, тем лучше» или наоборот: в норме, до 20 % хуже — внимание, хуже — плохо (то же правило, что у KPI) */
+const stMin = (v, norm) => v == null ? "none" : v >= norm ? "good" : v >= norm * 0.8 ? "warn" : "bad";
+const stMax = (v, norm) => v == null ? "none" : v <= norm ? "good" : v <= norm * 1.2 ? "warn" : "bad";
+function screenHead(title, lead, r, extra, tabs) {
+  return `<div class="page-head"><div><h1 tabindex="-1">${esc(title)}</h1><p class="lead">${esc(lead)}</p></div></div>
+  <div class="scr-bar">${tabs || ""}<div class="fb" role="group" aria-label="Период">${fbMenu("Период", "period", [[2, "2 недели"], [4, "4 недели"], [8, "8 недель"]], S.period, 4)}</div>
+    <span class="muted small">${esc(r.label)} · к прошлым ${S.period} нед.${extra ? " · " + esc(extra) : ""}</span></div>`;
+}
+const deniedScreen = path => stateBlock("Нет доступа", `Раздел относится к подразделениям: ${SCREEN_DEPTS[path].map(d => deptOf(d).name).join(", ")}. Руководитель подразделения видит только свой раздел.`, `<a class="btn btn-outline" href="#/overview">На главную</a>`);
+/* Горизонтальные полосы с отметкой нормы или плана. items: { label, sub, v, text, cls } */
+function hbarsHtml(items, { max = 1, mark = null, markText = "", label = "" } = {}) {
+  const w = v => Math.max(1.5, Math.min(100, (v || 0) / max * 100)).toFixed(1);
+  /* x.drill — ключ провала: подпись становится кнопкой, раскрывает заказы */
+  const lab = x => x.drill ? `<button class="row-drill" data-act="drill" data-arg="${esc(x.drill)}" aria-expanded="${S.drill === x.drill}"><span>${esc(x.label)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg><span class="sr">: показать заказы</span></button>` : esc(x.label);
+  return `<ul class="hbars" role="list" aria-label="${esc(label)}">${items.map(x => `<li><span class="hb-label">${lab(x)}${x.sub ? `<span class="hb-sub">${esc(x.sub)}</span>` : ""}</span>
+    <span class="hb-track" aria-hidden="true"><i class="hb-fill${x.cls ? " " + x.cls : ""}" style="width:${w(x.v)}%"></i>${mark != null ? `<b class="hb-mark" style="left:${Math.min(100, mark / max * 100).toFixed(1)}%"></b>` : ""}</span>
+    <span class="hb-val num">${esc(x.text)}</span></li>`).join("")}</ul>${mark != null && markText ? `<p class="fc-legend muted small"><i></i>${esc(markText)}</p>` : ""}`;
+}
+/* Недельные столбики с линией нормы. vals: [{ w, v }]; bad(v) — неделя хуже нормы, такие выделены.
+   Доли около 90–100 % от нуля выглядят одинаковыми столбиками: для «не ниже» шкала начинается чуть ниже нормы, и это подписано */
+function weekBarsHtml(vals, { norm, normText, fmt, bad, label, zoom = false, small = "" }) {
+  const nums = vals.map(x => x.v || 0), lo = Math.min(...nums, norm == null ? Infinity : norm);
+  const floor = zoom && lo > 0.5 ? Math.max(0, Math.floor((lo - 0.03) * 20) / 20) : 0;
+  const max = (Math.max(norm || 0, ...nums) - floor) * 1.12 || 1;
+  const items = vals.map((x, i) => { const d = weekStart(x.w), m = d.getUTCMonth(), first = !i || weekStart(vals[i - 1].w).getUTCMonth() !== m;
+    return { key: x.w, label: d.getUTCDate() + (first ? "\n" + MONTHS[m] : ""), value: Math.max(0, (x.v || 0) - floor), text: x.v == null ? "—" : fmt(x.v), selected: x.v != null && bad(x.v) }; });
+  const aria = `${label} по неделям, норма ${normText}: ${vals.map(x => `${weekRange(x.w)} ${x.v == null ? "нет данных" : fmt(x.v)}`).join("; ")}`;
+  const notes = [`норма ${normText}`, "красным — хуже нормы", floor ? `шкала от ${fPct0(floor)}` : "", small].filter(Boolean).join(" · ");
+  return `<div class="fc-chart wk-chart${norm != null ? "" : " no-thr"}" style="--thr:${norm != null ? ((norm - floor) / max * 84).toFixed(1) : 0}%" role="img" aria-label="${esc(aria)}">${barsHtml(items, null, max)}</div>
+    <p class="fc-legend muted small" aria-hidden="true">${norm != null ? "<i></i>" : ""}${esc(notes)}</p>`;
+}
+const lastWeeks = (n = 12) => { const L = lastWeek(), out = []; for (let w = L - n + 1; w <= L; w++) out.push(w); return out; };
+/* Недельная динамика KPI за 12 недель */
+function weeklyKpiHtml(id, title, n = 12) {
+  const k = kpiById(id), weeks = lastWeeks(n), norm = k.norm.type === "min" || k.norm.type === "max" ? k.norm.v : k.norm.type === "range" ? k.norm.v[1] : null;
+  const chartHtml = weekBarsHtml(weeks.map(w => ({ w, v: k.calc(w, w) })), { norm, normText: k.normText, fmt: v => compact(v, id), bad: v => k.statusOf(weeks[0], weeks[0], v, null) === "bad", label: k.label, zoom: k.pp && k.norm.type === "min" });
+  return `<section class="sheet"><div class="w-head"><h2>${esc(title)}</h2><div class="w-aside"><span class="muted small">${n} недель</span>${kpiHowHtml(k, weeks[0], weeks[weeks.length - 1], true)}</div></div>${chartHtml}</section>`;
+}
+/* Брак по неделям двумя рядами: у книг и печати разные нормы (≤ 2 % и ≤ 1 %). Одним рядом нельзя: неделя с низким общим браком
+   выделялась бы красным из-за книг. Те же строки, что у KPI «Брак» (по дню отгрузки) */
+function defectWeeklyHtml(n = 12) {
+  const k = kpiById("defect"), weeks = lastWeeks(n), isBook = r => r.product.startsWith("Фотокнига");
+  const series = (pick) => weeks.map(w => { const rows = inW(BASE, w, w).filter(pick), u = sum(rows, "sheets"); return { w, v: u ? sum(rows, "defects") / u : null, u }; });
+  const books = series(isBook), prints = series(r => !isBook(r)), perWeek = Math.round(books.reduce((s, x) => s + x.u, 0) / n);
+  return `<section class="sheet"><div class="w-head"><h2>Брак по неделям</h2><div class="w-aside"><span class="muted small">${n} недель</span>${kpiHowHtml(k, weeks[0], weeks[weeks.length - 1], true)}</div></div>
+    <h3 class="wk-h3">Фотокниги</h3>${weekBarsHtml(books, { norm: 0.02, normText: "≤ 2 %", fmt: fPct, bad: v => v > 0.02 * 1.2, label: "Брак фотокниг", small: `≈ ${fInt(perWeek)} книг в неделю, 1 брак = ${NF1.format(100 / Math.max(1, perWeek))} п.п.` })}
+    <h3 class="wk-h3">Фотопечать</h3>${weekBarsHtml(prints, { norm: 0.01, normText: "≤ 1 %", fmt: fPct, bad: v => v > 0.01 * 1.2, label: "Брак фотопечати" })}</section>`;
+}
+/* Экраны подразделений показывают всю компанию: фильтры продукта и линии с главной сюда не переносятся, иначе плитки и таблицы разошлись бы */
+const companyWide = fn => () => { const keep = [S.fProduct, S.line]; S.fProduct = null; S.line = null; try { return fn(); } finally { [S.fProduct, S.line] = keep; } };
+const SMALL_N = 100; // меньше стольких изделий — выводов о доле брака не делаем
+
+/* ---------- Провал из строки таблицы к заказам (ТЗ 5.2.2) ----------
+   Клик по линии, каналу, поводу или продукту раскрывает под таблицей заказы этой строки за период. Номер заказа ведёт в карточку,
+   если она открыта роли (директор — любые, руководитель подразделения — заказы оснований своих отклонений) */
+const drillKey = (screen, kind, key) => `${screen}:${kind}:${key}`;
+const drillOpen = (screen, kind, key) => S.drill === drillKey(screen, kind, key);
+/* Первая ячейка строки: подпись-кнопка, раскрывает заказы */
+const drillCell = (screen, kind, key, label, extra = "") => `<th scope="row"><button class="row-drill" data-act="drill" data-arg="${esc(drillKey(screen, kind, key))}" aria-expanded="${drillOpen(screen, kind, key)}"><span>${esc(label)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg><span class="sr">: показать заказы</span></button>${extra}</th>`;
+const orderRef = (o, screen) => orderVisible(o.id) ? `<a class="order-link" href="#/orders/${esc(o.id)}/${esc(screen)}">${esc(o.id)}</a>` : `<span class="num">${esc(o.id)}</span>`;
+/* cols: [[заголовок, ячейка(o), класс]]; problem(o) — заказы с проблемой идут первыми; summary — строка итога над списком */
+function drillPanel(screen, title, list, cols, { problem = () => false, summary = "", empty = "Заказов нет." } = {}) {
+  const sorted = list.slice().sort((x, y) => (problem(y) - problem(x)) || (x.ts < y.ts ? 1 : -1)), all = !!S.drillAll, shown = all ? sorted : sorted.slice(0, 8);
+  const head = `<div class="w-head"><h3 class="drill-h">${esc(title)} <span class="goal-count">${fInt(list.length)}</span></h3><button class="btn btn-quiet btn-sm" data-act="drill" data-arg="${esc(S.drill)}">Свернуть</button></div>`;
+  if (!list.length) return `<div class="drill" role="region" aria-label="${esc(title)}">${head}<p class="muted">${esc(empty)}</p></div>`;
+  return `<div class="drill" role="region" aria-label="${esc(title)}">${head}${summary ? `<p class="small muted">${summary}</p>` : ""}
+    <div class="table-wrap" data-label="${esc(title)}"><table><thead><tr><th>Заказ</th>${cols.map(c => `<th${c[2] ? ` class="${c[2]}"` : ""}>${esc(c[0])}</th>`).join("")}</tr></thead>
+    <tbody>${shown.map(o => `<tr><td>${orderRef(o, screen)}</td>${cols.map(c => `<td${c[2] ? ` class="${c[2]}"` : ""}>${c[1](o)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    ${list.length > 8 ? `<button class="btn btn-quiet btn-sm" data-act="drillAll" aria-expanded="${all}">${all ? "Свернуть список" : `Показать все ${fInt(list.length)}`}</button>` : ""}
+    ${isCeo() ? "" : `<p class="muted small">Карточка заказа открыта для заказов из оснований отклонений вашего подразделения.</p>`}</div>`;
+}
+const drillPeriod = r => { const [a, b] = scrDays(r); return { from: InsightData.isoOf(a), to: InsightData.isoOf(b) }; };
+/* Колонки панелей: у производства — сроки, брак, ответственный; у продаж — деньги и купон; у финансов — без сумм */
+/* Скидка выше нормы: с допуском 0,1 п.п., иначе обычные 20,0 % из-за копеек округления считались бы превышением */
+const overDisc = (o, n) => (o.discountRate || 0) > n + 0.001;
+const cDate = ["Когда", o => `<span class="num">${esc(fTs(o.ts))}</span>`, "nw"];
+const cProduct = ["Продукт", o => esc(o.product)];
+const cTerm = ["Срок", o => !o.shipped ? (o.overdue ? '<b class="late-t">в работе, срок прошёл</b>' : '<span class="muted">в работе</span>') : o.late ? '<b class="late-t">опоздание</b>' : "в срок", "nw"];
+/* Проблема в производстве: брак, опоздание отгруженного заказа, просрочка неотгруженного, обращение клиента */
+const prodProblem = o => o.defects > 0 || (o.shipped && o.late) || o.overdue || o.tickets > 0;
+const cDefect = ["Брак", o => o.defects ? `<b>${o.defects} из ${o.units} шт.</b>` : '<span class="muted">нет</span>', "num nw"];
+const cTickets = ["Обращения", o => o.tickets ? String(o.tickets) : '<span class="muted">0</span>', "r num"];
+const cStep = ["Ответственный и шаг", o => o.action.owner ? `<b>${esc(o.action.owner)}</b><span class="muted small order-next">${esc(o.action.next)}</span>` : `<span class="muted">${esc(o.action.next)}</span>`];
+const cDisc = ["Скидка", o => o.discountRate == null ? '<span class="muted">нет оплаты</span>' : `${fPct(o.discountRate)}${o.coupon ? " · купон" : ""}`, "num nw"];
+const cFirst = ["Первый заказ", o => o.first ? "да" : '<span class="muted">нет</span>'];
+const cChannel = ["Канал", o => esc(o.channel || "не указан")];
+
+/* ---------- Экран: продажи и клиент ---------- */
+function vSales() {
+  if (!screenOpen("sales")) return deniedScreen("sales");
+  const r = homeRange(), [a, b] = scrDays(r), X = InsightData.sales(a, b), F = X.funnel;
+  const conv = (i) => i ? fPct(F[i].n / (F[i - 1].n || 1)) : "";
+  const funnel = hbarsHtml(F.map((f, i) => ({ label: f.label, sub: i ? `${conv(i)} от шага выше${f.note ? " · " + f.note : ""}` : "", v: f.n, text: fInt(f.n), cls: i === 1 ? "accent" : "" })), { max: F[0].n || 1, label: "Воронка приложения" });
+  /* Конверсия до и после обновления приложения: дата из истории данных, вывод — только совпадение по времени */
+  const k = kpiById("conversion"), rel = InsightData.dayOf(new Date(X.release + "T00:00:00Z"));
+  const convAt = (d0, d1) => InsightData.kpis().find(x => x.id === "conversion").calc(d0, d1, InsightData.ctx({}));
+  const before = rel > a && rel <= b ? convAt(rel - 28, rel - 1) : null, after = before != null ? convAt(rel, b) : null;
+  const relNote = before && after && after < before * 0.9 ? `<p class="note small">После обновления приложения ${fcDay(X.release)} конверсия упала: ${fPct(before)} → ${fPct(after)}. Это совпадение по времени, причину надо проверить.</p>` : "";
+  const chKey = c => c.id == null ? -1 : c.id;
+  const chRow = c => `<tr${drillOpen("sales", "channel", chKey(c)) ? ' class="drilled"' : ""}>${drillCell("sales", "channel", chKey(c), c.name)}<td class="r num">${fInt(c.orders)}</td><td class="r num">${pctOrDash(c.share)}</td><td class="r num">${pctOrDash(c.netShare)}</td><td class="r num">${c.check == null ? "—" : esc(kpiById("check").f(c.check))}</td><td class="r">${stPill(stMax(c.discount, kpiById("discount").norm.v), pctOrDash(c.discount))}</td><td class="r num">${pctOrDash(c.newShare)}</td><td class="r">${stPill(stMin(c.ontime, kpiById("ontime").norm.v), pctOrDash(c.ontime))}</td></tr>`;
+  const segMax = Math.max(...X.segments.map(s => s.netShare || 0));
+  const segRow = s => `<tr${drillOpen("sales", "segment", s.id) ? ' class="drilled"' : ""}>${drillCell("sales", "segment", s.id, s.name)}<td class="r num">${fInt(s.customers)}</td><td class="r num">${fInt(s.orders)}</td><td class="seg-bar"><span class="hb-track" aria-hidden="true"><i class="hb-fill" style="width:${((s.netShare || 0) / (segMax || 1) * 100).toFixed(1)}%"></i></span><span class="num">${pctOrDash(s.netShare)}</span></td><td class="r num">${s.check == null ? "—" : esc(kpiById("check").f(s.check))}</td><td class="r num">${pctOrDash(s.repeat)}</td></tr>`;
+  const ch = X.churn, M = X.mix, slaN = kpiById("sla").norm.v;
+  const topicRow = t => `<tr><th scope="row">${esc(t.name)}</th><td class="r num">${fInt(t.n)}</td><td class="r num">${pctOrDash(t.share)}</td><td class="r">${stPill(stMin(t.sla, slaN), pctOrDash(t.sla))}</td><td class="r num">${t.median == null ? "—" : NF0.format(t.median) + " мин"}</td></tr>`;
+  const supportOnly = S.role === "head" && S.dept === "support";
+  /* Провал: канал или повод — заказы, принятые в период. Сначала заказы по купону, со скидкой выше нормы или с обращениями */
+  const per = drillPeriod(r), discN = kpiById("discount").norm.v;
+  const cNet = ["Оплата", o => o.net == null ? '<span class="muted">ждём</span>' : esc(fMoney2(o.net)), "num"];
+  const salesProblem = o => o.coupon || overDisc(o, discN) || o.tickets > 0;
+  const salesSummary = list => `По купону ${fInt(list.filter(o => o.coupon).length)}, скидка выше ${fPct0(discN)} — ${fInt(list.filter(o => overDisc(o, discN)).length)}, первых заказов ${fInt(list.filter(o => o.first).length)}, с обращениями ${fInt(list.filter(o => o.tickets).length)}`;
+  const drill = kind => {
+    if (!S.drill || !S.drill.startsWith(`sales:${kind}:`)) return "";
+    const i = +S.drill.split(":")[2];
+    if (kind === "channel") { const c = X.channels.find(x => chKey(x) === i); if (!c) return "";
+      const list = InsightData.orders({ ...per, channel: i });
+      return drillPanel("sales", `Заказы канала «${c.name}»`, list, [cDate, cProduct, cNet, cDisc, cFirst, cTickets], { problem: salesProblem, summary: salesSummary(list) }); }
+    const s = X.segments.find(x => x.id === i); if (!s) return "";
+    const list = InsightData.orders({ ...per, occasion: i });
+    return drillPanel("sales", `Заказы клиентов с поводом «${s.name}»`, list, [cDate, cProduct, cChannel, cNet, cDisc, cFirst, cTickets], { problem: salesProblem, summary: salesSummary(list) });
+  };
+  const check = s => s.check == null ? "—" : esc(kpiById("check").f(s.check));
+  return `${screenHead("Продажи и клиент", "Воронка, каналы, клиенты и обращения.", r)}
+  <div class="kpi-row">${(supportOnly ? ["sla", "repeat", "clients", "conversion"] : ["conversion", "clients", "repeat", "check"]).map(id => kpiTileHtml(id, r)).join("")}</div>
+  <div class="duo">
+    <section class="sheet">${secHead("Воронка приложения", "", `<p>Шаг «Оформили заказ» к «Начали проект» — это KPI «Конверсия приложения», норма ${esc(k.normText)}.</p><p>Источники: приложение, ERP, 1С.</p>`)}${funnel}${relNote}</section>
+    <section class="sheet">${secHead("Новые и повторные", "", `<p><b>Отток.</b> Клиенты с заказом с ${fcDay(ch.from)} по ${fcDay(ch.to)}, которые не заказали ни разу до ${fcDay(ch.until)}. Окна по полгода от последнего дня данных, поэтому от выбранного периода отток не зависит.</p><p>Фотокниги покупают к поводу, часть оттока сезонная.</p>`)}
+      ${hbarsHtml([{ label: "Первый заказ", sub: `${fInt(M.fresh.orders)} заказов · чек ${check(M.fresh)}`, v: M.fresh.share, text: pctOrDash(M.fresh.share) },
+        { label: "Повторный заказ", sub: `${fInt(M.back.orders)} заказов · чек ${check(M.back)}`, v: M.back.share, text: pctOrDash(M.back.share), cls: "accent" }], { label: "Доля заказов" })}
+      <div class="stat-line"><span class="lg-label">Отток за полгода</span><span class="kpi-val num">${pctOrDash(ch.rate)}</span>
+        <p class="small muted">${fInt(ch.gone)} из ${fInt(ch.base)} клиентов не вернулись</p></div></section>
+  </div>
+  <section class="sheet">${secHead("Каналы продаж", "", `<p>Нажмите на канал — откроются его заказы.</p><p>Чек — оплаты без НДС на оплаченный заказ. Скидка — к выручке до скидок, норма ≤ ${fPct0(discN)}. В срок — отгружено не позже обещанного дня, норма ≥ 95 %. Первый заказ — доля заказов, с которых клиент начал покупать.</p><p>Канал — из ERP, деньги — из 1С.</p>`)}
+    <div class="table-wrap"><table><thead><tr><th>Канал</th><th class="r">Заказы</th><th class="r">Доля заказов</th><th class="r">Доля выручки</th><th class="r">Средний чек</th><th class="r">Скидка</th><th class="r">Первый заказ</th><th class="r">В срок</th></tr></thead>
+    <tbody>${X.channels.map(chRow).join("")}</tbody></table></div>${drill("channel")}</section>
+  <section class="sheet">${secHead("Сегменты: повод покупки", "", "<p>Повод клиента из CRM. Нажмите на повод — откроются заказы этих клиентов.</p><p>Повторные — доля клиентов с двумя и больше заказами за 12 месяцев.</p>")}
+    <div class="table-wrap"><table><thead><tr><th>Повод</th><th class="r">Клиенты</th><th class="r">Заказы</th><th>Доля выручки</th><th class="r">Средний чек</th><th class="r">Повторные</th></tr></thead>
+    <tbody>${X.segments.map(segRow).join("")}</tbody></table></div>${drill("segment")}</section>
+  <div class="duo">
+    ${weeklyKpiHtml("conversion", "Конверсия по неделям")}
+    <section class="sheet">${secHead("Обращения клиентов", `${fInt(X.tickets)} за период`, `<p>В срок — решено не дольше SLA темы, норма ≥ ${fPct0(slaN)}. Медиана — половина обращений решена быстрее.</p>`)}
+      <div class="table-wrap"><table><thead><tr><th>Тема</th><th class="r">Обращений</th><th class="r">Доля</th><th class="r">В срок</th><th class="r">Медиана</th></tr></thead>
+      <tbody>${X.topics.map(topicRow).join("")}</tbody></table></div></section>
+  </div>`;
+}
+
+/* ---------- Экран: производство и качество ---------- */
+function vProduction() {
+  if (!screenOpen("production")) return deniedScreen("production");
+  const r = homeRange(), [a, b] = scrDays(r), X = InsightData.production(a, b), T = X.total;
+  const ontimeN = kpiById("ontime").norm.v, loadN = kpiById("load").norm.v, downN = kpiById("downtime").norm.v;
+  const devLink = l => l.name === DEMO.rules.ricoh && devVisible(DEMO.deviationsMeta.main) && mainDeviation().triggered ? ` <a class="row-dev" href="#/deviations/${DEMO.deviationsMeta.main}">${DEMO.deviationsMeta.main}</a>` : "";
+  const lineRow = l => `<tr${drillOpen("production", "line", l.id) ? ' class="drilled"' : ""}>${drillCell("production", "line", l.id, l.name, devLink(l))}
+    <td class="r num">${fInt(l.plan)}</td><td class="r num">${fInt(l.ontime)}</td><td class="r num">${l.late ? `<b>${fInt(l.late)}</b>` : "0"}</td><td class="r num">${fInt(l.pending)}</td>
+    <td class="r">${stPill(stMin(l.done, ontimeN), pctOrDash(l.done))}</td><td class="r num">${fInt(l.units)}</td>
+    <td class="r">${stPill(l.load == null ? "none" : l.load >= loadN[0] && l.load <= loadN[1] ? "good" : l.load >= loadN[0] * 0.8 && l.load <= loadN[1] * 1.2 ? "warn" : "bad", pctOrDash(l.load))}</td>
+    <td class="r">${stPill(stMax(l.downtime, downN), `${fHours(l.downtimeH)} · ${pctOrDash(l.downtime)}`)}</td><td class="r num">${l.lead == null ? "—" : fHours(l.lead)}</td></tr>`;
+  const totRow = `<tr class="tot"><th scope="row">Всего</th><td class="r num">${fInt(T.plan)}</td><td class="r num">${fInt(T.ontime)}</td><td class="r num">${fInt(T.late)}</td><td class="r num">${fInt(T.pending)}</td><td class="r">${stPill(stMin(T.done, ontimeN), pctOrDash(T.done))}</td><td class="r num">${fInt(T.units)}</td><td></td><td></td><td></td></tr>`;
+  const qMax = Math.max(1, ...X.queue.map(q => q.n));
+  const queue = hbarsHtml(X.queue.map(q => ({ label: q.name, sub: `${fInt(q.units)} шт.${q.overdue ? `, просрочено: ${q.overdue}` : ""}${q.today ? `, срок сегодня: ${q.today}` : ""}`, v: q.n, text: `${fInt(q.n)} ${plural(q.n, "заказ", "заказа", "заказов")}`, cls: q.overdue ? "bad" : "" })), { max: qMax, label: "Очередь по линиям" });
+  const pMax = Math.max(...X.products.map(p => p.rate || 0), 0.02);
+  /* Меньше SMALL_N изделий — статус не ставим: одна бракованная книга из 30 даёт 3,3 %, это не вывод */
+  const reprint = hbarsHtml(X.products.map((p, i) => { const lim = p.book ? 0.02 : 0.01, few = p.units < SMALL_N;
+    return { label: p.name, drill: drillKey("production", "product", i), sub: `${p.line} · ${fInt(p.defects)} из ${fInt(p.units)} шт.${few ? " · мало данных" : ""}`, v: p.rate, text: pctOrDash(p.rate), cls: few ? "few" : p.rate > lim * 1.2 ? "bad" : p.rate > lim ? "warn" : "" }; }), { max: pMax * 1.1, label: "Брак и перепечатка по продуктам" });
+  /* Провал: линия — заказы с обещанной датой в периоде (как колонка «План»), продукт — заказы с браком по дню отгрузки (как KPI «Брак») */
+  const per = drillPeriod(r);
+  const drill = kind => {
+    if (!S.drill || !S.drill.startsWith(`production:${kind}:`)) return "";
+    const i = +S.drill.split(":")[2];
+    if (kind === "line") {
+      const l = X.lines[i]; if (!l) return "";
+      const list = InsightData.orders({ ...per, by: "promise", line: i });
+      return drillPanel("production", `Заказы линии ${l.name} со сроком в периоде`, list, [cDate, cProduct, ["Смена", o => esc(o.shift)], cTerm, cDefect, cTickets, cStep],
+        { problem: prodProblem, summary: `В срок ${fInt(l.ontime)}, с опозданием ${fInt(l.late)}, ещё в работе ${fInt(l.pending)} · с браком ${fInt(list.filter(o => o.defects).length)} · с обращениями ${fInt(list.filter(o => o.tickets).length)}` });
+    }
+    const p = X.products[i]; if (!p) return "";
+    const list = InsightData.orders({ ...per, by: "ship", product: i, defects: true });
+    return drillPanel("production", `Заказы с браком: ${p.name}`, list, [cDate, ["Линия", o => esc(o.line)], ["Смена", o => esc(o.shift)], cDefect, cTickets, cStep],
+      { problem: o => o.tickets > 0, summary: `${fInt(p.defects)} бракованных из ${fInt(p.units)} изделий, отгруженных за период`, empty: "За период брака по этому продукту нет." });
+  };
+  const caseLink = mainDeviation().triggered && devVisible(DEMO.deviationsMeta.main) ? ` · разбор в <a href="#/deviations/${DEMO.deviationsMeta.main}">${DEMO.deviationsMeta.main}</a>` : "";
+  return `${screenHead("Производство и качество", "План и факт по линиям, очередь и брак.", r)}
+  <div class="kpi-row">${["ontime", "lead", "defect", "load"].map(id => kpiTileHtml(id, r)).join("")}</div>
+  <section class="sheet">${secHead("План и факт отгрузки по линиям", "", `<p>Нажмите на линию — откроются её заказы.</p><p><b>План</b> — заказы с обещанной датой в периоде. <b>Выполнение</b> — доля отгруженных не позже обещанного дня, норма ≥ ${fPct0(ontimeN)}.</p><p><b>Загрузка</b> — выпуск к паспортной мощности, норма ${esc(kpiById("load").normText)}. <b>Простои</b> — к плановым часам линии, норма ${esc(kpiById("downtime").normText)}. <b>Lead time</b> — медиана от оплаты до отгрузки.</p><p>Источник: ERP.</p>`)}
+    <div class="table-wrap"><table><thead><tr><th>Линия</th><th class="r">План, заказов</th><th class="r">В срок</th><th class="r">С опозданием</th><th class="r">Ещё в работе</th><th class="r">Выполнение</th><th class="r">Выпуск, шт.</th><th class="r">Загрузка</th><th class="r">Простои</th><th class="r">Lead time</th></tr></thead>
+    <tbody>${X.lines.map(lineRow).join("")}${totRow}</tbody></table></div>${drill("line")}</section>
+  <div class="duo">
+    ${weeklyKpiHtml("ontime", "Заказы в срок по неделям")}
+    ${defectWeeklyHtml()}
+  </div>
+  <div class="duo">
+    <section class="sheet">${secHead("Очередь заказов", `на конец ${fcDay(X.asOf)}`, `<p>В очереди — заказ принят, но ещё не отгружен.</p><p>Ждут модерацию дольше 2 ч: ${X.modq == null ? "—" : NF1.format(X.modq)} в день (KPI «Очередь модерации»).</p>`)}${queue}</section>
+    <section class="sheet">${secHead("Брак и перепечатка", "", `<p>Бракованные изделия переделываются. Нажмите на продукт — откроются заказы с браком.</p><p>Норма: книги ≤ 2 %, печать ≤ 1 %. Меньше ${SMALL_N} изделий за период — мало данных, статус не ставим.</p><p>Доля себестоимости на переделку: ${X.lines.map(l => `${esc(l.name)} ${pctOrDash(l.reprintShare)}`).join(", ")}.</p>`)}${reprint}${drill("product")}
+      <p class="small muted">На переделку ${fInt(T.defects)} из ${fInt(T.units)} изделий (${pctOrDash(T.defectRate)})${caseLink}</p></section>
+  </div>`;
+}
+
+/* ---------- Экран: финансы и люди ---------- */
+function vFinance() {
+  if (!screenOpen("finance")) return deniedScreen("finance");
+  const r = homeRange(), [a, b] = scrDays(r), canFin = isCeo() || S.dept === "fin", canHr = isCeo() || S.dept === "hr";
+  /* Руководителю — вкладки «Финансы | Люди»: один экран, как в ТЗ, но вдвое короче. Директорам подразделений вкладки не нужны */
+  const tab = canFin && canHr ? (S.finTab === "hr" ? "hr" : "fin") : canFin ? "fin" : "hr", showFin = tab === "fin", showHr = tab === "hr";
+  const tabs = canFin && canHr ? `<div class="seg" role="tablist" aria-label="Раздел">${[["fin", "Финансы"], ["hr", "Люди"]].map(([v, t]) => `<button role="tab" data-act="finTab" data-arg="${v}" aria-selected="${tab === v}" aria-pressed="${tab === v}">${t}</button>`).join("")}</div>` : "";
+  let html = screenHead("Финансы и люди", showFin ? "План и факт по месяцам и продуктам, движение денег." : "Штат, вакансии и отсутствие по подразделениям.", r, showFin ? "в % к плану, без сумм" : "", tabs);
+  if (showFin) {
+    const months = InsightData.financeMonthly().slice(-7), F = InsightData.finance(a, b), marginOpen = kpiOpen(kpiById("margin"));
+    const turnN = kpiById("turnover").norm.v, discN = kpiById("discount").norm.v, marN = kpiById("margin").norm.v;
+    const head = months.map(m => `<th class="r">${MONTHS[+m.key.slice(5, 7) - 1]}${m.partial ? "*" : ""}</th>`).join("");
+    const rowM = (label, f, st) => `<tr><th scope="row">${label}</th>${months.map(m => `<td class="r">${st ? stPill(st(f(m)), pctOrDash(f(m))) : `<span class="num">${pctOrDash(f(m))}</span>`}</td>`).join("")}</tr>`;
+    const prodRow = (p, i) => `<tr${drillOpen("finance", "product", i) ? ' class="drilled"' : ""}>${drillCell("finance", "product", i, p.name)}<td class="r num">${pctOrDash(p.netShare)}</td><td class="r">${stPill(stMin(p.toPlan, turnN), pctOrDash(p.toPlan))}</td><td class="r">${stPill(stMax(p.discount, discN), pctOrDash(p.discount))}</td>${marginOpen ? `<td class="r">${stPill(stMin(p.margin, marN), pctOrDash(p.margin))}</td>` : ""}</tr>`;
+    const lastFull = months.filter(m => !m.partial).pop();
+    /* Провал из продукта: заказы периода со скидкой и купоном, без сумм в рублях (финансы без абсолютных сумм) */
+    const per = drillPeriod(r);
+    const drill = () => {
+      if (!S.drill || !S.drill.startsWith("finance:product:")) return "";
+      const i = +S.drill.split(":")[2], p = F.products[i]; if (!p) return "";
+      const list = InsightData.orders({ ...per, product: i }), paid = list.filter(o => o.paid);
+      const avg = paid.length ? paid.reduce((s, o) => s + o.discountRate, 0) / paid.length : null;
+      return drillPanel("finance", `Заказы: ${p.name}`, list, [cDate, cChannel, cDisc, cFirst, ["Оплата", o => o.paid ? "есть" : '<b class="late-t">ждём</b>']],
+        { problem: o => !o.paid || o.coupon || overDisc(o, discN),
+          summary: `По купону ${fInt(list.filter(o => o.coupon).length)} из ${fInt(list.length)}, скидка выше ${fPct0(discN)} — ${fInt(list.filter(o => overDisc(o, discN)).length)}, средняя скидка заказа ${avg == null ? "—" : fPct(avg)}${list.some(o => !o.paid) ? `, без оплаты ${fInt(list.filter(o => !o.paid).length)}` : ""}` });
+    };
+    /* Четвёртая плитка — продукт, который сильнее всего отстаёт от плана. Средний чек в рублях здесь не показываем: финансы без абсолютных сумм */
+    const worst = F.products.filter(p => p.toPlan != null).reduce((x, y) => (y.toPlan < x.toPlan ? y : x));
+    const wst = stMin(worst.toPlan, turnN);
+    const worstTile = `<div class="kpi-tile kt st-${wst}"><div class="kt-head"><span class="lg-label">Сильнее всего отстаёт</span></div><span class="kpi-val num">${pctOrDash(worst.toPlan)}</span>
+      <div class="kt-foot"><span class="kpi-norm st-${wst}"><i class="st-dot" aria-hidden="true"></i><span>${worst.toPlan >= turnN ? "все в плане" : "к плану"}</span></span><span class="delta flat">${esc(worst.name)}</span></div></div>`;
+    html += `<div class="kpi-row">${["turnover", "margin", "discount"].map(id => kpiTileHtml(id, r)).join("")}${worstTile}</div>
+    <section class="sheet">${secHead("БДР: план и факт по месяцам", "* месяц неполный", `<p>Выручка — оплаты без НДС по дате оплаты, план — план выручки (1С).</p><p>Динамика — выручка в день к прошлому месяцу, так неполный месяц сравнивается честно.</p><p>Нормы как у KPI: выручка ≥ 100 % плана, скидка ≤ ${fPct0(discN)}${marginOpen ? `, маржа ≥ ${fPct0(marN)} (себестоимость — остальное до 100 %)` : ""}. ${marginOpen ? "" : "Маржа закрыта: видят финансы и директор."}</p><p>Красным — хуже нормы.</p>`)}
+      <div class="table-wrap"><table><thead><tr><th>Статья</th>${head}</tr></thead><tbody>
+        ${rowM("Выручка, % к плану", m => m.toPlan, v => stMin(v, turnN))}
+        ${rowM("Скидки, % от выручки до скидок", m => m.discount, v => stMax(v, discN))}
+        ${rowM("Выручка в день, % к прошлому месяцу", m => m.index)}
+        ${marginOpen ? rowM("Валовая маржа", m => m.margin, v => stMin(v, marN)) : ""}
+      </tbody></table></div></section>
+    <div class="duo">
+      <section class="sheet">${secHead("По продуктам за период", "", "<p>Нажмите на продукт — откроются его заказы: купоны, скидки, оплата.</p>")}
+        <div class="table-wrap"><table><thead><tr><th>Продукт</th><th class="r">Доля выручки</th><th class="r">К плану</th><th class="r">Скидка</th>${marginOpen ? '<th class="r">Маржа</th>' : ""}</tr></thead>
+        <tbody>${F.products.map((p, i) => prodRow(p, i)).join("")}<tr class="tot"><th scope="row">Всего</th><td class="r num">100 %</td><td class="r">${stPill(stMin(F.all.toPlan, turnN), pctOrDash(F.all.toPlan))}</td><td class="r">${stPill(stMax(F.all.discount, discN), pctOrDash(F.all.discount))}</td>${marginOpen ? `<td class="r">${stPill(stMin(F.all.margin, marN), pctOrDash(F.all.margin))}</td>` : ""}</tr></tbody></table></div>${drill()}</section>
+      <section class="sheet">${secHead("БДДС: движение денег", "", "<p>В данных оплата приходит в день заказа, поэтому поступления совпадают с выручкой в БДР и по месяцам не повторяются.</p><p>Выплат поставщикам и зарплат в макете нет: 1С отдаёт только оплаты клиентов, план и себестоимость. Полный БДДС появится с выгрузкой платежей из 1С.</p><p>Заказы без оплаты — те же, что в «Качестве данных», проверка «Связность».</p>")}
+        <div class="stat-line first"><span class="lg-label">Поступления${lastFull ? `, ${RU_MONTHS[+lastFull.key.slice(5, 7) - 1].toLowerCase()}` : ""}</span><span class="kpi-val num">${lastFull ? pctOrDash(lastFull.toPlan) : "—"}</span><p class="small muted">плана поступлений</p></div>
+        <div class="stat-line"><span class="lg-label">Ожидаются поступления, заказов</span><span class="kpi-val num">${fInt(F.unpaid)}</span><p class="small muted">${F.unpaid ? `оплаты в 1С ещё нет · ${pctOrDash(F.unpaidShare)} выручки этих заказов` : "все заказы периода оплачены"}</p></div>
+        <p class="small muted">Выплаты: нет данных в 1С макета.</p></section>
+    </div>`;
+  }
+  if (showHr) {
+    const own = kctx().hrDepts, P = InsightData.people(a, b, own), absOpen = kpiOpen(kpiById("absence")), stN = kpiById("staffing").norm.v, abN = kpiById("absence").norm.v;
+    const row = x => `<tr><th scope="row">${esc(x.name)}</th><td class="r num">${x.perDay == null ? "—" : NF0.format(x.perDay)}</td><td class="r">${stPill(stMin(x.staffing, stN), pctOrDash(x.staffing))}</td><td class="r num">${x.night == null ? "—" : pctOrDash(x.night)}</td>${absOpen ? `<td class="r">${stPill(stMax(x.absence, abN), pctOrDash(x.absence))}</td>` : ""}<td class="r num">${fInt(x.vacancies)}</td><td class="r num">${fInt(x.now)}</td><td class="r num">${x.peak ? fInt(x.peak) : "—"}</td><td class="r num">${x.peak > x.now ? "+" + fInt(x.peak - x.now) : "—"}</td></tr>`;
+    const T = P.total, dev = DEMO.deviationsMeta.staffing, devOn = staffingDeviation().triggered && devVisible(dev);
+    html += `<div class="kpi-row">${["staffing", "absence"].map(id => kpiTileHtml(id, r)).join("")}
+      <div class="kpi-tile kt"><div class="kt-head"><span class="lg-label">Вакансии сейчас</span></div><span class="kpi-val num">${fInt(T.vacancies)}</span><span class="delta flat">на ${fcDay(InsightData.isoOf(b))}</span></div>
+      <div class="kpi-tile kt"><div class="kt-head"><span class="lg-label">Нужно к сезону</span></div><span class="kpi-val num">+${fInt(Math.max(0, T.peak - T.now))}</span><span class="delta flat">${fInt(T.now)} → ${fInt(T.peak)} в день</span></div></div>
+    <section class="sheet">${secHead("Штат по подразделениям", devOn ? `просадку ночных смен разбирает <a href="#/deviations/${dev}">${dev}</a>` : "", `<p>Без ФИО, только численность${own ? "; только свои смены: печать, переплёт, модерация" : ""}.</p><p><b>Обеспеченность</b> — вышли на смену к требуемым по плану, норма ≥ ${fPct0(stN)}. <b>Отсутствие</b> — к поставленным в смену, норма ≤ ${fPct0(abN)}.</p><p><b>План в сезон</b> — наибольшая дневная потребность в прошлом сезоне (${P.season || "нет данных"}). <b>Добрать</b> — разница с планом сейчас.</p><p>Красным — хуже нормы.</p>`)}
+      <div class="table-wrap"><table><thead><tr><th>Подразделение</th><th class="r">Нужно в день</th><th class="r">Обеспеченность</th><th class="r">Ночью</th>${absOpen ? '<th class="r">Отсутствие</th>' : ""}<th class="r">Вакансии</th><th class="r">План сейчас</th><th class="r">План в сезон</th><th class="r">Добрать</th></tr></thead>
+      <tbody>${P.rows.map(row).join("")}<tr class="tot"><th scope="row">Всего</th><td></td><td class="r">${stPill(stMin(T.staffing, stN), pctOrDash(T.staffing))}</td><td class="r num">${pctOrDash(T.night)}</td>${absOpen ? `<td class="r">${stPill(stMax(T.absence, abN), pctOrDash(T.absence))}</td>` : ""}<td class="r num">${fInt(T.vacancies)}</td><td class="r num">${fInt(T.now)}</td><td class="r num">${fInt(T.peak)}</td><td class="r num">+${fInt(Math.max(0, T.peak - T.now))}</td></tr></tbody></table></div>
+</section>
+    ${weeklyKpiHtml("staffing", "Обеспеченность по неделям")}`;
+  }
+  return html;
+}
+
 /* ---------- Маршруты ---------- */
 const ICON_PATHS = {
+  sales: '<path d="M4 19.5h16"/><path d="M6.5 16V11M11 16V7M15.5 16v-5.5M20 4.5l-5.200 4.200-3.300-2.400L4 11"/>',
+  production: '<path d="M3.5 20.5V10l5 3V10l5 3V6.500l7 3.500v10.500z"/><path d="M8 17h1.500M12 17h1.500M16 17h1.500"/>',
+  finance: '<rect x="3.5" y="6" width="17" height="13" rx="2.500"/><path d="M3.500 10h17M16.500 14.500h.01"/><path d="M7 6V4.500h10V6"/>',
   overview: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   deviations: '<path d="M12 4 3 20h18z"/><path d="M12 10v4.5M12 17.5v.01"/>',
   assistant: '<path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/>',
@@ -1489,6 +1805,11 @@ const ICON_PATHS = {
 const icon = name => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
 const ROUTES = [
   { path: "overview", label: "Главная", roles: ["ceo", "head", "manager"], view: vOverview },
+  /* Экраны подразделений (ТЗ 5.3). Руководитель подразделения видит только свой (depts) */
+  /* short — подпись в меню, чтобы пункт был в одну строку; полное название — в заголовке экрана, вкладке браузера и кнопке «назад» */
+  { path: "sales", label: "Продажи и клиент", short: "Продажи", roles: ["ceo", "head"], depts: SCREEN_DEPTS.sales, view: companyWide(vSales) },
+  { path: "production", label: "Производство и качество", short: "Производство", roles: ["ceo", "head"], depts: SCREEN_DEPTS.production, view: companyWide(vProduction) },
+  { path: "finance", label: "Финансы и люди", roles: ["ceo", "head"], depts: SCREEN_DEPTS.finance, view: companyWide(vFinance) },
   { path: "tasks", label: "Мои задачи", roles: ["manager"], view: vTasks, count: "mine" },
   { path: "deviations", label: "Отклонения", roles: ["ceo", "head", "manager"], view: vDeviations, count: true },
   { path: "assistant", label: "Ассистент", roles: ["ceo", "head", "manager"], view: vAssistant },
@@ -1552,9 +1873,9 @@ document.addEventListener("keydown", ev => { if (ev.key === "Escape" && tipFor) 
 
 function renderNav(cur) {
   closeNavTip();
-  const allowed = ROUTES.filter(r => r.roles.includes(S.role) && !r.hidden);
+  const allowed = ROUTES.filter(r => r.roles.includes(S.role) && !r.hidden && (!r.depts || S.role !== "head" || r.depts.includes(S.dept)));
   const countOf = r => r.count === "meet" ? (isCeo() ? S.meetings.filter(needsOut).length : 0) : r.count === "mine" ? myOpen().length : r.count && isCeo() ? deviationRows().filter(x => ["decide", "review"].includes(caseState(x.id).group)).length : 0;
-  const item = r => { const n = countOf(r); return `<a href="#/${r.path}"${r.path === cur ? ' aria-current="page"' : ""}>${icon(r.path)}<span>${esc(r.label)}</span>${n ? `<span class="nav-count" aria-label="Нужно ваше внимание: ${n}">${n}</span>` : ""}</a>`; };
+  const item = r => { const n = countOf(r); return `<a href="#/${r.path}"${r.path === cur ? ' aria-current="page"' : ""}>${icon(r.path)}<span>${esc(r.short || r.label)}</span>${n ? `<span class="nav-count" aria-label="Нужно ваше внимание: ${n}">${n}</span>` : ""}</a>`; };
   const risky = mainDeviation().triggered && S.status !== "done";
   document.getElementById("nav").innerHTML = `<div class="nav-main">${allowed.filter(r => !r.sep).map(item).join("")}</div>
     <div class="nav-sec nav-integrations"><p class="nav-h">Интеграции</p>${DEMO.integrations.map(([g, t], i) => `<button class="nav-sub" data-act="integration" data-tip="${i}"><span class="int-ico" aria-hidden="true">${icon(g)}</span>${esc(t)}</button>`).join("")}<button class="nav-sub" data-act="integration" data-tip="add"><span class="int-add" aria-hidden="true">+</span>Добавить</button></div>
@@ -1580,15 +1901,17 @@ function renderTop() {
   const next = pickStaff(), nn = nOpen(next);
   const staffItem = `<button data-act="switchTo" data-arg="staff" aria-pressed="${S.role === "manager"}"><span class="sw-two"><span class="sw-name">Сотрудник</span><span class="sw-sub">${esc(S.role === "manager" ? S.me : next)}</span></span>${nn && S.role !== "manager" ? `<span class="sw-n">${tasksWord(nn)}</span>` : ""}</button>`;
   const staff = `<details class="sw-more"><summary>Выбрать сотрудника</summary>${DEMO.people.map(p => person("p:" + p, p, S.role === "manager" && S.me === p, tasksWord(nOpen(p)))).join("")}</details>`;
+  /* Смена темы — пункт этого меню, а не отдельная кнопка в шапке. Есть только там, где подключена светлая тема (glass.html ставит data-theme) */
+  const theme = document.documentElement.dataset.theme;
+  const themeItem = theme ? `<button class="theme-item" data-act="toggleTheme">${themeItemHtml(theme)}</button>` : "";
   const switcher = `<details class="menu who-menu"><summary class="avatar who" aria-label="Вошли как ${esc(who)}. Сменить пользователя"><span class="who-ico" aria-hidden="true">${esc(who[0])}</span><span class="who-name">${esc(who)}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></summary><div class="menu-pop right sw">
     <p class="menu-h">Войти как</p>${person("ceo", "Руководитель", isCeo())}<details class="sw-more"${S.role === "head" ? " open" : ""}><summary>Руководитель подразделения</summary>${InsightData.depts().map(d => person("h:" + d.id, d.head, S.role === "head" && S.dept === d.id, d.name)).join("")}</details>${staffItem}${person("admin", "Администратор", S.role === "admin")}${staff}
-    <hr><button data-act="demoRestart">Начать демо заново</button><button data-act="toggleBar">Настройки демо</button></div></details>`;
-  /* Переключатель темы есть только там, где подключена светлая тема (glass.html ставит data-theme) */
-  const theme = document.documentElement.dataset.theme;
-  const themeBtn = theme ? `<button class="round" data-act="toggleTheme" aria-label="${theme === "light" ? "Включить тёмную тему" : "Включить светлую тему"}">${icon(theme === "light" ? "moon" : "sun")}</button>` : "";
-  document.getElementById("top").innerHTML = `${themeBtn}${biz ? `<a class="round" href="#/assistant" aria-label="Спросить ассистента">${icon("search")}</a>
+    <hr>${themeItem}<button data-act="demoRestart">Начать демо заново</button><button data-act="toggleBar">Настройки демо</button></div></details>`;
+  document.getElementById("top").innerHTML = `${biz ? `<a class="round" href="#/assistant" aria-label="Спросить ассистента">${icon("search")}</a>
     ${bell}` : ""}${switcher}`;
 }
+/* Пункт меню называет тему, на которую переключит: в тёмной — «Светлая тема», в светлой — «Тёмная тема» */
+const themeItemHtml = theme => `${icon(theme === "light" ? "moon" : "sun")}<span>${theme === "light" ? "Тёмная тема" : "Светлая тема"}</span>`;
 function skeleton() { return `<div class="skel" role="status" aria-label="Загрузка"><i style="width:30%"></i><i class="tall"></i><i></i><i style="width:70%"></i></div>`; }
 function render(focusKey) {
   const { path, id } = parseHash();
@@ -1673,9 +1996,9 @@ const ACT = {
     const apply = () => {
       root.dataset.theme = next;
       try { localStorage.setItem("insight-theme", next); } catch (e) { /* без хранилища тема просто не запомнится */ }
-      /* Кнопку обновляем на месте, без перерисовки панели: фокус остаётся как был, и после клика мышью нет лишней обводки */
+      /* Пункт меню обновляем на месте, без перерисовки панели: меню остаётся открытым, фокус — на пункте */
       const b = document.querySelector('[data-act="toggleTheme"]');
-      if (b) { b.setAttribute("aria-label", next === "light" ? "Включить тёмную тему" : "Включить светлую тему"); b.innerHTML = icon(next === "light" ? "moon" : "sun"); }
+      if (b) b.innerHTML = themeItemHtml(next);
     };
     announce(next === "light" ? "Светлая тема" : "Тёмная тема");
     /* Новая тема раскрывается кругом из кнопки. Браузер анимирует два снимка страницы, а не каждое стекло с размытием,
@@ -1697,6 +2020,9 @@ const ACT = {
   fDept: a => { S.fDept = a === "all" ? null : a; announce("Подразделение: " + (S.fDept ? deptOf(S.fDept).name : "все")); },
   fReset: () => { S.fDept = S.role === "head" ? S.dept : null; S.fProduct = null; S.period = 4; announce("Фильтры сброшены"); },
   basisAll: a => { S.basisAll[a] = !S.basisAll[a]; },
+  drill: a => { S.drill = S.drill === a ? null : a; S.drillAll = false; return `focus:[data-act="drill"][data-arg="${a}"]`; },
+  drillAll: () => { S.drillAll = !S.drillAll; return 'focus:[data-act="drillAll"]'; },
+  finTab: a => { S.finTab = a === "hr" ? "hr" : "fin"; S.drill = null; announce(S.finTab === "hr" ? "Раздел: люди" : "Раздел: финансы"); return `focus:[data-act="finTab"][data-arg="${S.finTab}"]`; },
   fcHorizon: a => { S.fcHorizon = a === "season" ? "season" : 4; announce(S.fcHorizon === "season" ? "Прогноз на сезон" : "Прогноз на 4 недели"); },
   fcGrowth: a => { S.fcGrowth = +a; announce("Рост спроса: " + (S.fcGrowth ? "+" + Math.round(S.fcGrowth * 100) + " %" : "0 %")); },
   fProduct: a => { S.fProduct = a === "all" ? null : +a; announce("Продукт: " + (S.fProduct == null ? "все" : InsightData.products()[S.fProduct])); },
@@ -2017,7 +2343,28 @@ const ACT = {
     announce("Атака не сработала");
   },
 };
-document.addEventListener("click", ev => { document.querySelectorAll("details.menu[open]").forEach(m => { if (!m.contains(ev.target)) m.open = false; }); });
+document.addEventListener("click", ev => { document.querySelectorAll("details.menu[open], details.kpi-how.ico[open]").forEach(m => { if (!m.contains(ev.target) && !(infoFloat && infoFloat.contains(ev.target))) m.open = false; }); });
+/* Подсказка ⓘ открывается поверх страницы: внутри таблицы её обрезала бы прокрутка, а стекло и анимации виджетов
+   (transform, backdrop-filter) сбивают position: fixed. Поэтому видимая копия живёт в body, позиция — от кнопки с учётом краёв окна.
+   Текст внутри details остаётся для экранных читалок (визуально скрыт) */
+let infoFloat = null;
+const dropFloat = owner => { if (infoFloat && (!owner || infoFloat.owner === owner)) { infoFloat.remove(); infoFloat = null; } };
+const closeInfo = () => { document.querySelectorAll("details.kpi-how.ico[open]").forEach(d => { d.open = false; }); dropFloat(); };
+document.addEventListener("toggle", ev => {
+  const d = ev.target; if (!(d instanceof HTMLDetailsElement) || !d.matches(".kpi-how.ico")) return;
+  if (!d.open) { dropFloat(d); return; }
+  document.querySelectorAll("details.kpi-how.ico[open]").forEach(x => { if (x !== d) x.open = false; });
+  dropFloat();
+  const r = d.querySelector("summary").getBoundingClientRect(), w = Math.min(320, innerWidth - 24);
+  const f = Object.assign(document.createElement("div"), { className: "how-pop info-float", innerHTML: d.querySelector(".how-pop").innerHTML });
+  f.setAttribute("aria-hidden", "true"); f.owner = d; f.style.width = w + "px";
+  document.body.append(f); infoFloat = f;
+  const h = f.offsetHeight, x = Math.max(12, Math.min(innerWidth - w - 12, r.right - w)), y = r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+  f.style.left = x + "px"; f.style.top = y + "px";
+}, true);
+document.addEventListener("scroll", ev => { if (!(ev.target instanceof Element && ev.target.closest(".how-pop"))) closeInfo(); }, true);
+window.addEventListener("resize", closeInfo);
+document.addEventListener("keydown", ev => { if (ev.key === "Escape" && document.querySelector("details.kpi-how.ico[open]")) { const d = document.querySelector("details.kpi-how.ico[open]"); d.open = false; d.querySelector("summary").focus(); } });
 const FLIP_ACTS = ["wSize", "wAdd", "wHide", "layoutReset"];
 const CEO_ONLY = ["meetNew", "meetJoin", "mPerson", "mDev", "mTopicAdd", "mTopicDel", "mSave", "mEditOpen", "mEditCancel", "mCancel", "mOutcomes", "ocCancel", "ocState", "ocTaskAdd", "ocTaskDel", "recSample", "recParse", "ocSave", "mUndo", "decide", "decideCancel", "backToWork", "undoDecision", "remind", "toCheck", "rework", "accept", "returnOpen", "returnSend", "extendOk", "extendNo", "answer", "taskEdit", "taskSave", "taskRemove", "addTaskOpen", "addTaskSave", "undoAssign", "formPeriod", "extendWatch", "watchKeep"];
 /* После приёмки последней задачи руководителю здесь делать нечего: возвращаем в список, дело уходит в наблюдение */
